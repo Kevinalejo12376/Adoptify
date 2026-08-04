@@ -15,11 +15,20 @@ from app.core.security import get_current_user
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import registrar_auditoria, crear_notificacion
 from app.models.usuario import Usuario
-from app.models.foro import ForoPost
+from app.models.foro import ForoPost, ForoPostImagen
 from app.models.interaccion import ForoComentario, ForoReaccion, ForoComentarioLike, ForoGuardado
 from app.models.catalogos import ForoCategoria, TipoPostForo, EstadoPostForo, TipoReaccion
+from app.services.cloudinary_service import (
+    eliminar_imagen_temporal,
+)
 
 router = APIRouter()
+
+
+class ImagenPost(BaseModel):
+    """Imagen YA subida a Cloudinary (solo se guarda la secure_url en la BD)."""
+    url: str
+    public_id: Optional[str] = None
 
 
 class PostCreate(BaseModel):
@@ -28,6 +37,10 @@ class PostCreate(BaseModel):
     categoria: Optional[str] = None   # codigo de foro_categorias
     tipo: Optional[str] = None        # codigo de tipos_post_foro
     tags: Optional[str] = None
+    # Imágenes YA subidas a Cloudinary (vía /api/upload). Solo se almacena la url.
+    imagenes: List[ImagenPost] = []
+    # IDs de imágenes existentes que el usuario desea eliminar (solo edición).
+    imagenes_eliminar: List[int] = []
 
 
 class ComentarioCreate(BaseModel):
@@ -76,6 +89,8 @@ def _serialize_post(p: ForoPost, db: Session, incluir_comentarios: bool = False)
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
         "reacciones": _reacciones_de(db, p.id),
         "comentarios_count": n_com,
+        # Solo se exponen las secure_url (y su id) almacenadas en la BD.
+        "imagenes": [{"id": img.id, "url": img.url} for img in (p.imagenes or [])],
         **_autor_info(p.autor),
     }
     if incluir_comentarios:
@@ -154,7 +169,19 @@ def crear_post(payload: PostCreate, current_user: Usuario = Depends(get_current_
         tags=payload.tags,
     )
     db.add(post)
+    db.flush()  # obtiene post.id sin commit
+
+    # Imágenes YA subidas a Cloudinary vía /api/upload (tipo 'foro').
+    # Aquí solo se guarda la secure_url en la base de datos.
+    for img in (payload.imagenes or []):
+        db.add(ForoPostImagen(
+            post_id=post.id,
+            url=img.url,
+            public_id=img.public_id or "",
+            etiqueta="publicacion",
+        ))
     db.commit()
+
     db.refresh(post)
     return _serialize_post(post, db)
 
@@ -260,6 +287,13 @@ def eliminar_post(post_id: int, current_user: Usuario = Depends(get_current_user
         ).delete(synchronize_session=False)
     db.query(ForoComentario).filter(ForoComentario.post_id == post_id).delete(synchronize_session=False)
     db.query(ForoReaccion).filter(ForoReaccion.post_id == post_id).delete(synchronize_session=False)
+
+    # Elimina las imágenes de Cloudinary antes de borrar el post.
+    imgs = db.query(ForoPostImagen).filter(ForoPostImagen.post_id == post_id).all()
+    for img in imgs:
+        eliminar_imagen_temporal(img.public_id)
+    db.query(ForoPostImagen).filter(ForoPostImagen.post_id == post_id).delete(synchronize_session=False)
+
     db.delete(post)
     db.commit()
     return {"ok": True}
@@ -308,7 +342,33 @@ def editar_post(post_id: int, payload: PostCreate, current_user: Usuario = Depen
     if payload.tipo:
         post.tipo_id = id_por_codigo(db, TipoPostForo, payload.tipo)
     post.tags = payload.tags
+
+    # --- Gestión de imágenes ---
+    # 1. Eliminar imágenes marcadas por el usuario (Cloudinary + BD).
+    if payload.imagenes_eliminar:
+        imgs_a_borrar = (
+            db.query(ForoPostImagen)
+            .filter(
+                ForoPostImagen.post_id == post.id,
+                ForoPostImagen.id.in_(payload.imagenes_eliminar),
+            )
+            .all()
+        )
+        for img in imgs_a_borrar:
+            eliminar_imagen_temporal(img.public_id)  # borra de Cloudinary
+            db.delete(img)
+
+    # 2. Agregar imágenes NUEVAS (ya subidas a Cloudinary vía /api/upload).
+    #    Solo se guarda la secure_url en la base de datos.
+    for img in (payload.imagenes or []):
+        db.add(ForoPostImagen(
+            post_id=post.id,
+            url=img.url,
+            public_id=img.public_id or "",
+            etiqueta="publicacion",
+        ))
     db.commit()
+
     db.refresh(post)
     return _serialize_post(post, db)
 

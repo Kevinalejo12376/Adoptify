@@ -1,14 +1,14 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
-  ArrowLeft, Save, X, Package, Edit3, Upload, Trash2,
+  ArrowLeft, Save, X, Package, Edit3,
   DollarSign, ChevronDown, Info, Tag, AlertCircle,
-  Shirt, Bone, Stethoscope, Droplets, Dog, Scissors,
-  ArrowUp, ArrowDown, Camera, Sparkles
+  Shirt, Bone, Stethoscope, Droplets, Dog, Scissors, Sparkles
 } from "lucide-react";
 import { categoryIcons, categoryColors } from "../../data/products";
 import { actualizarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
+import ImageUploader from "../../components/ImageUploader";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -34,55 +34,6 @@ const categoryFields = {
   Higiene: { sizes: true, material: false, colors: false, sizeOptions: ["250ml", "500ml", "1L"], label: "Producto de higiene" },
 };
 
-const ImageUploadSection = ({ images, onUpload, onRemove, onMove, label }) => {
-  const inputRef = useRef(null);
-  const count = images?.length || 0;
-  const remaining = MAX_IMAGES - count;
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-        {label} ({count}/{MAX_IMAGES})
-      </label>
-      <div className="grid grid-cols-5 gap-2">
-        {(images || []).map((img, index) => (
-          <div key={img.id} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border">
-            <img src={img.src} alt={`Imagen ${index + 1}`} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-              <button type="button" onClick={() => onRemove(img.id)}
-                className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors" title="Eliminar">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-              {index > 0 && (
-                <button type="button" onClick={() => onMove(index, -1)}
-                  className="p-1.5 bg-white/90 text-gray-700 rounded-lg hover:bg-white transition-colors" title="Mover izquierda">
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {index < count - 1 && (
-                <button type="button" onClick={() => onMove(index, 1)}
-                  className="p-1.5 bg-white/90 text-gray-700 rounded-lg hover:bg-white transition-colors" title="Mover derecha">
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-            <span className="absolute bottom-1 right-1 text-[10px] font-medium bg-black/50 text-white px-1.5 py-0.5 rounded-md">
-              {index + 1}
-            </span>
-          </div>
-        ))}
-        {remaining > 0 && (
-          <button type="button" onClick={() => inputRef.current?.click()}
-            className="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-rose-400 dark:hover:border-rose-500 flex flex-col items-center justify-center gap-1 transition-all hover:bg-rose-50/50 dark:hover:bg-rose-500/5">
-            <Upload className="w-5 h-5 text-gray-400" />
-            <span className="text-[10px] text-gray-400 font-medium">{remaining}</span>
-          </button>
-        )}
-      </div>
-      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} />
-    </div>
-  );
-};
 
 const CategorySpecificFields = ({ data, setData, category }) => {
   const fields = categoryFields[category];
@@ -181,32 +132,9 @@ export default function ShelterEditProduct() {
     );
   }
 
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const remaining = MAX_IMAGES - (productData.images?.length || 0);
-    const toAdd = files.slice(0, remaining);
-    toAdd.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const newImg = { id: Date.now() + Math.random(), src: ev.target.result, file, label: "" };
-        setProductData(prev => ({ ...prev, images: [...(prev.images || []), newImg] }));
-        setHasChanges(true);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeImage = (imgId) => {
-    setProductData(prev => ({ ...prev, images: (prev.images || []).filter(img => img.id !== imgId) }));
-    setHasChanges(true);
-  };
-
-  const moveImage = (index, direction) => {
-    const imgs = [...(productData.images || [])];
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= imgs.length) return;
-    [imgs[index], imgs[newIndex]] = [imgs[newIndex], imgs[index]];
-    setProductData(prev => ({ ...prev, images: imgs }));
+  // Sube las imágenes a Cloudinary con el flujo unificado y guarda su URL.
+  const handleImagesChange = (newImages) => {
+    setProductData(prev => ({ ...prev, images: newImages }));
     setHasChanges(true);
   };
 
@@ -352,14 +280,15 @@ export default function ShelterEditProduct() {
             </div>
           </FormSection>
 
-          {/* Images */}
+          {/* Images (Cloudinary unificado) */}
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border p-5">
-            <ImageUploadSection
-              images={productData.images}
-              onUpload={handleImageUpload}
-              onRemove={removeImage}
-              onMove={moveImage}
-              label="Imágenes del Producto"
+            <ImageUploader
+              tipo="producto"
+              multiple
+              maxFiles={MAX_IMAGES}
+              label={`Imágenes del Producto (Máx. ${MAX_IMAGES})`}
+              value={productData.images || []}
+              onChange={handleImagesChange}
             />
           </div>
 

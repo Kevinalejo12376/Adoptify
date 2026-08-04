@@ -61,12 +61,12 @@ const ImageUploadSection = ({ images, onUpload, onRemove, label = "Fotos" }) => 
 };
 
 const FormSection = ({ icon: Icon, title, children, color = "text-rose-500" }) => (
-  <div className="col-span-3">
+  <div className="sm:col-span-3">
     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100 dark:border-dark-border">
       <Icon className={`w-4 h-4 ${color}`} />
       <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{title}</span>
     </div>
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {children}
     </div>
   </div>
@@ -107,7 +107,7 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-3 gap-x-4 gap-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
         <FormSection icon={Info} title="Información Básica" color="text-blue-500">
           <FormField label="Nombre" span="col-span-3">
             <input type="text" required value={petData.name} onChange={(e) => setPetData({...petData, name: e.target.value})}

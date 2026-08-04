@@ -412,7 +412,7 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
         )}
 
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Nombre *</label>
               <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className={inputClass} placeholder="Ej: Ana" />
@@ -435,7 +435,7 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono</label>
               <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} className={inputClass} placeholder="+57 300 123 4567" />

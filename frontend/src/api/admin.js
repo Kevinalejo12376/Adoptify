@@ -1,4 +1,4 @@
-nito // Llamadas al panel de administracion (requieren token de admin).
+// Llamadas al panel de administracion (requieren token de admin).
 import { apiFetch } from "./client";
 
 const base = "/api/admin";
