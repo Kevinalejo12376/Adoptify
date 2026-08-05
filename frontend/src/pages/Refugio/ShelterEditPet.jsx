@@ -1,50 +1,11 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
-  ArrowLeft, Save, X, PawPrint, Info, Tag, Heart, Syringe,
-  Edit3, Upload, Trash2, CheckCircle, Camera, ChevronDown,
-  AlertCircle, Sparkles
+  ArrowLeft, Save, X, Info, Tag, Heart, Syringe,
+  Edit3, ChevronDown, AlertCircle, Sparkles
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
-
-const ImageUploadSection = ({ images, onUpload, onRemove, label = "Fotos" }) => {
-  const inputRef = useRef(null);
-  const count = images?.length || 0;
-  const remaining = 3 - count;
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-        <Camera className="w-4 h-4 text-rose-500" />
-        {label} <span className="text-xs text-gray-400">({count}/3)</span>
-      </label>
-      <div className="flex gap-2 flex-wrap">
-        {(images || []).map((img, index) => (
-          <div key={img.id} className="relative group w-24 h-24 rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border flex-shrink-0">
-            <img src={img.src} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-              <button type="button" onClick={() => onRemove(img.id)}
-                className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-            <span className="absolute bottom-1 right-1 text-[10px] font-medium bg-black/50 text-white px-1.5 py-0.5 rounded">
-              {index + 1}
-            </span>
-          </div>
-        ))}
-        {remaining > 0 && (
-          <button type="button" onClick={() => inputRef.current?.click()}
-            className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-rose-400 dark:hover:border-rose-500 flex flex-col items-center justify-center gap-1 transition-all hover:bg-rose-50/50 dark:hover:bg-rose-500/5 flex-shrink-0">
-            <Upload className="w-6 h-6 text-gray-400" />
-            <span className="text-[10px] text-gray-400 font-medium">Subir</span>
-          </button>
-        )}
-      </div>
-      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} />
-    </div>
-  );
-};
+import ImageUploader from "../../components/ImageUploader";
 
 const FormSection = ({ icon: Icon, title, children, color = "text-rose-500" }) => (
   <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border p-5">
@@ -90,23 +51,9 @@ export default function ShelterEditPet() {
     );
   }
 
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const remaining = 3 - (petData.images?.length || 0);
-    const toAdd = files.slice(0, remaining);
-    toAdd.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const newImg = { id: Date.now() + Math.random(), src: ev.target.result, file };
-        setPetData(prev => ({ ...prev, images: [...(prev.images || []), newImg] }));
-        setHasChanges(true);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleRemoveImage = (imgId) => {
-    setPetData(prev => ({ ...prev, images: (prev.images || []).filter(img => img.id !== imgId) }));
+  // Sube las imágenes a Cloudinary con el flujo unificado y guarda su URL.
+  const handleImagesChange = (newImages) => {
+    setPetData(prev => ({ ...prev, images: newImages }));
     setHasChanges(true);
   };
 
@@ -271,13 +218,15 @@ export default function ShelterEditPet() {
               placeholder="Describe la personalidad y características de la mascota..." />
           </FormSection>
 
-          {/* Images */}
+          {/* Images (Cloudinary unificado) */}
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border p-5">
-            <ImageUploadSection
-              images={petData.images}
-              onUpload={handleImageUpload}
-              onRemove={handleRemoveImage}
-              label="Fotos de la Mascota"
+            <ImageUploader
+              tipo="mascota"
+              multiple
+              maxFiles={3}
+              label="Fotos de la Mascota (Máx. 3)"
+              value={petData.images || []}
+              onChange={handleImagesChange}
             />
           </div>
 

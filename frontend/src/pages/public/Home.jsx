@@ -257,14 +257,14 @@ export default function Home() {
       {/* Pets Section */}
       <section id="animals" className="py-20 bg-gradient-to-br from-rose-50 via-white to-amber-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-12">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-12">
             <div>
-              <h2 className="text-4xl font-bold text-gray-900 font-display mb-2">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 font-display mb-2">
                 Ellos están esperando una familia
               </h2>
               <p className="text-gray-600">Conoce a algunos de nuestros amigos disponibles</p>
             </div>
-            <Link to="/login" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center">
+            <Link to="/login" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center shrink-0">
               Ver todos los animales <ArrowRight className="w-5 h-5 ml-2" />
             </Link>
           </div>
@@ -298,18 +298,18 @@ export default function Home() {
       <section id="shelters" className="py-20 bg-white relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-amber-50/30 via-white to-rose-50/30" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex justify-between items-center mb-12">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-12">
             <div>
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-sm font-medium mb-4">
                 <HomeIcon className="w-4 h-4" />
                 <span>Refugios aliados</span>
               </div>
-              <h2 className="text-4xl font-bold text-gray-900 font-display mb-2">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 font-display mb-2">
                 Conoce nuestros Refugios
               </h2>
               <p className="text-gray-600">Espacios dedicados al cuidado y bienestar animal</p>
             </div>
-            <Link to="/login" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center">
+            <Link to="/login" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center shrink-0">
               Ver todos los refugios <ArrowRight className="w-5 h-5 ml-2" />
             </Link>
           </div>
@@ -365,14 +365,14 @@ export default function Home() {
       <AnimatedSection animation="fadeInUp" delay={150}>
       <section id="store" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-12">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-12">
             <div>
-              <h2 className="text-4xl font-bold text-gray-900 font-display mb-2">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 font-display mb-2">
                 Tienda Online
               </h2>
               <p className="text-gray-600">Todo lo que tu mascota necesita en un solo lugar</p>
             </div>
-            <Link to="/login" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center">
+            <Link to="/login" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center shrink-0">
               Ver tienda completa <ArrowRight className="w-5 h-5 ml-2" />
             </Link>
           </div>

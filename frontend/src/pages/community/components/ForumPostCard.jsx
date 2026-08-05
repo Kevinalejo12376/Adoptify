@@ -488,18 +488,23 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange, onD
           <div className={`mb-4 rounded-xl overflow-hidden ${
             post.images.length === 1 ? "" : "grid grid-cols-2 gap-2"
           }`}>
-            {post.images.slice(0, 4).map((img, idx) => (
+            {post.images.slice(0, 4).map((img, idx) => {
+              const imgUrl = typeof img === "string" ? img : img?.url;
+              return (
               <button
                 key={idx}
-                onClick={() => setExpandedImage(img)}
+                onClick={() => setExpandedImage(imgUrl)}
                 className={`relative overflow-hidden ${
                   idx === 3 && post.images.length > 4 ? "cursor-pointer" : ""
                 }`}
               >
                 <img
-                  src={img}
+                  src={imgUrl}
                   alt={`Imagen ${idx + 1}`}
                   className="w-full h-56 object-cover hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
                 {idx === 3 && post.images.length > 4 && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
@@ -507,7 +512,8 @@ export default function ForumPostCard({ post, onPostClick, onReactionChange, onD
                   </div>
                 )}
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
 

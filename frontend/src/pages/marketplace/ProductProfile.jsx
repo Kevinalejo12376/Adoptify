@@ -1014,7 +1014,7 @@ export default function ProductProfile() {
 
                 {/* Trust badges */}
                 <div className="pt-5 border-t border-gray-100 dark:border-dark-border">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/10 dark:to-green-900/10 rounded-2xl border border-emerald-100/50 dark:border-emerald-900/20">
                       <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <Truck className="w-4 h-4 text-white" />

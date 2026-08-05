@@ -17,7 +17,7 @@ from app.db.seed import seed_catalogos
 from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
-    tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
+    tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin, upload,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,6 +80,9 @@ def _run_migrations():
         _agregar_columna_si_no_existe(db, "refugios", "municipio", "VARCHAR(150)")
         db.commit()
 
+        # Tabla de imágenes del foro (Cloudinary)
+        _crear_tabla_foro_imagenes(db)
+
         # Tablas nuevas del módulo de solicitudes de refugio
         _crear_tabla_solicitudes_refugio(db)
         _agregar_columna_si_no_existe(
@@ -113,6 +116,25 @@ def _agregar_columna_si_no_existe(db, tabla: str, columna: str, tipo: str):
             f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {columna} {tipo}"
         ))
         print(f"[migracion] Columna '{columna}' agregada correctamente.")
+
+
+def _crear_tabla_foro_imagenes(db):
+    """Crea la tabla foro_posts_imagenes si no existe (Supabase)."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS foro_posts_imagenes (
+            id BIGSERIAL PRIMARY KEY,
+            post_id BIGINT NOT NULL REFERENCES foro_posts(id) ON DELETE CASCADE,
+            url TEXT NOT NULL,
+            public_id VARCHAR(255) NOT NULL,
+            etiqueta VARCHAR(80),
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_foro_img_post ON foro_posts_imagenes(post_id)"
+    ))
+    print("[migracion] Tabla 'foro_posts_imagenes' verificada.")
 
 
 def _crear_tabla_solicitudes_refugio(db):
@@ -260,6 +282,7 @@ app.include_router(
     prefix="/api/admin",
     tags=["Administracion - Refugios y Solicitudes"],
 )
+app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
 
 
 @app.get("/")

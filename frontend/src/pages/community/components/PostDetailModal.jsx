@@ -335,7 +335,7 @@ export default function PostDetailModal({ post, isOpen, onClose, onComment, onRe
               {post.images.map((img, idx) => (
                 <img
                   key={idx}
-                  src={img}
+                  src={typeof img === "string" ? img : img?.url}
                   alt=""
                   className="w-full h-64 object-cover"
                 />

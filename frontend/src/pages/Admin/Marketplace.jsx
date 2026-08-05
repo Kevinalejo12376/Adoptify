@@ -230,9 +230,9 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
             </div>
           )}
 
-          <div className="flex gap-5">
+          <div className="flex flex-col sm:flex-row gap-5">
             {/* ===== COLUMNA IZQUIERDA: Imagen ===== */}
-            <div className="w-[220px] flex-shrink-0 flex flex-col gap-3">
+            <div className="w-full sm:w-[220px] flex-shrink-0 flex flex-col gap-3">
               <div className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border shadow-sm">
                 {producto.imagen ? (
                   <img src={producto.imagen} alt={producto.nombre} className="w-full h-full object-cover" />
@@ -268,7 +268,7 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
               )}
 
               {/* Grid: Stock | Publicación | Categoría */}
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="bg-gray-50 dark:bg-dark-bg rounded-xl px-3.5 py-3 border border-gray-100 dark:border-dark-border">
                   <p className="text-xs font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider">Stock</p>
                   {editando ? (
@@ -316,7 +316,7 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
 
         {/* ===== ESTADÍSTICAS ===== */}
         <div className="border-t border-gray-100 dark:border-dark-border px-5 py-3">
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <div className="flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-dark-card shadow-sm">
                 <Eye size={15} className="text-blue-600" />
@@ -362,7 +362,7 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <button onClick={() => setEditando(true)}
                 className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
                 <Edit3 size={14} /> Editar

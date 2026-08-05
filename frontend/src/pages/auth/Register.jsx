@@ -587,8 +587,8 @@ export default function Register() {
                 <div className="auth-form-scroll">
                   <div className="space-y-3.5 pr-2">
                     {/* Document Type and Number */}
-                    <div className="grid grid-cols-5 gap-3">
-                      <div className="col-span-2 space-y-1.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                      <div className="sm:col-span-2 space-y-1.5">
                         <label htmlFor="documentType" className="auth-label">
                           Tipo Doc.
                         </label>
@@ -621,7 +621,7 @@ export default function Register() {
                         )}
                       </div>
 
-                      <div className="col-span-3 space-y-1.5">
+                      <div className="sm:col-span-3 space-y-1.5">
                         <label htmlFor="documentNumber" className="auth-label">
                           N° Documento
                         </label>
@@ -652,7 +652,7 @@ export default function Register() {
                     </div>
 
                     {/* Name and Last Name */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <label htmlFor="firstName" className="auth-label">
                           Nombres
@@ -769,7 +769,7 @@ export default function Register() {
                     </div>
 
                     {/* Password and Confirm Password */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* Password */}
                       <div className="space-y-1.5">
                         <label htmlFor="password" className="auth-label">
