@@ -6,8 +6,10 @@ import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import StoreRoute from "./components/StoreRoute";
+import StorePermisoRuta from "./components/StorePermisoRuta";
 import CompleteProfileModal from "./components/CompleteProfileModal";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { StoreProvider } from "./context/StoreContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { I18nProvider } from "./context/I18nContext";
 import { CartProvider } from "./context/CartContext";
@@ -66,6 +68,10 @@ import StoreProfile from "./pages/Tienda/StoreProfile";
 import StoreStatistics from "./pages/Tienda/StoreStatistics";
 import StoreNotifications from "./pages/Tienda/StoreNotifications";
 import StoreSettings from "./pages/Tienda/StoreSettings";
+import StoreAdministradores from "./pages/Tienda/StoreAdministradores";
+import StoreActividad from "./pages/Tienda/StoreActividad";
+import StoreDonaciones from "./pages/Tienda/StoreDonaciones";
+import StorePqrs from "./pages/Tienda/StorePqrs";
 import ProductAnalysisView from "./pages/Tienda/ProductAnalysisView";
 
 // Otras importaciones existentes
@@ -183,17 +189,21 @@ function AppContent() {
           {/* ================================================ */}
           <Route path="/tienda" element={<StoreRoute><StoreLayout /></StoreRoute>}>
             <Route index element={<Navigate to="/tienda/dashboard" replace />} />
-            <Route path="dashboard" element={<StoreDashboard />} />
-            <Route path="productos" element={<StoreProducts />} />
-            <Route path="productos/nuevo" element={<StoreEditProduct />} />
-            <Route path="productos/:id" element={<StoreProductDetail />} />
-            <Route path="productos/editar/:id" element={<StoreEditProduct />} />
-            <Route path="pedidos" element={<StoreOrders />} />
-            <Route path="pedidos/:id" element={<StoreOrderDetail />} />
-            <Route path="perfil" element={<StoreProfile />} />
-            <Route path="estadisticas" element={<StoreStatistics />} />
+            <Route path="dashboard" element={<StorePermisoRuta permiso="dashboard.ver"><StoreDashboard /></StorePermisoRuta>} />
+            <Route path="productos" element={<StorePermisoRuta permiso="productos.ver"><StoreProducts /></StorePermisoRuta>} />
+            <Route path="productos/nuevo" element={<StorePermisoRuta permiso="productos.crear"><StoreEditProduct /></StorePermisoRuta>} />
+            <Route path="productos/:id" element={<StorePermisoRuta permiso="productos.ver"><StoreProductDetail /></StorePermisoRuta>} />
+            <Route path="productos/editar/:id" element={<StorePermisoRuta permiso="productos.editar"><StoreEditProduct /></StorePermisoRuta>} />
+            <Route path="pedidos" element={<StorePermisoRuta permiso="pedidos.ver"><StoreOrders /></StorePermisoRuta>} />
+            <Route path="pedidos/:id" element={<StorePermisoRuta permiso="pedidos.ver"><StoreOrderDetail /></StorePermisoRuta>} />
+            <Route path="perfil" element={<StorePermisoRuta permiso="tienda.ver_perfil"><StoreProfile /></StorePermisoRuta>} />
+            <Route path="estadisticas" element={<StorePermisoRuta permiso="reportes.ver_estadisticas"><StoreStatistics /></StorePermisoRuta>} />
             <Route path="notificaciones" element={<StoreNotifications />} />
-            <Route path="configuracion" element={<StoreSettings />} />
+            <Route path="configuracion" element={<StorePermisoRuta permiso="configuracion.acceder"><StoreSettings /></StorePermisoRuta>} />
+            <Route path="administradores" element={<StorePermisoRuta superAdmin><StoreAdministradores /></StorePermisoRuta>} />
+            <Route path="actividad" element={<StorePermisoRuta permiso="historial.ver"><StoreActividad /></StorePermisoRuta>} />
+            <Route path="donaciones" element={<StorePermisoRuta permiso="donaciones.ver"><StoreDonaciones /></StorePermisoRuta>} />
+            <Route path="pqrs" element={<StorePermisoRuta permiso="pqrs.ver"><StorePqrs /></StorePermisoRuta>} />
           </Route>
 
           {/* Ruta de análisis con IA (fuera del layout de tienda para máxima atención) */}
@@ -201,7 +211,11 @@ function AppContent() {
             path="/tienda/productos/analizar"
             element={
               <StoreRoute>
-                <ProductAnalysisView />
+                <StoreProvider>
+                  <StorePermisoRuta permiso="productos.crear">
+                    <ProductAnalysisView />
+                  </StorePermisoRuta>
+                </StoreProvider>
               </StoreRoute>
             }
           />
@@ -211,7 +225,11 @@ function AppContent() {
             path="/tienda/productos/escanear"
             element={
               <StoreRoute>
-                <BarcodeScanner />
+                <StoreProvider>
+                  <StorePermisoRuta permiso="productos.ver">
+                    <BarcodeScanner />
+                  </StorePermisoRuta>
+                </StoreProvider>
               </StoreRoute>
             }
           />

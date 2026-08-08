@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Loader2, CheckCircle, MessageSquare, FileText, AlertCircle, HelpCircle, ThumbsUp,
   Clock, Check, Calendar, Mail, Search, Filter, ChevronDown, X,
+  Building2, Send, Paperclip, ShieldCheck,
 } from "lucide-react";
 import DataTable from "../../components/admin/DataTable";
-import { listarPqrs, actualizarPqrs } from "../../api/admin";
+import {
+  listarPqrs, actualizarPqrs,
+  listarPqrsTiendas, obtenerPqrsTienda, cambiarEstadoPqrsTienda, responderPqrsTienda,
+} from "../../api/admin";
 
 const ESTADOS = ["pendiente", "en_proceso", "resuelto", "cerrado"];
 const TIPOS = {
@@ -247,6 +251,318 @@ function ResponderModal({ item, onClose, onGuardar, guardando }) {
   );
 }
 
+// ============================================================
+// PQRS DE TIENDAS ALIADAS (gestion por Administradores de Adoptify)
+// ============================================================
+const ESTADOS_TIENDA = {
+  pendiente: { label: "Pendiente", color: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400", dot: "bg-amber-500", icon: Clock },
+  en_revision: { label: "En revisión", color: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400", dot: "bg-blue-500", icon: Loader2 },
+  finalizado: { label: "Finalizado", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400", dot: "bg-emerald-500", icon: CheckCircle },
+};
+
+function EstadoTiendaBadge({ estado }) {
+  const config = ESTADOS_TIENDA[estado] || ESTADOS_TIENDA.pendiente;
+  const Icono = config.icon;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${config.color}`}>
+      <Icono size={12} /> {config.label}
+    </span>
+  );
+}
+
+function PqrsTiendaDetailModal({ item, onClose, onEstado, onResponder }) {
+  const [respuesta, setRespuesta] = useState("");
+  const [estadoSel, setEstadoSel] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  if (!item) return null;
+
+  const tipoConfig = TIPOS[item.tipo] || { icon: HelpCircle, color: "text-gray-500", bg: "bg-gray-50" };
+  const TipoIcono = tipoConfig.icon;
+
+  const enviar = async () => {
+    if (!respuesta.trim()) return;
+    setGuardando(true);
+    try {
+      await onResponder(item.id, { mensaje: respuesta.trim(), estado: estadoSel || undefined });
+      setRespuesta("");
+      setEstadoSel("");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="relative h-24 bg-gradient-to-r from-rose-500 to-amber-500 rounded-t-2xl" />
+        <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors">
+          <X size={16} />
+        </button>
+
+        <div className="px-6 pb-6 -mt-8">
+          <div className="flex items-end gap-4 mb-4">
+            <div className={`w-14 h-14 rounded-2xl ${tipoConfig.bg} flex items-center justify-center shadow-lg ring-4 ring-white dark:ring-dark-card`}>
+              <TipoIcono size={24} className={tipoConfig.color} />
+            </div>
+            <div className="flex-1 min-w-0 pb-1">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text truncate">{item.asunto || "Sin asunto"}</h3>
+              <div className="flex items-center gap-2 flex-wrap mt-1">
+                <TipoBadge tipo={item.tipo} />
+                <EstadoTiendaBadge estado={item.estado} />
+                <span className="inline-flex items-center gap-1 text-xs text-gray-400"><Building2 size={12} /> {item.tienda_nombre || "Tienda"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Conversacion */}
+          <div className="mb-4 space-y-3 max-h-64 overflow-y-auto pr-1">
+            {(item.mensajes || []).map((m) => {
+              const esTienda = m.rol_remitente === "tienda";
+              return (
+                <div key={m.id} className={`flex ${esTienda ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${
+                    esTienda
+                      ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white"
+                      : "bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border text-gray-800 dark:text-dark-text"
+                  }`}>
+                    <div className={`flex items-center gap-1.5 mb-1 text-xs font-semibold ${esTienda ? "text-white/90" : "text-gray-400"}`}>
+                      {esTienda ? <Building2 size={12} /> : <ShieldCheck size={12} />}
+                      {m.nombre_remitente || (esTienda ? "Tienda" : "Adoptify")}
+                      {m.creado_en && <span className="font-normal opacity-70">· {new Date(m.creado_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}</span>}
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{m.mensaje}</p>
+                  </div>
+                </div>
+              );
+            })}
+            {(item.adjuntos || []).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {(item.adjuntos || []).map((a) => (
+                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-dark-border text-gray-600 dark:text-dark-text-secondary text-xs hover:bg-gray-200 dark:hover:bg-dark-bg transition-colors">
+                    <Paperclip size={12} /> {a.nombre_archivo || "Adjunto"}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {item.estado !== "finalizado" && (
+            <div className="border-t border-gray-100 dark:border-dark-border pt-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1.5">Cambiar estado</label>
+                  <select
+                    value={estadoSel}
+                    onChange={(e) => setEstadoSel(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  >
+                    <option value="">Mantener estado actual</option>
+                    {Object.keys(ESTADOS_TIENDA).map((k) => <option key={k} value={k}>{ESTADOS_TIENDA[k].label}</option>)}
+                  </select>
+                </div>
+                <button
+                  onClick={() => { onEstado(item.id, "en_revision"); }}
+                  className="self-end px-4 py-2.5 text-sm font-semibold rounded-xl border border-blue-200 dark:border-blue-500/20 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all"
+                >
+                  En revisión
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1.5">Tu respuesta</label>
+                <textarea
+                  rows={4}
+                  value={respuesta}
+                  onChange={(e) => setRespuesta(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 resize-none"
+                  placeholder="Escribe la respuesta de Adoptify..."
+                />
+                <button
+                  onClick={enviar}
+                  disabled={guardando || !respuesta.trim()}
+                  className="mt-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-200 text-sm disabled:opacity-60"
+                >
+                  {guardando ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : <><Send size={15} /> Responder y notificar a la tienda</>}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {item.estado === "finalizado" && (
+            <div className="text-center text-sm text-emerald-600 dark:text-emerald-400 py-3">
+              PQRS finalizada por Adoptify.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminPqrsTiendas() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+
+  const cargar = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = await listarPqrsTiendas({ estado: filtroEstado || undefined, busqueda: busqueda || undefined });
+      setItems(data || []);
+    } catch (e) { setError(e?.message || "Error al cargar las PQRS de tiendas"); }
+    finally { setLoading(false); }
+  }, [filtroEstado, busqueda]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    cargar();
+  }, [cargar]);
+
+  const abrirDetalle = async (item) => {
+    setSelected(item);
+    // Si falla la carga del detalle se mantiene el item de la lista.
+    obtenerPqrsTienda(item.id).then(setSelected).catch(() => {});
+  };
+
+  const handleEstado = async (id, estado) => {
+    try { await cambiarEstadoPqrsTienda(id, estado); await cargar(); if (selected) abrirDetalle(selected); }
+    catch (e) { setError(e?.message); }
+  };
+
+  const handleResponder = async (id, payload) => {
+    await responderPqrsTienda(id, payload);
+    await cargar();
+    if (selected) abrirDetalle(selected);
+  };
+
+  const contarEstado = (estado) => items.filter((i) => i.estado === estado).length;
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm border border-red-100 dark:border-red-500/20 flex items-center gap-2">
+          <AlertCircle size={15} /> {error}
+        </div>
+      )}
+
+      {/* Resumen */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {Object.entries(ESTADOS_TIENDA).map(([estado, config]) => {
+          const Icono = config.icon;
+          const activo = filtroEstado === estado;
+          return (
+            <button key={estado} onClick={() => setFiltroEstado(activo ? "" : estado)}
+              className={`bg-white dark:bg-dark-card rounded-2xl border p-4 shadow-sm transition-all duration-200 hover:shadow-md ${
+                activo ? "border-rose-300 dark:border-rose-500/30 ring-1 ring-rose-200 dark:ring-rose-500/20" : "border-gray-100 dark:border-dark-border"
+              }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${config.color}`}>
+                  <Icono size={18} />
+                </div>
+                <div className="text-left">
+                  <p className="text-lg font-bold text-gray-900 dark:text-dark-text">{contarEstado(estado)}</p>
+                  <p className="text-xs text-gray-500 dark:text-dark-text-secondary">{config.label}</p>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="relative flex-1 max-w-md w-full">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por asunto, tienda o descripción..."
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-sm"
+          />
+        </div>
+        {(filtroEstado || busqueda) && (
+          <button onClick={() => { setFiltroEstado(""); setBusqueda(""); }}
+            className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium rounded-xl text-gray-500 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border transition-colors">
+            <X size={14} /> Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Tabla */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+          <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-2" />
+          <p className="text-sm">Cargando PQRS de tiendas...</p>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50 dark:bg-dark-bg/50">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Tienda</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Asunto</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Tipo</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Estado</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Fecha</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+                {items.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-dark-border transition-colors cursor-pointer" onClick={() => abrirDetalle(item)}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center flex-shrink-0">
+                          <Building2 size={14} className="text-rose-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-dark-text truncate">{item.tienda_nombre || "—"}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-dark-text font-medium">{item.asunto}</td>
+                    <td className="px-4 py-3"><TipoBadge tipo={item.tipo} /></td>
+                    <td className="px-4 py-3"><EstadoTiendaBadge estado={item.estado} /></td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {item.creado_en ? new Date(item.creado_en).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <button onClick={(e) => { e.stopPropagation(); abrirDetalle(item); }}
+                          className="px-3 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors">
+                          {item.estado === "pendiente" ? "Responder" : "Ver"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center">
+                      <MessageSquare size={40} className="mx-auto text-gray-300 dark:text-dark-border mb-3" />
+                      <p className="text-sm text-gray-400">No hay PQRS de tiendas.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <PqrsTiendaDetailModal item={selected} onClose={() => setSelected(null)} onEstado={handleEstado} onResponder={handleResponder} />
+    </div>
+  );
+}
+
 // ===== COMPONENTE PRINCIPAL =====
 export default function AdminPQRS() {
   const [items, setItems] = useState([]);
@@ -259,6 +575,7 @@ export default function AdminPQRS() {
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [busqueda, setBusqueda] = useState("");
+  const [tab, setTab] = useState("usuarios");
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
@@ -326,6 +643,22 @@ export default function AdminPQRS() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Tabs: PQRS de usuarios / PQRS de tiendas aliadas */}
+      <div className="inline-flex items-center gap-1 p-1 bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border">
+        <button type="button" onClick={() => setTab("usuarios")}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${tab === "usuarios" ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white" : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border"}`}>
+          Usuarios
+        </button>
+        <button type="button" onClick={() => setTab("tiendas")}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${tab === "tiendas" ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white" : "text-gray-500 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border"}`}>
+          Tiendas aliadas
+        </button>
+      </div>
+
+      {tab === "tiendas" ? (
+        <AdminPqrsTiendas />
+      ) : (
+        <>
       {/* Error */}
       {error && (
         <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm border border-red-100 dark:border-red-500/20 flex items-center gap-2">
@@ -452,6 +785,8 @@ export default function AdminPQRS() {
         onGuardar={handleResponder}
         guardando={guardando}
       />
+        </>
+      )}
     </div>
   );
 }

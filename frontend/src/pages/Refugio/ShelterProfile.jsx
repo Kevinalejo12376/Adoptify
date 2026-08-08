@@ -10,6 +10,10 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
 import { miPerfil, misEstadisticas, actualizarPerfil } from "../../api/refugios";
+import FieldError from "../../components/FieldError";
+import {
+  validarEmail, validarTelefono, normalizarEmail, limpiarEspacios, claseInput,
+} from "../../utils/validaciones";
 
 const MAX_SHELTER_IMAGES = 6;
 
@@ -21,6 +25,7 @@ export default function ShelterProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statsData, setStatsData] = useState(null);
+  const [errors, setErrors] = useState({});
 
   const [profile, setProfile] = useState({
     name: user?.name || "",
@@ -225,16 +230,26 @@ export default function ShelterProfile() {
 
   // ─── Save handler ─────────────────────────────────────────────────
   const handleSave = async () => {
+    const nuevosErrores = {
+      email: validarEmail(editForm.email, { obligatorio: false }),
+      phone: validarTelefono(editForm.phone, { obligatorio: false }),
+      description: editForm.description && editForm.description.trim().length > 1000
+        ? "La descripción no puede superar los 1000 caracteres."
+        : "",
+    };
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some((m) => m)) return;
     setSaving(true);
     try {
       await actualizarPerfil({
-        nombre: editForm.name,
-        telefono: editForm.phone,
+        nombre: limpiarEspacios(editForm.name),
+        telefono: editForm.phone ? editForm.phone.trim() : null,
         ubicacion: editForm.location,
         direccion: editForm.address,
         descripcion: editForm.description,
         facebook: editForm.facebook,
         instagram: editForm.instagram,
+        email: normalizarEmail(editForm.email) || undefined,
       });
       setProfile({ ...editForm });
       login({
@@ -779,15 +794,18 @@ export default function ShelterProfile() {
                   Acerca del Refugio
                 </h2>
                 {isEditing ? (
-                  <textarea
-                    rows={5}
-                    value={editForm.description}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, description: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none"
-                    placeholder="Describe la misión y visión de tu refugio..."
-                  />
+                  <>
+                    <textarea
+                      rows={5}
+                      value={editForm.description}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, description: e.target.value })
+                      }
+                      className={claseInput("w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none", !!errors.description)}
+                      placeholder="Describe la misión y visión de tu refugio..."
+                    />
+                    <FieldError mensaje={errors.description} />
+                  </>
                 ) : (
                   <div className="relative">
                     <div className="absolute -left-2 top-0 w-1 h-full bg-gradient-to-b from-rose-500 to-amber-500 rounded-full" />
@@ -855,17 +873,20 @@ export default function ShelterProfile() {
                             {item.label}
                           </p>
                           {isEditing ? (
-                            <input
-                              type={item.type}
-                              value={editForm[item.value]}
-                              onChange={(e) =>
-                                setEditForm({
-                                  ...editForm,
-                                  [item.value]: e.target.value,
-                                })
-                              }
-                              className="w-full mt-0.5 px-3 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
-                            />
+                            <>
+                              <input
+                                type={item.type}
+                                value={editForm[item.value]}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    [item.value]: e.target.value,
+                                  })
+                                }
+                                className={claseInput("w-full mt-0.5 px-3 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors[item.value])}
+                              />
+                              <FieldError mensaje={errors[item.value]} />
+                            </>
                           ) : (
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                               {profile[item.value]}

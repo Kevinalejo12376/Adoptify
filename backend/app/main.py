@@ -96,6 +96,21 @@ def _run_migrations():
         )
         db.commit()
 
+        # ---- RBAC del modulo Tienda (jerarquia + permisos) ----
+        try:
+            _crear_tablas_rbac_tienda(db)
+        except Exception as e:
+            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
+            print(f"[migracion] No se pudieron crear tablas RBAC por SQL (SQLite las crea via modelos): {e}")
+        _backfill_super_admin_tiendas(db)
+
+        # ---- Nuevas tablas de Tienda (historial de actividad, donaciones, PQRS) ----
+        try:
+            _crear_tablas_nuevas_tienda(db)
+        except Exception as e:
+            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
+            print(f"[migracion] No se pudieron crear tablas nuevas de tienda por SQL (SQLite las crea via modelos): {e}")
+
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
     except Exception as e:
         print(f"[migracion] Error ejecutando migraciones: {e}")
@@ -225,6 +240,184 @@ def _crear_tabla_solicitudes_refugio(db):
     db.execute(text(
         "CREATE INDEX IF NOT EXISTS idx_enlaces_pass_user ON enlaces_creacion_password(usuario_id)"
     ))
+
+
+def _crear_tablas_rbac_tienda(db):
+    """Crea las tablas RBAC del modulo Tienda si no existen (Supabase/PostgreSQL)."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tienda_permisos (
+            id BIGSERIAL PRIMARY KEY,
+            codigo VARCHAR(80) NOT NULL UNIQUE,
+            nombre VARCHAR(120) NOT NULL,
+            modulo VARCHAR(40) NOT NULL,
+            descripcion TEXT,
+            activo BOOLEAN NOT NULL DEFAULT TRUE
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tienda_usuarios (
+            id BIGSERIAL PRIMARY KEY,
+            tienda_id BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+            usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            tipo VARCHAR(20) NOT NULL DEFAULT 'admin',
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
+            creado_por BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            ultimo_acceso TIMESTAMPTZ,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tienda_usuario_permisos (
+            id BIGSERIAL PRIMARY KEY,
+            tienda_usuario_id BIGINT NOT NULL REFERENCES tienda_usuarios(id) ON DELETE CASCADE,
+            permiso_id BIGINT NOT NULL REFERENCES tienda_permisos(id) ON DELETE CASCADE,
+            UNIQUE (tienda_usuario_id, permiso_id)
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_usuarios_tienda ON tienda_usuarios(tienda_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_usuarios_usuario ON tienda_usuarios(usuario_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_permisos_modulo ON tienda_permisos(modulo)"
+    ))
+    # Un usuario solo puede pertenecer a una tienda (evita duplicados de membresia)
+    db.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_tienda_usuarios_usuario ON tienda_usuarios(usuario_id)"
+    ))
+    db.commit()
+
+
+def _crear_tablas_nuevas_tienda(db):
+    """Crea las tablas nuevas del modulo Tienda (historial, donaciones, PQRS)
+    si no existen (Supabase/PostgreSQL)."""
+    from sqlalchemy import text
+
+    # --- Historial de actividad ---
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tienda_actividades (
+            id BIGSERIAL PRIMARY KEY,
+            tienda_id BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            usuario_nombre VARCHAR(200),
+            rol_usuario VARCHAR(30),
+            tipo_accion VARCHAR(60) NOT NULL,
+            accion VARCHAR(200) NOT NULL,
+            elemento_tipo VARCHAR(60),
+            elemento VARCHAR(255),
+            detalle TEXT,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_act_tienda ON tienda_actividades(tienda_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_act_tipo ON tienda_actividades(tipo_accion)"
+    ))
+
+    # --- Donaciones ---
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS donaciones (
+            id BIGSERIAL PRIMARY KEY,
+            tienda_id BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+            refugio_id BIGINT NOT NULL REFERENCES refugios(id) ON DELETE SET NULL,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            usuario_nombre VARCHAR(200),
+            rol_usuario VARCHAR(30),
+            refugio_nombre VARCHAR(150),
+            observacion TEXT,
+            estado VARCHAR(20) NOT NULL DEFAULT 'completada',
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS donacion_items (
+            id BIGSERIAL PRIMARY KEY,
+            donacion_id BIGINT NOT NULL REFERENCES donaciones(id) ON DELETE CASCADE,
+            producto_id BIGINT REFERENCES productos(id) ON DELETE SET NULL,
+            nombre_producto VARCHAR(150) NOT NULL,
+            cantidad INTEGER NOT NULL DEFAULT 1
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_donaciones_tienda ON donaciones(tienda_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_donacion_items_donacion ON donacion_items(donacion_id)"
+    ))
+
+    # --- PQRS de Tienda ---
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tienda_pqrs (
+            id BIGSERIAL PRIMARY KEY,
+            tienda_id BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+            tienda_nombre VARCHAR(150),
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            tipo VARCHAR(20) NOT NULL DEFAULT 'peticion',
+            asunto VARCHAR(200) NOT NULL,
+            descripcion TEXT NOT NULL,
+            estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tienda_pqrs_mensajes (
+            id BIGSERIAL PRIMARY KEY,
+            pqrs_id BIGINT NOT NULL REFERENCES tienda_pqrs(id) ON DELETE CASCADE,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            nombre_remitente VARCHAR(200),
+            rol_remitente VARCHAR(20) NOT NULL DEFAULT 'tienda',
+            mensaje TEXT NOT NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tienda_pqrs_adjuntos (
+            id BIGSERIAL PRIMARY KEY,
+            pqrs_id BIGINT NOT NULL REFERENCES tienda_pqrs(id) ON DELETE CASCADE,
+            mensaje_id BIGINT REFERENCES tienda_pqrs_mensajes(id) ON DELETE CASCADE,
+            nombre_archivo VARCHAR(255),
+            url TEXT NOT NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_pqrs_tienda ON tienda_pqrs(tienda_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_pqrs_msj_pqrs ON tienda_pqrs_mensajes(pqrs_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tienda_pqrs_adj_pqrs ON tienda_pqrs_adjuntos(pqrs_id)"
+    ))
+    db.commit()
+
+
+def _backfill_super_admin_tiendas(db):
+    """Garantiza que el representante de cada tienda existente tenga su registro
+    de Super Administrador en tienda_usuarios (idempotente)."""
+    from sqlalchemy import text
+    try:
+        db.execute(text("""
+            INSERT INTO tienda_usuarios (tienda_id, usuario_id, tipo, activo)
+            SELECT t.id, t.usuario_id, 'super_admin', TRUE
+            FROM tiendas t
+            WHERE t.usuario_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM tienda_usuarios tu
+                  WHERE tu.tienda_id = t.id AND tu.usuario_id = t.usuario_id
+              )
+        """))
+        db.commit()
+        print("[migracion] Backfill de Super Administradores de tiendas aplicado.")
+    except Exception as e:
+        db.rollback()
+        print(f"[migracion] No se pudo aplicar el backfill de Super Administradores: {e}")
 
 
 app = FastAPI(title="Adoptify API", lifespan=lifespan)

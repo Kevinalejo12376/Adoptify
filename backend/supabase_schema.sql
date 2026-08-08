@@ -25,7 +25,7 @@ DROP TABLE IF EXISTS
     historial_estados_pedido, pedido_items, pedidos, codigos_promocion, carrito_items,
     favoritos_productos, favoritos_mascotas,
     resenas_refugio, resenas, producto_caracteristicas, producto_imagenes, productos,
-    tienda_imagenes, tiendas,
+    tienda_usuario_permisos, tienda_usuarios, tienda_permisos, tienda_imagenes, tiendas,
     solicitudes_adopcion, mascota_imagenes, mascotas,
     enlaces_creacion_password, solicitudes_refugio_historial, solicitudes_refugio_documentos, solicitudes_refugio,
     refugio_imagenes, configuraciones, refugios, usuarios,
@@ -447,6 +447,85 @@ CREATE TABLE tiendas (
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ============================================================
+-- RBAC del modulo Tienda (jerarquia de administradores)
+-- ============================================================
+-- Catalogo de permisos disponibles (se cargan dinamicamente en la API).
+-- Agregar un permiso nuevo = insertar una fila aqui.
+CREATE TABLE tienda_permisos (
+    id          BIGSERIAL PRIMARY KEY,
+    codigo      VARCHAR(80) NOT NULL UNIQUE,
+    nombre      VARCHAR(120) NOT NULL,
+    modulo      VARCHAR(40) NOT NULL,
+    descripcion TEXT,
+    activo      BOOLEAN NOT NULL DEFAULT true
+);
+CREATE INDEX idx_tienda_permisos_modulo ON tienda_permisos(modulo);
+
+-- Pertenencia a una tienda y jerarquia (super_admin | admin).
+CREATE TABLE tienda_usuarios (
+    id             BIGSERIAL PRIMARY KEY,
+    tienda_id      BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+    usuario_id     BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    tipo           VARCHAR(20) NOT NULL DEFAULT 'admin',
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    creado_por     BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    ultimo_acceso  TIMESTAMPTZ,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_tienda_usuarios_tienda  ON tienda_usuarios(tienda_id);
+CREATE INDEX idx_tienda_usuarios_usuario ON tienda_usuarios(usuario_id);
+
+-- Permisos asignados a cada administrador (solo aplica a tipo 'admin').
+CREATE TABLE tienda_usuario_permisos (
+    id                 BIGSERIAL PRIMARY KEY,
+    tienda_usuario_id  BIGINT NOT NULL REFERENCES tienda_usuarios(id) ON DELETE CASCADE,
+    permiso_id         BIGINT NOT NULL REFERENCES tienda_permisos(id) ON DELETE CASCADE,
+    UNIQUE (tienda_usuario_id, permiso_id)
+);
+
+-- Datos semilla del catalogo de permisos (idempotente con ON CONFLICT).
+INSERT INTO tienda_permisos (codigo, nombre, modulo, descripcion) VALUES
+    ('dashboard.ver',                  'Ver dashboard',                          'dashboard',      'Ver el panel principal de la tienda'),
+    ('productos.ver',                  'Ver productos',                          'productos',      'Ver el listado y detalle de productos'),
+    ('productos.crear',                'Crear productos',                        'productos',      'Crear nuevos productos'),
+    ('productos.editar',               'Editar productos',                       'productos',      'Editar productos existentes'),
+    ('productos.eliminar',             'Eliminar productos',                     'productos',      'Eliminar productos'),
+    ('productos.activar',              'Activar productos',                      'productos',      'Activar (mostrar) productos'),
+    ('productos.desactivar',           'Desactivar productos',                   'productos',      'Desactivar (ocultar) productos'),
+    ('categorias.ver',                 'Ver categorias',                         'categorias',     'Ver las categorias de productos'),
+    ('categorias.crear',               'Crear categorias',                       'categorias',     'Crear nuevas categorias'),
+    ('categorias.editar',              'Editar categorias',                      'categorias',     'Editar categorias existentes'),
+    ('categorias.eliminar',            'Eliminar categorias',                    'categorias',     'Eliminar categorias'),
+    ('inventario.ver',                 'Ver inventario',                         'inventario',     'Ver el inventario de la tienda'),
+    ('inventario.actualizar_stock',    'Actualizar stock',                       'inventario',     'Actualizar el stock de productos'),
+    ('inventario.registrar_entradas',  'Registrar entradas',                     'inventario',     'Registrar entradas de inventario'),
+    ('inventario.registrar_salidas',   'Registrar salidas',                      'inventario',     'Registrar salidas de inventario'),
+    ('pedidos.ver',                    'Ver pedidos',                            'pedidos',        'Ver el listado y detalle de pedidos'),
+    ('pedidos.aceptar',                'Aceptar pedidos',                        'pedidos',        'Aceptar pedidos'),
+    ('pedidos.rechazar',               'Rechazar pedidos',                       'pedidos',        'Rechazar pedidos'),
+    ('pedidos.cambiar_estado',         'Cambiar estados',                        'pedidos',        'Cambiar el estado de los pedidos'),
+    ('pedidos.gestionar_devoluciones', 'Gestionar devoluciones',                 'pedidos',        'Gestionar devoluciones'),
+    ('promociones.ver',                'Ver promociones',                        'promociones',    'Ver las promociones de la tienda'),
+    ('promociones.crear',              'Crear promociones',                      'promociones',    'Crear nuevas promociones'),
+    ('promociones.editar',             'Editar promociones',                     'promociones',    'Editar promociones existentes'),
+    ('promociones.eliminar',           'Eliminar promociones',                   'promociones',    'Eliminar promociones'),
+    ('clientes.ver',                   'Ver clientes',                           'clientes',       'Ver los clientes de la tienda'),
+    ('clientes.administrar',           'Administrar clientes',                   'clientes',       'Administrar la informacion de clientes'),
+    ('tienda.ver_perfil',              'Ver perfil de la tienda',                'tienda',         'Ver el perfil de la tienda'),
+    ('tienda.editar_informacion',      'Editar informacion de la tienda',        'tienda',         'Editar la informacion de la tienda'),
+    ('tienda.cambiar_logo',            'Cambiar logo',                           'tienda',         'Cambiar el logo de la tienda'),
+    ('tienda.cambiar_imagenes',        'Cambiar imagenes',                       'tienda',         'Cambiar las imagenes de la tienda'),
+    ('tienda.actualizar_horarios',     'Actualizar horarios',                    'tienda',         'Actualizar los horarios de atencion'),
+    ('reportes.ver_estadisticas',      'Ver estadisticas',                       'reportes',       'Ver las estadisticas de la tienda'),
+    ('reportes.descargar_reportes',    'Descargar reportes',                     'reportes',       'Descargar reportes'),
+    ('reportes.exportar_informacion',  'Exportar informacion',                   'reportes',       'Exportar informacion de la tienda'),
+    ('configuracion.acceder',          'Acceder a configuracion',                'configuracion',  'Acceder al apartado de configuracion'),
+    ('configuracion.editar_configuraciones', 'Editar configuraciones',           'configuracion',  'Editar las configuraciones permitidas'),
+    ('administradores.gestionar',      'Gestionar administradores',              'administradores','Crear, editar y eliminar administradores'),
+    ('administradores.asignar_permisos','Asignar permisos',                      'administradores','Asignar permisos a los administradores')
+ON CONFLICT (codigo) DO NOTHING;
+
 CREATE TABLE tienda_imagenes (
     id         BIGSERIAL PRIMARY KEY,
     tienda_id  BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
@@ -765,6 +844,9 @@ ALTER TABLE favoritos_mascotas       ENABLE ROW LEVEL SECURITY;
 
 -- Tiendas, productos y compras
 ALTER TABLE tiendas                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tienda_permisos          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tienda_usuarios          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tienda_usuario_permisos  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tienda_imagenes          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE producto_imagenes        ENABLE ROW LEVEL SECURITY;

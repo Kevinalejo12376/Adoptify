@@ -20,15 +20,21 @@ from app.models.refugio import Refugio
 from app.models.mascota import Mascota
 from app.models.solicitud import SolicitudAdopcion
 from app.models.producto import Producto
-from app.models.tienda import Tienda
+from app.models.tienda import Tienda, TiendaUsuario
+from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdjunto
 from app.models.catalogos import Rol, TipoDocumento, EstadoMascota
 from app.models.foro import ForoPost
 from app.models.interaccion import Resena
-from app.core.notificaciones import registrar_auditoria
+from app.core.notificaciones import registrar_auditoria, crear_notificacion
 from app.schemas.admin import (
     AdminUsuarioCreate, AdminUsuarioUpdate, AdminUsuarioResponse,
     TiendaCreate, TiendaUpdate, TiendaEstadoUpdate, TiendaResponse, TiendaResumen,
 )
+from app.schemas.tienda_extra import (
+    AdminTiendaPqrsEstadoUpdate,
+    AdminTiendaPqrsRespuestaCreate,
+)
+from app.services.cloudinary_service import subir_imagen_producto
 
 router = APIRouter()
 
@@ -292,10 +298,9 @@ def actualizar_usuario(
     if "password" in update_data:
         update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
 
-    for campo, valor in update_data.items():
-        setattr(user, campo, valor)
-
-    # Si se actualiza el email, verificar que no esté duplicado
+    # Si se actualiza el email, verificar que no esté duplicado ANTES de
+    # sobrescribir el valor en memoria (si se hace después, la comparación
+    # `update_data["email"] != user.email` siempre es False y no se detecta).
     if "email" in update_data and update_data["email"] != user.email:
         existe = db.query(Usuario).filter(
             Usuario.email == update_data["email"],
@@ -303,6 +308,9 @@ def actualizar_usuario(
         ).first()
         if existe:
             raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado")
+
+    for campo, valor in update_data.items():
+        setattr(user, campo, valor)
 
     db.commit()
     db.refresh(user)
@@ -691,3 +699,203 @@ def eliminar_producto_tienda(
     db.delete(producto)
     db.commit()
     return None
+
+
+# ============================================================
+# PQRS de Tiendas Aliadas (gestion por Administradores de Adoptify)
+# ============================================================
+def _subir_adjuntos_admin(adjuntos):
+    """Sube a Cloudinary los adjuntos de las respuestas de PQRS."""
+    resultados = []
+    for adj in (adjuntos or []):
+        if getattr(adj, "imagen_base64", None):
+            try:
+                subido = subir_imagen_producto(adj.imagen_base64, etiqueta="pqrs-adjunto")
+                resultados.append({
+                    "nombre_archivo": adj.nombre_archivo or "adjunto.jpg",
+                    "url": subido["url"],
+                })
+            except Exception as exc:
+                print(f"[admin] No se pudo subir adjunto PQRS: {exc}")
+        elif getattr(adj, "url", None):
+            resultados.append({
+                "nombre_archivo": adj.nombre_archivo or "adjunto",
+                "url": adj.url,
+            })
+    return resultados
+
+
+def _serialize_pqrs_admin(p: TiendaPqrs) -> dict:
+    return {
+        "id": p.id,
+        "tienda_id": p.tienda_id,
+        "tienda_nombre": p.tienda_nombre,
+        "usuario_id": p.usuario_id,
+        "tipo": p.tipo,
+        "asunto": p.asunto,
+        "descripcion": p.descripcion,
+        "estado": p.estado,
+        "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        "actualizado_en": p.actualizado_en.isoformat() if p.actualizado_en else None,
+        "mensajes": [
+            {
+                "id": m.id,
+                "usuario_id": m.usuario_id,
+                "nombre_remitente": m.nombre_remitente,
+                "rol_remitente": m.rol_remitente,
+                "mensaje": m.mensaje,
+                "creado_en": m.creado_en.isoformat() if m.creado_en else None,
+            }
+            for m in p.mensajes
+        ],
+        "adjuntos": [
+            {
+                "id": a.id,
+                "nombre_archivo": a.nombre_archivo,
+                "url": a.url,
+                "creado_en": a.creado_en.isoformat() if a.creado_en else None,
+            }
+            for a in p.adjuntos
+        ],
+    }
+
+
+def _notificar_miembros_tienda(db: Session, tienda_id: int, tipo: str, mensaje: str, enlace: str = None):
+    """Notifica a todos los miembros activos de una tienda aliada."""
+    ids = (
+        db.query(TiendaUsuario.usuario_id)
+        .filter(TiendaUsuario.tienda_id == tienda_id, TiendaUsuario.activo == True)  # noqa: E712
+        .all()
+    )
+    for (uid,) in ids:
+        crear_notificacion(db, uid, tipo=tipo, mensaje=mensaje, enlace=enlace)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+@router.get("/pqrs-tiendas")
+def listar_pqrs_tiendas(
+    estado: Optional[str] = Query(None, description="Filtrar por estado: pendiente, en_revision, finalizado"),
+    busqueda: Optional[str] = Query(None),
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Lista las PQRS creadas por las Tiendas Aliadas."""
+    q = db.query(TiendaPqrs)
+    if estado:
+        q = q.filter(TiendaPqrs.estado == estado)
+    if busqueda:
+        termino = f"%{busqueda.strip()}%"
+        q = q.filter(
+            TiendaPqrs.asunto.ilike(termino)
+            | TiendaPqrs.tienda_nombre.ilike(termino)
+            | TiendaPqrs.descripcion.ilike(termino)
+        )
+    filas = q.order_by(TiendaPqrs.creado_en.desc()).all()
+    return [_serialize_pqrs_admin(p) for p in filas]
+
+
+@router.get("/pqrs-tiendas/{pqrs_id}")
+def detalle_pqrs_tienda_admin(
+    pqrs_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Detalle completo de una PQRS de tienda (mensajes + adjuntos)."""
+    pqrs = db.query(TiendaPqrs).filter(TiendaPqrs.id == pqrs_id).first()
+    if not pqrs:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada")
+    return _serialize_pqrs_admin(pqrs)
+
+
+@router.patch("/pqrs-tiendas/{pqrs_id}/estado")
+def cambiar_estado_pqrs_tienda_admin(
+    pqrs_id: int,
+    payload: AdminTiendaPqrsEstadoUpdate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """El Administrador de Adoptify cambia el estado de una PQRS de tienda.
+
+    Notifica a la tienda del cambio de estado.
+    """
+    pqrs = db.query(TiendaPqrs).filter(TiendaPqrs.id == pqrs_id).first()
+    if not pqrs:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada")
+    pqrs.estado = payload.estado
+    pqrs.actualizado_en = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pqrs)
+
+    _notificar_miembros_tienda(
+        db, pqrs.tienda_id,
+        tipo="pqrs_tienda",
+        mensaje=f"El estado de tu PQRS '{pqrs.asunto}' cambió a '{payload.estado}'.",
+        enlace="/tienda/pqrs",
+    )
+    registrar_auditoria(
+        db, _admin.id,
+        accion="cambio_estado_pqrs_tienda",
+        entidad="tienda_pqrs",
+        entidad_id=pqrs.id,
+        detalle=f"Estado -> {payload.estado}",
+    )
+    return _serialize_pqrs_admin(pqrs)
+
+
+@router.post("/pqrs-tiendas/{pqrs_id}/responder")
+def responder_pqrs_tienda_admin(
+    pqrs_id: int,
+    payload: AdminTiendaPqrsRespuestaCreate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """El Administrador de Adoptify responde una PQRS de tienda y opcionalmente
+    actualiza su estado. Notifica a la tienda.
+    """
+    pqrs = db.query(TiendaPqrs).filter(TiendaPqrs.id == pqrs_id).first()
+    if not pqrs:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada")
+
+    nombre_admin = f"{_admin.nombre} {_admin.apellido or ''}".strip()
+    mensaje = TiendaPqrsMensaje(
+        pqrs_id=pqrs.id,
+        usuario_id=_admin.id,
+        nombre_remitente=nombre_admin,
+        rol_remitente="admin",
+        mensaje=payload.mensaje,
+    )
+    db.add(mensaje)
+    db.flush()
+
+    adjuntos = _subir_adjuntos_admin(payload.adjuntos)
+    for adj in adjuntos:
+        db.add(TiendaPqrsAdjunto(
+            pqrs_id=pqrs.id,
+            mensaje_id=mensaje.id,
+            nombre_archivo=adj["nombre_archivo"],
+            url=adj["url"],
+        ))
+
+    if payload.estado:
+        pqrs.estado = payload.estado
+    pqrs.actualizado_en = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pqrs)
+
+    _notificar_miembros_tienda(
+        db, pqrs.tienda_id,
+        tipo="pqrs_tienda",
+        mensaje=f"Adoptify respondió tu PQRS '{pqrs.asunto}'.",
+        enlace="/tienda/pqrs",
+    )
+    registrar_auditoria(
+        db, _admin.id,
+        accion="responder_pqrs_tienda",
+        entidad="tienda_pqrs",
+        entidad_id=pqrs.id,
+        detalle=payload.estado or "respuesta",
+    )
+    return _serialize_pqrs_admin(pqrs)

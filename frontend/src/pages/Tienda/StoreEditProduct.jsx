@@ -233,7 +233,9 @@ export default function StoreEditProduct() {
       // Limpiar datos de IA de sessionStorage
       sessionStorage.removeItem("adoptify_ai_analysis");
       setSuccessMsg(isNew ? "Producto creado correctamente" : "Producto actualizado correctamente");
-      setTimeout(() => navigate("/tienda/productos"), 1500);
+      // Al editar se vuelve al detalle del producto (que recarga desde la BD);
+      // al crear, se vuelve al listado.
+      setTimeout(() => navigate(isNew ? "/tienda/productos" : `/tienda/productos/${id}`), 1500);
     } catch (err) {
       setErrors((prev) => ({
         ...prev,

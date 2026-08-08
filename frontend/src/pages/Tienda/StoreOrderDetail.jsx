@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
-  ArrowLeft, ShoppingCart, Package, MapPin, CreditCard, Phone, Mail,
+  ArrowLeft, ShoppingCart, Package, MapPin, CreditCard, Phone,
   User, Loader2, CheckCircle, Truck, Save, Hash,
 } from "lucide-react";
 import { obtenerPedidoTienda, cambiarEstadoPedidoTienda } from "../../api/tienda";
+import { useStore } from "../../context/StoreContext";
 
 const ESTADOS = [
   { key: "pendiente", label: "Pendiente" },
@@ -24,6 +25,18 @@ const ESTADO_COLOR = {
 
 export default function StoreOrderDetail() {
   const { id } = useParams();
+  const { tienePermiso, tieneAlgunoPermiso } = useStore();
+  const puedeCambiar = tienePermiso("pedidos.cambiar_estado");
+  const puedeAceptar = tienePermiso("pedidos.aceptar");
+  const puedeRechazar = tienePermiso("pedidos.rechazar");
+  const puedeGestionar = tieneAlgunoPermiso(["pedidos.cambiar_estado", "pedidos.aceptar", "pedidos.rechazar"]);
+
+  // Determina si el usuario puede cambiar a un estado especifico segun sus permisos.
+  const puedeCambiarA = (estado) => {
+    if (estado === "cancelado") return puedeCambiar || puedeRechazar;
+    if (["pagado", "enviado", "entregado"].includes(estado)) return puedeCambiar || puedeAceptar;
+    return puedeCambiar;
+  };
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -122,22 +135,30 @@ export default function StoreOrderDetail() {
                 {order.estado_nombre || order.estado}
               </span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {ESTADOS.map((e) => (
-                <button
-                  key={e.key}
-                  onClick={() => cambiarEstado(e.key)}
-                  disabled={saving || order.estado === e.key}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all disabled:opacity-50 ${
-                    order.estado === e.key
-                      ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white"
-                      : "bg-gray-50 dark:bg-dark-bg text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300"
-                  }`}
-                >
-                  {e.label}
-                </button>
-              ))}
-            </div>
+            {puedeGestionar ? (
+              <div className="flex flex-wrap gap-2">
+                {ESTADOS.map((e) => {
+                  const habilitado = puedeCambiarA(e.key);
+                  if (!habilitado) return null;
+                  return (
+                    <button
+                      key={e.key}
+                      onClick={() => cambiarEstado(e.key)}
+                      disabled={saving || order.estado === e.key}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all disabled:opacity-50 ${
+                        order.estado === e.key
+                          ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white"
+                          : "bg-gray-50 dark:bg-dark-bg text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300"
+                      }`}
+                    >
+                      {e.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">No tienes permisos para cambiar el estado de los pedidos.</p>
+            )}
           </div>
 
           {/* Datos de envio: numero de guia y transportadora */}
@@ -145,53 +166,62 @@ export default function StoreOrderDetail() {
             <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-1 flex items-center gap-2">
               <Truck size={16} className="text-rose-500" /> Datos de envío
             </h3>
-            <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-4">
-              Ingresa la empresa transportadora y el número de guía para que el cliente pueda rastrear su pedido.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-dark-text-secondary mb-1.5">
-                  Empresa transportadora
-                </label>
-                <input
-                  type="text"
-                  value={transportadora}
-                  onChange={(e) => setTransportadora(e.target.value)}
-                  placeholder="Ej: Servientrega, Coordinadora..."
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 outline-none focus:border-rose-400"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-dark-text-secondary mb-1.5">
-                  Número de guía
-                </label>
-                <div className="relative">
-                  <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={numeroGuia}
-                    onChange={(e) => setNumeroGuia(e.target.value)}
-                    placeholder="Ej: 123456789"
-                    className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 outline-none focus:border-rose-400"
-                  />
+            {puedeGestionar ? (
+              <>
+                <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-4">
+                  Ingresa la empresa transportadora y el número de guía para que el cliente pueda rastrear su pedido.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-dark-text-secondary mb-1.5">
+                      Empresa transportadora
+                    </label>
+                    <input
+                      type="text"
+                      value={transportadora}
+                      onChange={(e) => setTransportadora(e.target.value)}
+                      placeholder="Ej: Servientrega, Coordinadora..."
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 outline-none focus:border-rose-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-dark-text-secondary mb-1.5">
+                      Número de guía
+                    </label>
+                    <div className="relative">
+                      <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={numeroGuia}
+                        onChange={(e) => setNumeroGuia(e.target.value)}
+                        placeholder="Ej: 123456789"
+                        className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 outline-none focus:border-rose-400"
+                      />
+                    </div>
+                  </div>
                 </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    onClick={guardarGuia}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    Guardar guía
+                  </button>
+                  {guiaSaved && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle size={14} /> Guardado
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <p className="text-gray-600 dark:text-dark-text-secondary">Transportadora: <strong>{order.empresa_transportadora || "—"}</strong></p>
+                <p className="text-gray-600 dark:text-dark-text-secondary">Número de guía: <strong>{order.numero_guia || "—"}</strong></p>
               </div>
-            </div>
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                onClick={guardarGuia}
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-50"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                Guardar guía
-              </button>
-              {guiaSaved && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle size={14} /> Guardado
-                </span>
-              )}
-            </div>
+            )}
           </div>
 
           {/* Productos (de mi tienda) */}
