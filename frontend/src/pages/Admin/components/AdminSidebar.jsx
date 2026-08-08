@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Building2, PawPrint, Store,
   ClipboardList, ChevronLeft, ShoppingBag, Package,
-  BarChart3, ChevronDown, LogOut,
+  BarChart3, ChevronDown, LogOut, Pin, PinOff,
 } from "lucide-react";
 
 const menuItems = [
@@ -24,21 +24,24 @@ const menuItems = [
   { icon: ClipboardList, label: "Reportes", path: "/admin/reportes" },
 ];
 
-export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, onLogout }) {
+export default function AdminSidebar({ mobileOpen, onMobileClose, onLogout }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+  // "Fijar" mantiene el menú lateral abierto (no se colapsa al salir el mouse).
+  const [fijado, setFijado] = useState(false);
   const sidebarRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
 
-  const isExpanded = isHovered;
+  const isExpanded = isHovered || fijado;
   const isMarketplaceActive = location.pathname.startsWith("/admin/marketplace") || location.pathname === "/admin/tiendas";
 
   // Auto-open marketplace submenu if we're on a marketplace page
   useEffect(() => {
     if (isMarketplaceActive && isExpanded) {
-      setMarketplaceOpen(true);
+      const t = setTimeout(() => setMarketplaceOpen(true), 0);
+      return () => clearTimeout(t);
     }
   }, [isMarketplaceActive, isExpanded]);
 
@@ -48,10 +51,19 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
   };
 
   const handleMouseLeave = () => {
+    if (fijado) return; // fijado: el menú permanece abierto
     hoverTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
       if (!isMarketplaceActive) setMarketplaceOpen(false);
     }, 50);
+  };
+
+  // Fijar/desfijar: solo cambia el estado abierto/cerrado del menú lateral.
+  const toggleFijar = () => {
+    const nuevo = !fijado;
+    setFijado(nuevo);
+    setIsHovered(nuevo);
+    if (nuevo && isMarketplaceActive) setMarketplaceOpen(true);
   };
 
   useEffect(() => {
@@ -62,7 +74,7 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
 
   const handleNavClick = () => {
     if (onMobileClose) onMobileClose();
-    setIsHovered(false);
+    if (!fijado) setIsHovered(false);
   };
 
   const NavItem = ({ item, isMobile = false }) => {
@@ -258,8 +270,31 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, adminNombre, o
           ))}
         </nav>
 
-        {/* Cerrar Sesión */}
-        <div className="border-t border-gray-100 dark:border-dark-border p-3">
+        {/* Fijar menú + Cerrar Sesión */}
+        <div className="border-t border-gray-100 dark:border-dark-border p-3 space-y-1">
+          <button
+            onClick={toggleFijar}
+            title={fijado ? "Menú fijado (clic para desfijar)" : "Fijar menú"}
+            className={`
+              flex items-center rounded-xl transition-all duration-200 group cursor-pointer w-full
+              ${isExpanded ? "gap-3 px-3 py-3" : "gap-0 justify-center px-0 py-3 mx-auto w-[56px]"}
+              ${fijado ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20" : ""}
+            `}
+          >
+            {fijado ? (
+              <PinOff size={20} className="flex-shrink-0 text-white transition-colors" />
+            ) : (
+              <Pin size={20} className="flex-shrink-0 text-gray-400 group-hover:text-rose-500 transition-colors" />
+            )}
+            <span className={`
+              text-sm font-medium transition-all duration-[280ms] ease-out whitespace-nowrap
+              ${isExpanded ? "opacity-100 max-w-[200px]" : "opacity-0 max-w-0 overflow-hidden"}
+              ${fijado ? "text-white" : "text-gray-500 dark:text-dark-text-secondary"}
+            `}>
+              {fijado ? "Menú fijado" : "Fijar menú"}
+            </span>
+          </button>
+
           <button
             onClick={() => { onMobileClose?.(); onLogout?.(); }}
             className={`

@@ -11,6 +11,10 @@ import {
 } from "lucide-react";
 import { misSolicitudes } from "../../api/solicitudes";
 import { idsMascotasFavoritas } from "../../api/favoritos";
+import FieldError from "../../components/FieldError";
+import {
+  validarNombre, validarEmail, validarTelefono, normalizarEmail, limpiarEspacios, claseInput,
+} from "../../utils/validaciones";
 
 // Perfil base (se completa con los datos reales del usuario autenticado).
 const EMPTY_USER = {
@@ -203,7 +207,24 @@ function AvatarModal({ isOpen, onClose }) {
 
 // ─── Edit Profile Modal ───
 function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onCancel }) {
+  const [errors, setErrors] = useState({});
+
   if (!isOpen) return null;
+
+  const handleSaveClick = () => {
+    const nuevos = {
+      name: validarNombre(editedUser.name, { campo: "nombre" }),
+      email: validarEmail(editedUser.email),
+      phone: validarTelefono(editedUser.phone, { obligatorio: false }),
+    };
+    setErrors(nuevos);
+    if (Object.values(nuevos).some((m) => m)) return;
+    onSave({
+      ...editedUser,
+      name: limpiarEspacios(editedUser.name),
+      email: normalizarEmail(editedUser.email),
+    });
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-modal-overlay" />
@@ -224,22 +245,25 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nombre completo</label>
               <input type="text" value={editedUser.name}
-                onChange={e => setEditedUser({ ...editedUser, name: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                onChange={e => { setEditedUser({ ...editedUser, name: e.target.value }); setErrors((prev) => ({ ...prev, name: "" })); }}
+                className={claseInput("w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all", !!errors.name)} />
+              <FieldError mensaje={errors.name} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Correo electrónico</label>
               <input type="email" value={editedUser.email}
-                onChange={e => setEditedUser({ ...editedUser, email: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                onChange={e => { setEditedUser({ ...editedUser, email: e.target.value }); setErrors((prev) => ({ ...prev, email: "" })); }}
+                className={claseInput("w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all", !!errors.email)} />
+              <FieldError mensaje={errors.email} />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Teléfono</label>
               <input type="tel" value={editedUser.phone}
-                onChange={e => setEditedUser({ ...editedUser, phone: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+                onChange={e => { setEditedUser({ ...editedUser, phone: e.target.value }); setErrors((prev) => ({ ...prev, phone: "" })); }}
+                className={claseInput("w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all", !!errors.phone)} />
+              <FieldError mensaje={errors.phone} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ubicación</label>
@@ -279,7 +303,7 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
           <button onClick={onCancel} className="flex-1 px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-dark-border">
             Cancelar
           </button>
-          <button onClick={onSave} className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30">
+          <button onClick={handleSaveClick} className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30">
             <Save className="w-4 h-4" />
             Guardar cambios
           </button>
@@ -762,6 +786,7 @@ export default function UserProfile() {
       {/* ─── Modals ─── */}
       <AvatarModal isOpen={showAvatarModal} onClose={() => setShowAvatarModal(false)} />
       <EditProfileModal
+        key={showEditModal ? "edit-open" : "edit-closed"}
         isOpen={showEditModal}
         user={user}
         editedUser={editedUser}

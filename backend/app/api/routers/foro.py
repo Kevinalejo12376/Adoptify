@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from sqlalchemy import func
 # pyrefly: ignore [missing-import]
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 # pyrefly: ignore [missing-import]
 from typing import Optional, List
 
@@ -29,10 +29,42 @@ class PostCreate(BaseModel):
     tipo: Optional[str] = None        # codigo de tipos_post_foro
     tags: Optional[str] = None
 
+    @field_validator("titulo")
+    @classmethod
+    def _validar_titulo(cls, v):
+        valor = (v or "").strip()
+        if len(valor) < 3:
+            raise ValueError("El título debe tener al menos 3 caracteres")
+        if len(valor) > 120:
+            raise ValueError("El título no puede superar los 120 caracteres")
+        return valor
+
+    @field_validator("contenido")
+    @classmethod
+    def _validar_contenido(cls, v):
+        if v is None:
+            return v
+        valor = v.strip()
+        if len(valor) < 10:
+            raise ValueError("El contenido de la publicación debe tener al menos 10 caracteres")
+        if len(valor) > 10000:
+            raise ValueError("El contenido no puede superar los 10000 caracteres")
+        return valor
+
 
 class ComentarioCreate(BaseModel):
     contenido: str
     comentario_padre_id: Optional[int] = None
+
+    @field_validator("contenido")
+    @classmethod
+    def _validar_contenido(cls, v):
+        valor = (v or "").strip()
+        if len(valor) < 2:
+            raise ValueError("El comentario debe tener al menos 2 caracteres")
+        if len(valor) > 2000:
+            raise ValueError("El comentario no puede superar los 2000 caracteres")
+        return valor
 
 
 class ReaccionCreate(BaseModel):

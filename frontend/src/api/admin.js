@@ -1,4 +1,4 @@
-nito // Llamadas al panel de administracion (requieren token de admin).
+// Llamadas al panel de administracion (requieren token de admin).
 import { apiFetch } from "./client";
 
 const base = "/api/admin";
@@ -55,6 +55,31 @@ export async function eliminarProducto(id) {
 export async function listarPqrs() { return apiFetch(`${base}/pqrs`); }
 export async function actualizarPqrs(id, payload) {
   return apiFetch(`${base}/pqrs/${id}`, { method: "PATCH", body: payload });
+}
+
+// ===== PQRS de Tiendas Aliadas =====
+/** Lista las PQRS creadas por las Tiendas Aliadas. */
+export async function listarPqrsTiendas({ estado, busqueda } = {}) {
+  const params = new URLSearchParams();
+  if (estado) params.set("estado", estado);
+  if (busqueda) params.set("busqueda", busqueda);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch(`${base}/pqrs-tiendas${qs}`);
+}
+
+/** Detalle completo de una PQRS de tienda. */
+export async function obtenerPqrsTienda(id) {
+  return apiFetch(`${base}/pqrs-tiendas/${id}`);
+}
+
+/** Cambia el estado de una PQRS de tienda (admin de Adoptify). */
+export async function cambiarEstadoPqrsTienda(id, estado) {
+  return apiFetch(`${base}/pqrs-tiendas/${id}/estado`, { method: "PATCH", body: { estado } });
+}
+
+/** Responde una PQRS de tienda (admin de Adoptify). */
+export async function responderPqrsTienda(id, payload) {
+  return apiFetch(`${base}/pqrs-tiendas/${id}/responder`, { method: "POST", body: payload });
 }
 
 // ===== Reportes =====

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import AdminSidebar from "./components/AdminSidebar";
@@ -6,20 +6,12 @@ import AdminHeader from "./components/AdminHeader";
 
 export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [activeMenu, setActiveMenu] = useState(() => {
-    return localStorage.getItem("adminActiveMenu") || "";
-  });
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     navigate("/login");
-  };
-
-  const handleActiveMenuChange = (menuId) => {
-    setActiveMenu(menuId);
-    localStorage.setItem("adminActiveMenu", menuId);
   };
 
   const adminNombre = user?.nombre || "Admin";
@@ -30,7 +22,6 @@ export default function AdminLayout() {
       <AdminSidebar
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
-        adminNombre={adminNombre}
         onLogout={handleLogout}
       />
 
@@ -46,8 +37,6 @@ export default function AdminLayout() {
           adminNombre={adminNombre}
           onLogout={handleLogout}
           onMenuToggle={() => setMobileOpen(!mobileOpen)}
-          activeMenu={activeMenu}
-          onActiveMenuChange={handleActiveMenuChange}
         />
 
         {/* Main Content (Outlet) con animación fade-in */}

@@ -2,6 +2,7 @@
 Inserta cada valor solo si su 'codigo' aun no existe."""
 from app.db.database import SessionLocal
 from app.models import catalogos as cat
+from app.models.tienda import TiendaPermiso
 
 # (codigo, nombre) por cada catalogo
 DATOS = {
@@ -97,6 +98,73 @@ FORO_CATEGORIAS = [
     ("general", "General", "MessageSquare"),
 ]
 
+# ============================================================
+# Catalogo de permisos del modulo Tienda (RBAC)
+# Formato: (codigo, nombre, modulo, descripcion)
+# Agregar un permiso nuevo = agregar una fila aqui. La logica
+# del sistema de permisos no requiere cambios.
+# ============================================================
+TIENDA_PERMISOS = [
+    # Dashboard
+    ("dashboard.ver", "Ver dashboard", "dashboard", "Ver el panel principal de la tienda"),
+    # Gestion de productos
+    ("productos.ver", "Ver productos", "productos", "Ver el listado y detalle de productos"),
+    ("productos.crear", "Crear productos", "productos", "Crear nuevos productos"),
+    ("productos.editar", "Editar productos", "productos", "Editar productos existentes"),
+    ("productos.eliminar", "Eliminar productos", "productos", "Eliminar productos"),
+    ("productos.activar", "Activar productos", "productos", "Activar (mostrar) productos"),
+    ("productos.desactivar", "Desactivar productos", "productos", "Desactivar (ocultar) productos"),
+    # Gestion de categorias
+    ("categorias.ver", "Ver categorias", "categorias", "Ver las categorias de productos"),
+    ("categorias.crear", "Crear categorias", "categorias", "Crear nuevas categorias"),
+    ("categorias.editar", "Editar categorias", "categorias", "Editar categorias existentes"),
+    ("categorias.eliminar", "Eliminar categorias", "categorias", "Eliminar categorias"),
+    # Gestion de inventario
+    ("inventario.ver", "Ver inventario", "inventario", "Ver el inventario de la tienda"),
+    ("inventario.actualizar_stock", "Actualizar stock", "inventario", "Actualizar el stock de productos"),
+    ("inventario.registrar_entradas", "Registrar entradas", "inventario", "Registrar entradas de inventario"),
+    ("inventario.registrar_salidas", "Registrar salidas", "inventario", "Registrar salidas de inventario"),
+    # Gestion de pedidos
+    ("pedidos.ver", "Ver pedidos", "pedidos", "Ver el listado y detalle de pedidos"),
+    ("pedidos.aceptar", "Aceptar pedidos", "pedidos", "Aceptar pedidos"),
+    ("pedidos.rechazar", "Rechazar pedidos", "pedidos", "Rechazar pedidos"),
+    ("pedidos.cambiar_estado", "Cambiar estados", "pedidos", "Cambiar el estado de los pedidos"),
+    ("pedidos.gestionar_devoluciones", "Gestionar devoluciones", "pedidos", "Gestionar devoluciones"),
+    # Gestion de promociones
+    ("promociones.ver", "Ver promociones", "promociones", "Ver las promociones de la tienda"),
+    ("promociones.crear", "Crear promociones", "promociones", "Crear nuevas promociones"),
+    ("promociones.editar", "Editar promociones", "promociones", "Editar promociones existentes"),
+    ("promociones.eliminar", "Eliminar promociones", "promociones", "Eliminar promociones"),
+    # Gestion de clientes
+    ("clientes.ver", "Ver clientes", "clientes", "Ver los clientes de la tienda"),
+    ("clientes.administrar", "Administrar clientes", "clientes", "Administrar la informacion de clientes"),
+    # Gestion de la tienda (perfil)
+    ("tienda.ver_perfil", "Ver perfil de la tienda", "tienda", "Ver el perfil de la tienda"),
+    ("tienda.editar_informacion", "Editar informacion de la tienda", "tienda", "Editar la informacion de la tienda"),
+    ("tienda.cambiar_logo", "Cambiar logo", "tienda", "Cambiar el logo de la tienda"),
+    ("tienda.cambiar_imagenes", "Cambiar imagenes", "tienda", "Cambiar las imagenes de la tienda"),
+    ("tienda.actualizar_horarios", "Actualizar horarios", "tienda", "Actualizar los horarios de atencion"),
+    # Reportes
+    ("reportes.ver_estadisticas", "Ver estadisticas", "reportes", "Ver las estadisticas de la tienda"),
+    ("reportes.descargar_reportes", "Descargar reportes", "reportes", "Descargar reportes"),
+    ("reportes.exportar_informacion", "Exportar informacion", "reportes", "Exportar informacion de la tienda"),
+    # Configuracion
+    ("configuracion.acceder", "Acceder a configuracion", "configuracion", "Acceder al apartado de configuracion"),
+    ("configuracion.editar_configuraciones", "Editar configuraciones", "configuracion", "Editar las configuraciones permitidas"),
+    # Administradores (exclusivo Super Administrador)
+    ("administradores.gestionar", "Gestionar administradores", "administradores", "Crear, editar y eliminar administradores"),
+    ("administradores.asignar_permisos", "Asignar permisos", "administradores", "Asignar permisos a los administradores"),
+    # Historial de actividad
+    ("historial.ver", "Ver historial de actividad", "historial", "Consultar el historial de actividad de la tienda"),
+    # Donaciones
+    ("donaciones.ver", "Ver donaciones", "donaciones", "Consultar las donaciones realizadas por la tienda"),
+    ("donaciones.crear", "Realizar donaciones", "donaciones", "Donar productos a los refugios"),
+    # PQRS (Atencion)
+    ("pqrs.ver", "Ver PQRS", "pqrs", "Consultar las PQRS de la tienda"),
+    ("pqrs.crear", "Crear PQRS", "pqrs", "Crear peticiones, quejas, reclamos o sugerencias"),
+    ("pqrs.responder", "Responder PQRS", "pqrs", "Responder a las PQRS cuando corresponda"),
+]
+
 
 def seed_catalogos():
     db = SessionLocal()
@@ -111,6 +179,12 @@ def seed_catalogos():
         for codigo, nombre, icono in FORO_CATEGORIAS:
             if codigo not in existentes_fc:
                 db.add(cat.ForoCategoria(codigo=codigo, nombre=nombre, icono=icono))
+
+        # Catalogo de permisos del modulo Tienda (idempotente)
+        existentes_tp = {c for (c,) in db.query(TiendaPermiso.codigo).all()}
+        for codigo, nombre, modulo, descripcion in TIENDA_PERMISOS:
+            if codigo not in existentes_tp:
+                db.add(TiendaPermiso(codigo=codigo, nombre=nombre, modulo=modulo, descripcion=descripcion))
 
         db.commit()
 
