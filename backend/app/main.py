@@ -203,6 +203,21 @@ def _run_migrations():
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
 
+        # ---- RBAC del modulo Tienda (jerarquia + permisos) ----
+        try:
+            _crear_tablas_rbac_tienda(db)
+        except Exception as e:
+            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
+            print(f"[migracion] No se pudieron crear tablas RBAC por SQL (SQLite las crea via modelos): {e}")
+        _backfill_super_admin_tiendas(db)
+
+        # ---- Nuevas tablas de Tienda (historial de actividad, donaciones, PQRS) ----
+        try:
+            _crear_tablas_nuevas_tienda(db)
+        except Exception as e:
+            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
+            print(f"[migracion] No se pudieron crear tablas nuevas de tienda por SQL (SQLite las crea via modelos): {e}")
+
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
         print("[migracion] Tabla 'movimientos_kardex' verificada correctamente.")
     except Exception as e:

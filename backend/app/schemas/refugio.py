@@ -25,6 +25,8 @@ class RefugioImagenIn(BaseModel):
     id: Optional[int] = None
     url: Optional[str] = None
 
+from app.core.validadores import validar_nombre_comercial, validar_email, validar_telefono
+
 
 class RefugioBase(BaseModel):
     nombre: str
@@ -67,6 +69,21 @@ class RefugioUpdate(BaseModel):
     @classmethod
     def _validar_telefono(cls, v):
         return validar_telefono_empleado(v)
+
+    @field_validator("nombre")
+    @classmethod
+    def _validar_nombre(cls, v):
+        return validar_nombre_comercial(v, "nombre")
+
+    @field_validator("email")
+    @classmethod
+    def _validar_email(cls, v):
+        return validar_email(v)
+
+    @field_validator("telefono")
+    @classmethod
+    def _validar_telefono(cls, v):
+        return validar_telefono(v)
 
 
 class RefugioResponse(RefugioBase):

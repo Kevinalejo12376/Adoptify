@@ -57,6 +57,17 @@ class ImagenMascota(BaseModel):
     url: str
     public_id: Optional[str] = None
 
+from app.core.validadores import validar_nombre_comercial
+
+
+def _limitar_texto(valor, campo, maximo):
+    if valor is None or str(valor).strip() == "":
+        return valor
+    limpio = str(valor).strip()
+    if len(limpio) > maximo:
+        raise ValueError(f"El {campo} no puede superar los {maximo} caracteres")
+    return limpio
+
 
 class MascotaCreate(BaseModel):
     nombre: str
@@ -137,6 +148,26 @@ class MascotaCreate(BaseModel):
     @classmethod
     def _validar_texto_lista(cls, v):
         return _a_texto_lista(v)
+
+    @field_validator("nombre")
+    @classmethod
+    def _validar_nombre(cls, v):
+        return validar_nombre_comercial(v, "nombre")
+
+    @field_validator("raza")
+    @classmethod
+    def _validar_raza(cls, v):
+        return _limitar_texto(v, "raza", 60)
+
+    @field_validator("edad")
+    @classmethod
+    def _validar_edad(cls, v):
+        return _limitar_texto(v, "edad", 20)
+
+    @field_validator("descripcion")
+    @classmethod
+    def _validar_descripcion(cls, v):
+        return _limitar_texto(v, "campo descripción", 1000)
 
 
 class MascotaUpdate(BaseModel):
@@ -221,6 +252,26 @@ class MascotaUpdate(BaseModel):
     @classmethod
     def _validar_personalidad(cls, v):
         return _validar_personalidad(v)
+
+    @field_validator("nombre")
+    @classmethod
+    def _validar_nombre(cls, v):
+        return validar_nombre_comercial(v, "nombre")
+
+    @field_validator("raza")
+    @classmethod
+    def _validar_raza(cls, v):
+        return _limitar_texto(v, "raza", 60)
+
+    @field_validator("edad")
+    @classmethod
+    def _validar_edad(cls, v):
+        return _limitar_texto(v, "edad", 20)
+
+    @field_validator("descripcion")
+    @classmethod
+    def _validar_descripcion(cls, v):
+        return _limitar_texto(v, "campo descripción", 1000)
 
 
 class MascotaResponse(BaseModel):

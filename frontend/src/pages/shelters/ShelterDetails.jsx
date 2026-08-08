@@ -32,6 +32,22 @@ const categoryColors = {
   Higiene: "from-rose-500 to-pink-500",
 };
 
+const categoryIcons = {
+  Alimentos: Dog,
+  Accesorios: Shirt,
+  Juguetes: Bone,
+  Salud: Stethoscope,
+  Higiene: Droplets,
+};
+
+const categoryColors = {
+  Alimentos: "from-emerald-500 to-teal-500",
+  Accesorios: "from-violet-500 to-purple-500",
+  Juguetes: "from-amber-500 to-orange-500",
+  Salud: "from-blue-500 to-cyan-500",
+  Higiene: "from-rose-500 to-pink-500",
+};
+
 export default function ShelterDetails() {
   const { id } = useParams();
   const { isShelterFavorite, toggleShelterFavorite } = useFavorites();
