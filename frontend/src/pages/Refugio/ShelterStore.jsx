@@ -79,7 +79,7 @@ const ImageUploadSection = ({ images, onUpload, onRemove, onMove, label }) => {
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         {label} ({count}/{MAX_IMAGES})
       </label>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {(images || []).map((img, index) => (
           <div key={img.id} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border">
             <img src={img.src} alt={`Imagen ${index + 1}`} className="w-full h-full object-cover" />

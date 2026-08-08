@@ -57,7 +57,12 @@ function mapPost(p) {
     category: p.categoria || "General",
     content: p.contenido || "",
     tags: p.tags || [],
-    images: [],
+    // Imágenes almacenadas en Cloudinary (solo secure_url + id en la BD).
+    images: (p.imagenes || []).map((img) => ({
+      id: img.id,
+      url: img.url,
+      publicId: img.public_id || "",
+    })),
     reactions: { ...EMPTY_REACCIONES, ...(p.reacciones || {}) },
     comments: [],
     commentsCount: p.comentarios_count || 0,

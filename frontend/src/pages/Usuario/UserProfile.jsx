@@ -4,10 +4,10 @@ import { Link } from "react-router-dom";
 import {
   User, Mail, Phone, MapPin, Calendar, Edit, Camera, Save, X,
   PawPrint, Heart, Settings, LogOut, Shield, ChevronRight,
-  MessageCircle, Home, Star, ThumbsUp, Clock, TrendingUp,
-  Dog, Cat, Gift, CheckCircle, AlertCircle,
-  Image, Globe, Plus,
-  Search, Users, Share2, ArrowUp, Quote, Sparkles, Loader2
+  MessageCircle, Clock, TrendingUp,
+  Dog, Cat, CheckCircle, AlertCircle,
+  Image, Globe, Plus, Trash2,
+  ArrowUp, Quote, Sparkles, Loader2
 } from "lucide-react";
 import { misSolicitudes } from "../../api/solicitudes";
 import { idsMascotasFavoritas } from "../../api/favoritos";
@@ -15,6 +15,9 @@ import FieldError from "../../components/FieldError";
 import {
   validarNombre, validarEmail, validarTelefono, normalizarEmail, limpiarEspacios, claseInput,
 } from "../../utils/validaciones";
+import { useImageUpload } from "../../hooks/useImageUpload";
+import { readAndValidateImage } from "../../utils/imageUtils";
+import ImageEditorModal from "../../components/ImageEditorModal";
 
 // Perfil base (se completa con los datos reales del usuario autenticado).
 const EMPTY_USER = {
@@ -120,88 +123,152 @@ function PetCard({ pet, index }) {
   );
 }
 
-// ─── Activity Item ───
-function ActivityItem({ item, index }) {
-  const Icon = item.icon;
-  return (
-    <div
-      className="flex items-start gap-4 p-4 rounded-2xl bg-gray-50 dark:bg-dark-bg hover:bg-rose-50/50 dark:hover:bg-rose-900/10 transition-all duration-300 animate-fadeIn cursor-default group"
-      style={{ animationDelay: `${index * 100}ms` }}
-    >
-      <div className={`w-10 h-10 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 dark:text-white text-sm">{item.title}</p>
-        <p className="text-sm text-gray-600 dark:text-gray-400">{item.desc}</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
-          <Clock className="w-3 h-3" /> {item.time}
-        </p>
-      </div>
-    </div>
-  );
-}
+// ─── Avatar Modal (editar + subir a Cloudinary con el flujo unificado) ───
+function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange }) {
+  const fileInputRef = useRef(null);
+  const [editingSrc, setEditingSrc] = useState(null);
+  const { uploadDataUrl, uploading, error, progress } = useImageUpload({ tipo: "usuario", etiqueta: "avatar" });
 
-
-// ─── Avatar Modal ───
-function AvatarModal({ isOpen, onClose }) {
   if (!isOpen) return null;
+
+  // Selecciona el archivo, valida y abre el editor interactivo.
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || editingSrc) return;
+    const res = await readAndValidateImage(file);
+    if (res.ok) {
+      setEditingSrc(res.base64);
+    }
+  };
+
+  // La imagen ya editada se sube a Cloudinary y se guarda la secure_url.
+  const handleEditorApply = async (dataUrl) => {
+    setEditingSrc(null);
+    const res = await uploadDataUrl(dataUrl);
+    if (res.ok) {
+      onAvatarChange?.(res.url);
+      onClose();
+    }
+  };
+
+  const handleQuitar = () => {
+    onAvatarChange?.(null);
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-modal-overlay" />
-      <div className="relative bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-md w-full p-6 animate-modal-content" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-900/30 dark:to-amber-900/30 rounded-xl flex items-center justify-center">
-              <Image className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white font-display">Cambiar Foto</h3>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg transition-all">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="space-y-6">
-          <div className="flex justify-center">
-            <div className="relative group cursor-pointer">
-              <div className="w-36 h-36 bg-gradient-to-br from-rose-200 to-amber-200 dark:from-rose-900/40 dark:to-amber-900/40 rounded-full flex items-center justify-center border-4 border-white dark:border-dark-card shadow-xl transition-transform duration-300 group-hover:scale-105">
-                <User className="w-16 h-16 text-rose-400 dark:text-rose-500" />
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-modal-overlay" />
+        <div className="relative bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-md w-full p-6 animate-modal-content" onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-900/30 dark:to-amber-900/30 rounded-xl flex items-center justify-center">
+                <Image className="w-5 h-5 text-rose-600 dark:text-rose-400" />
               </div>
-              <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
-                <Camera className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white font-display">Cambiar Foto</h3>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-bg transition-all">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="space-y-6">
+            <div className="flex justify-center">
+              <div className="relative group">
+                <div className="w-36 h-36 bg-gradient-to-br from-rose-200 to-amber-200 dark:from-rose-900/40 dark:to-amber-900/40 rounded-full flex items-center justify-center border-4 border-white dark:border-dark-card shadow-xl overflow-hidden">
+                  {currentAvatar ? (
+                    <img src={currentAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-16 h-16 text-rose-400 dark:text-rose-500" />
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="border-2 border-dashed border-gray-200 dark:border-dark-border rounded-2xl p-8 text-center hover:border-rose-300 dark:hover:border-rose-700 transition-all duration-300 group cursor-pointer bg-gray-50/50 dark:bg-dark-bg/50">
-            <div className="w-14 h-14 mx-auto mb-4 bg-rose-100 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <Camera className="w-7 h-7 text-rose-500 dark:text-rose-400" />
-            </div>
-            <p className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-              Subir nueva foto
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Arrastra y suelta o haz clic para seleccionar
-            </p>
-            <input type="file" className="hidden" accept="image/*" id="avatar-upload" />
-            <label
-              htmlFor="avatar-upload"
-              className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30 cursor-pointer"
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+              onChange={handleFile}
+              disabled={uploading}
+            />
+
+            <div
+              onClick={() => !uploading && !editingSrc && fileInputRef.current?.click()}
+              className={`border-2 border-dashed border-gray-200 dark:border-dark-border rounded-2xl p-8 text-center transition-all duration-300 group cursor-pointer bg-gray-50/50 dark:bg-dark-bg/50 ${
+                uploading ? "opacity-60 cursor-not-allowed" : "hover:border-rose-300 dark:hover:border-rose-700"
+              }`}
             >
-              Seleccionar imagen
-            </label>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-dark-border">
-              Cancelar
-            </button>
-            <button className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-900/30">
-              <Save className="w-4 h-4" />
-              Guardar
-            </button>
+              {uploading ? (
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
+                  <p className="text-sm font-semibold text-gray-700 dark:text-white">
+                    Subiendo foto ({progress}%)
+                  </p>
+                  <div className="w-full max-w-xs h-2 rounded-full bg-gray-200 dark:bg-dark-border overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="w-14 h-14 mx-auto mb-4 bg-rose-100 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <Camera className="w-7 h-7 text-rose-500 dark:text-rose-400" />
+                  </div>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+                    Subir nueva foto
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    JPG, PNG, WEBP, GIF o AVIF · máx. 10 MB
+                  </p>
+                  <p className="text-xs text-rose-500/80 font-medium mb-4">
+                    ✂️ Podrás recortar, rotar y voltear antes de subir
+                  </p>
+                  <span className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-lg">
+                    Seleccionar imagen
+                  </span>
+                </>
+              )}
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500 dark:text-red-400" />
+                <p className="text-xs text-red-700 dark:text-red-300 flex-1">{error}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              {currentAvatar && (
+                <button
+                  onClick={handleQuitar}
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-semibold rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all border border-red-200 dark:border-red-500/30"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Quitar foto
+                </button>
+              )}
+              <button onClick={onClose} className="w-full px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-dark-border">
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Editor interactivo de la foto de perfil */}
+      <ImageEditorModal
+        isOpen={!!editingSrc}
+        imageSrc={editingSrc}
+        aspectRatio={1}
+        onApply={handleEditorApply}
+        onCancel={() => setEditingSrc(null)}
+      />
+    </>
   );
 }
 
@@ -392,6 +459,11 @@ export default function UserProfile() {
   const handleSave = () => {
     setUser({ ...editedUser });
     setShowEditModal(false);
+  };
+
+  // Guarda la URL de Cloudinary devuelta por el flujo unificado de avatar.
+  const handleAvatarChange = (url) => {
+    setUser((prev) => ({ ...prev, avatar: url }));
   };
 
   const handleCancel = () => {
@@ -784,7 +856,12 @@ export default function UserProfile() {
       </div>
 
       {/* ─── Modals ─── */}
-      <AvatarModal isOpen={showAvatarModal} onClose={() => setShowAvatarModal(false)} />
+      <AvatarModal
+        isOpen={showAvatarModal}
+        onClose={() => setShowAvatarModal(false)}
+        currentAvatar={user.avatar}
+        onAvatarChange={handleAvatarChange}
+      />
       <EditProfileModal
         key={showEditModal ? "edit-open" : "edit-closed"}
         isOpen={showEditModal}

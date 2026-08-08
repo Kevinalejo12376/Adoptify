@@ -6,7 +6,6 @@ import {
   FileText, AlertTriangle, Loader2, Building2, Image as ImageIcon,
   Globe, RefreshCw, User, Home,
 } from "lucide-react";
-import Badge from "../../../components/admin/Badge";
 import FieldError from "../../../components/FieldError";
 import { listarUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from "../../../api/admin";
 import {
@@ -472,7 +471,7 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
         )}
 
         <form onSubmit={handleSubmit} noValidate className="p-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Nombre *</label>
               <input
@@ -534,7 +533,7 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
             </>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono *</label>
               <input
