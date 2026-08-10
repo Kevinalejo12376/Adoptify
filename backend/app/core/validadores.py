@@ -124,8 +124,24 @@ def validar_password(valor):
     if not re.search(r"[^A-Za-z0-9]", valor):
         faltantes.append("un carácter especial")
     if faltantes:
-        raise ValueError("La contraseña debe incluir al menos " + ", ".join(faltantes))
+        raise ValueError("La contraseña debe contener al menos una mayúscula, una minúscula, un número y un carácter especial")
     return valor
+
+
+def validar_telefono_empleado(valor):
+    """Teléfono de empleado/refugio (Colombia): exactamente 10 dígitos, solo números.
+
+    No admite letras, espacios, guiones ni símbolos. Es la regla estricta de
+    los formularios del rol Refugio.
+    """
+    if _esta_vacio(valor):
+        return None
+    limpio = str(valor).strip()
+    if not limpio.isdigit():
+        raise ValueError("El teléfono solo puede contener números")
+    if len(limpio) != 10:
+        raise ValueError("El teléfono debe contener exactamente 10 números")
+    return limpio
 
 
 def validar_permisos(codigos, obligatorio=True):

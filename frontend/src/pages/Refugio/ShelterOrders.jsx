@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   ShoppingBag, Search, Package, ChevronDown, ChevronRight,
   Clock, CheckCircle, Truck, XCircle, AlertCircle,
   Eye, Filter, Calendar, DollarSign, MapPin, User,
-  Box, TrendingUp, CreditCard, ArrowUp, ArrowDown
+  Box, TrendingUp, CreditCard, ArrowUp, ArrowDown, Loader2
 } from "lucide-react";
+import { misPedidosRefugio } from "../../api/pedidos";
 
 const orderStatuses = [
   { id: "recibido", label: "Recibido", icon: Package, color: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400" },
@@ -28,139 +29,31 @@ const getStatusBadge = (statusId) => {
   );
 };
 
-// Sample orders
-const initialOrders = [
-  {
-    id: "ORD-001",
-    customer: "Ana López",
-    email: "ana@email.com",
-    phone: "+57 300 123 4567",
-    items: [
-      { name: "Collar Premium Ajustable", quantity: 2, price: 100.00 },
-      { name: "Juguete Interactivo Kong", quantity: 1, price: 35.00 },
-    ],
-    date: "15 Jul 2026",
-    time: "10:30 AM",
-    total: 235.00,
-    paymentMethod: "Tarjeta de crédito",
-    status: "recibido",
-    address: "Cra 15 # 45-67, Bogotá",
-    notes: "",
-    history: [
-      { status: "recibido", date: "15 Jul 2026", time: "10:30 AM", note: "Pedido recibido" },
-    ]
-  },
-  {
-    id: "ORD-002",
-    customer: "Carlos Ruiz",
-    email: "carlos@email.com",
-    phone: "+57 301 987 6543",
-    items: [
-      { name: "Recipiente de Comida Anti-vuelco", quantity: 1, price: 45.00 },
-    ],
-    date: "14 Jul 2026",
-    time: "3:45 PM",
-    total: 45.00,
-    paymentMethod: "Nequi",
-    status: "confirmado",
-    address: "Cll 23 # 12-34, Medellín",
-    notes: "Entregar en portería",
-    history: [
-      { status: "recibido", date: "14 Jul 2026", time: "3:45 PM", note: "Pedido recibido" },
-      { status: "confirmado", date: "14 Jul 2026", time: "5:20 PM", note: "Pedido confirmado, verificando stock" },
-    ]
-  },
-  {
-    id: "ORD-003",
-    customer: "María Fernández",
-    email: "maria@email.com",
-    phone: "+57 302 456 7890",
-    items: [
-      { name: "Shampoo Natural para Mascotas", quantity: 3, price: 28.00 },
-      { name: "Desparasitante Oral", quantity: 2, price: 32.00 },
-      { name: "Juguete Interactivo Kong", quantity: 1, price: 35.00 },
-    ],
-    date: "13 Jul 2026",
-    time: "9:15 AM",
-    total: 183.00,
-    paymentMethod: "Efectivo contra entrega",
-    status: "preparando",
-    address: "Av. Siempre Viva # 742, Cali",
-    notes: "",
-    history: [
-      { status: "recibido", date: "13 Jul 2026", time: "9:15 AM", note: "Pedido recibido" },
-      { status: "confirmado", date: "13 Jul 2026", time: "11:30 AM", note: "Pedido confirmado" },
-      { status: "preparando", date: "14 Jul 2026", time: "8:00 AM", note: "Preparando productos" },
-    ]
-  },
-  {
-    id: "ORD-004",
-    customer: "Pedro Martínez",
-    email: "pedro@email.com",
-    phone: "+57 303 789 0123",
-    items: [
-      { name: "Alimento Premium Perro Adulto", quantity: 2, price: 85.00 },
-    ],
-    date: "12 Jul 2026",
-    time: "2:00 PM",
-    total: 170.00,
-    paymentMethod: "Transferencia bancaria",
-    status: "enviado",
-    address: "Carrera 50 # 20-30, Barranquilla",
-    notes: "Llamar antes de entregar",
-    history: [
-      { status: "recibido", date: "12 Jul 2026", time: "2:00 PM", note: "Pedido recibido" },
-      { status: "confirmado", date: "12 Jul 2026", time: "4:15 PM", note: "Pedido confirmado" },
-      { status: "preparando", date: "13 Jul 2026", time: "9:00 AM", note: "Preparando productos" },
-      { status: "enviado", date: "14 Jul 2026", time: "10:00 AM", note: "Enviado con Servientrega - Guía #123456" },
-    ]
-  },
-  {
-    id: "ORD-005",
-    customer: "Laura Gómez",
-    email: "laura@email.com",
-    phone: "+57 304 567 8901",
-    items: [
-      { name: "Cama Ortopédica Grande", quantity: 1, price: 120.00 },
-      { name: "Cepillo Dental para Mascotas", quantity: 2, price: 18.00 },
-    ],
-    date: "10 Jul 2026",
-    time: "11:30 AM",
-    total: 156.00,
-    paymentMethod: "Tarjeta débito",
-    status: "entregado",
-    address: "Cll 8 # 3-45, Bucaramanga",
-    notes: "",
-    history: [
-      { status: "recibido", date: "10 Jul 2026", time: "11:30 AM", note: "Pedido recibido" },
-      { status: "confirmado", date: "10 Jul 2026", time: "2:00 PM", note: "Pedido confirmado" },
-      { status: "preparando", date: "11 Jul 2026", time: "9:00 AM", note: "Preparando productos" },
-      { status: "enviado", date: "12 Jul 2026", time: "11:00 AM", note: "Enviado con Envía - Guía #789012" },
-      { status: "en_camino", date: "13 Jul 2026", time: "8:30 AM", note: "En camino a destino" },
-      { status: "entregado", date: "14 Jul 2026", time: "3:15 PM", note: "Entregado al cliente" },
-    ]
-  },
-  {
-    id: "ORD-006",
-    customer: "Roberto Sánchez",
-    email: "roberto@email.com",
-    phone: "+57 305 678 9012",
-    items: [
-      { name: "Antipulgas y Garrapatas", quantity: 1, price: 48.00 },
-    ],
-    date: "8 Jul 2026",
-    time: "4:00 PM",
-    total: 48.00,
-    paymentMethod: "Tarjeta de crédito",
-    status: "cancelado",
-    address: "Av. Las Américas # 56-78, Pereira",
-    notes: "Cliente solicitó cancelación",
-    history: [
-      { status: "recibido", date: "8 Jul 2026", time: "4:00 PM", note: "Pedido recibido" },
-      { status: "cancelado", date: "9 Jul 2026", time: "10:15 AM", note: "Cancelado por solicitud del cliente" },
-    ]
-  },
-];
+// Mapea un pedido del backend a la forma que usa la vista.
+const mapPedido = (p) => ({
+  id: p.numero || `PED-${p.id}`,
+  customer: p.nombre_contacto || "Cliente",
+  email: "",
+  phone: p.telefono_contacto || "",
+  items: (p.items || []).map((it) => ({
+    name: it.nombre_producto,
+    quantity: it.cantidad,
+    price: it.precio_unitario,
+  })),
+  date: p.creado_en ? new Date(p.creado_en).toLocaleDateString("es-CO") : "",
+  time: p.creado_en ? new Date(p.creado_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
+  total: Number(p.total || 0),
+  paymentMethod: p.metodo_pago || "—",
+  status: p.estado || "recibido",
+  address: p.direccion_envio || "",
+  notes: p.notas || "",
+  history: (p.historial || []).map((h) => ({
+    status: h.estado,
+    date: h.creado_en ? new Date(h.creado_en).toLocaleDateString("es-CO") : "",
+    time: h.creado_en ? new Date(h.creado_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
+    note: h.notas || "",
+  })),
+});
 
 const StatCard = ({ icon: Icon, label, value, color, bg }) => (
   <div className="bg-white dark:bg-dark-card rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02] border border-gray-100 dark:border-dark-border">
@@ -178,10 +71,27 @@ export default function ShelterOrders() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todas");
   const [sortOrder, setSortOrder] = useState("newest");
+
+  // Carga los pedidos reales del refugio desde la base de datos.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const data = await misPedidosRefugio();
+        if (activo) setOrders(Array.isArray(data) ? data.map(mapPedido) : []);
+      } catch {
+        if (activo) setOrders([]);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
 
   // Handle location state updates (from order detail page)
   React.useEffect(() => {
@@ -211,6 +121,14 @@ export default function ShelterOrders() {
     { id: "todas", label: "Todas" },
     ...orderStatuses.map(s => ({ id: s.id, label: s.label })),
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center pt-24">
+        <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-24 pb-16">

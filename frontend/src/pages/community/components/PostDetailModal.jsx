@@ -1,344 +1,215 @@
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "../../../context/ThemeContext";
-import { reaccionarComentario } from "../../../api/foro";
+import { useAuth } from "../../../context/AuthContext";
 import {
-  X,
-  Heart,
-  MessageCircle,
-  Share2,
   Bookmark,
   Flag,
   ArrowLeft,
   Clock,
   User,
   Shield,
-  ThumbsUp,
-  Star,
-  Smile,
-  ShieldCheck,
-  Reply,
-  MoreHorizontal,
-  Sparkles,
-  Send,
-  Image as ImageIcon,
+  MessageCircle,
+  Share2,
+  Edit3,
+  Trash2,
 } from "lucide-react";
+import ReactionButton from "./ReactionPicker";
+import CommentsSection from "./CommentsSection";
+import ReactionsModal from "./ReactionsModal";
+import ShareMenu from "./ShareMenu";
+import ConfirmModal from "../../../components/ConfirmModal";
+import { obtenerReacciones } from "../../../api/foro";
+import { mapComentario, REACTION_TYPES, getTotalReactions } from "../forumData";
 
-const reactionTypes = [
-  { id: "like", icon: ThumbsUp, label: "Me gusta", color: "text-blue-500", activeBg: "bg-blue-100 dark:bg-blue-500/15" },
-  { id: "love", icon: Heart, label: "Me encanta", color: "text-rose-500", activeBg: "bg-rose-100 dark:bg-rose-500/15" },
-  { id: "celebrate", icon: Star, label: "Felicidades", color: "text-amber-500", activeBg: "bg-amber-100 dark:bg-amber-500/15" },
-  { id: "support", icon: ShieldCheck, label: "Apoyo", color: "text-emerald-500", activeBg: "bg-emerald-100 dark:bg-emerald-500/15" },
-  { id: "funny", icon: Smile, label: "Divertido", color: "text-violet-500", activeBg: "bg-violet-100 dark:bg-violet-500/15" },
-];
+const getInitials = (name) => {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return parts[0][0].toUpperCase();
+};
 
-function CommentItem({ comment, depth = 0, isDark }) {
-  const [showReplyInput, setShowReplyInput] = useState(false);
-  const [replyText, setReplyText] = useState("");
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(comment.likes || 0);
-  const [likeBusy, setLikeBusy] = useState(false);
-
-  const isShelter = comment.isShelter;
-
-  const handleLikeComment = async () => {
-    if (!comment.id || likeBusy) return;
-    setLikeBusy(true);
-    // Actualizacion optimista
-    const prevLiked = liked;
-    const prevCount = likeCount;
-    setLiked(!prevLiked);
-    setLikeCount(prevLiked ? Math.max(0, prevCount - 1) : prevCount + 1);
-    try {
-      const res = await reaccionarComentario(comment.id);
-      if (res) {
-        setLiked(!!res.activo);
-        if (typeof res.likes === "number") setLikeCount(res.likes);
-      }
-    } catch {
-      // revierte si falla
-      setLiked(prevLiked);
-      setLikeCount(prevCount);
-    } finally {
-      setLikeBusy(false);
-    }
-  };
-
+function ReactionSummary({ reactions, onOpen }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const present = REACTION_TYPES.filter((r) => (reactions?.[r.id] || 0) > 0);
+  const total = getTotalReactions(reactions);
+  if (total === 0) return null;
   return (
-    <div className={`${depth > 0 ? "ml-8 pl-4 border-l-2 border-gray-100 dark:border-dark-border" : ""}`}>
-      <div className="flex gap-3 py-3">
-        <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${
-          isShelter ? "from-emerald-500 to-teal-500" : "from-rose-500 to-amber-500"
-        } flex items-center justify-center text-white text-sm font-bold shrink-0`}>
-          {comment.author.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`text-sm font-semibold ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-              {comment.author}
+    <button
+      onClick={onOpen}
+      className={`flex items-center gap-2 text-sm font-medium transition-all ${isDark ? "text-dark-text-secondary hover:text-dark-text" : "text-gray-500 hover:text-gray-700"}`}
+      title="Ver quiénes reaccionaron"
+    >
+      <span className="flex -space-x-1.5">
+        {present.slice(0, 3).map((r) => {
+          const Icon = r.icon;
+          return (
+            <span key={r.id} className={`w-6 h-6 rounded-full flex items-center justify-center ring-2 ${r.softBg} ${r.darkSoftBg} ${r.softBorder.replace("border-", "ring-")} ${r.darkSoftBorder.replace("dark:border-", "dark:ring-")}`}>
+              <Icon className={`w-3.5 h-3.5 ${r.color}`} fill="currentColor" />
             </span>
-            {isShelter && (
-              <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${
-                isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-100 text-emerald-700"
-              }`}>
-                <Shield className="w-3 h-3" />
-                Refugio
-              </span>
-            )}
-            {comment.isAuthor && (
-              <span className={`text-xs px-1.5 py-0.5 rounded ${
-                isDark ? "bg-rose-500/10 text-rose-300" : "bg-rose-50 text-rose-600"
-              }`}>Autor</span>
-            )}
-            <span className={`text-xs ${isDark ? "text-dark-text-secondary" : "text-gray-400"}`}>
-              {comment.time}
-            </span>
-          </div>
-
-          <p className={`text-sm leading-relaxed mb-2 ${
-            isDark ? "text-dark-text-secondary" : "text-gray-600"
-          }`}>
-            {comment.content}
-          </p>
-
-          {/* Comment Images */}
-          {comment.images && comment.images.length > 0 && (
-            <div className="flex gap-2 mb-2">
-              {comment.images.map((img, idx) => (
-                <img
-                  key={idx}
-                  src={img}
-                  alt=""
-                  className="w-24 h-24 rounded-lg object-cover"
-                />
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleLikeComment}
-              disabled={likeBusy || !comment.id}
-              className={`flex items-center gap-1 text-xs font-medium transition-all disabled:opacity-60 ${
-                liked
-                  ? "text-rose-500"
-                  : isDark
-                  ? "text-dark-text-secondary hover:text-dark-text"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Heart className={`w-3.5 h-3.5 ${liked ? "fill-rose-500" : ""}`} />
-              {likeCount}
-            </button>
-            <button
-              onClick={() => setShowReplyInput(!showReplyInput)}
-              className={`flex items-center gap-1 text-xs font-medium transition-all ${
-                isDark
-                  ? "text-dark-text-secondary hover:text-dark-text"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              <Reply className="w-3.5 h-3.5" />
-              Responder
-            </button>
-          </div>
-
-          {/* Reply Input */}
-          {showReplyInput && (
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                type="text"
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Escribe una respuesta..."
-                className={`flex-1 px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 ${
-                  isDark
-                    ? "bg-[#15151f] border border-dark-border text-dark-text placeholder-dark-text-secondary"
-                    : "bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400"
-                }`}
-              />
-              <button className={`p-1.5 rounded-lg transition-all ${
-                isDark
-                  ? "text-dark-text-secondary hover:text-rose-400 hover:bg-white/5"
-                  : "text-gray-500 hover:text-rose-500 hover:bg-rose-50"
-              }`}>
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Nested Replies */}
-          {comment.replies?.map((reply) => (
-            <CommentItem
-              key={reply.id}
-              comment={reply}
-              depth={depth + 1}
-              isDark={isDark}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+          );
+        })}
+      </span>
+      {total} {total === 1 ? "reacción" : "reacciones"}
+    </button>
   );
 }
 
-export default function PostDetailModal({ post, isOpen, onClose, onComment, onReact }) {
+export default function PostDetailModal({
+  post,
+  isOpen,
+  onClose,
+  onReact,
+  currentUserId,
+  notify,
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
+  onToggleCommentLike,
+  onShare,
+  onToggleSave,
+  isSaved,
+}) {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const isDark = theme === "dark";
-  const [newComment, setNewComment] = useState("");
-  const [isSaved, setIsSaved] = useState(false);
-  const [userReaction, setUserReaction] = useState(null);
-  const [sending, setSending] = useState(false);
+
+  const [comments, setComments] = useState([]);
+  const [showReactions, setShowReactions] = useState(false);
+  const [reactionsList, setReactionsList] = useState([]);
+  const [reactionsLoading, setReactionsLoading] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const currentUserIdResolved = currentUserId ?? user?.id;
+
+  useEffect(() => {
+    if (!post || !isOpen) return;
+    // Se difiere para no llamar setState de forma síncrona dentro del efecto.
+    const t = setTimeout(() => {
+      setComments((post.comments || []).map((c) => mapComentario(c, currentUserIdResolved)));
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post, isOpen]);
 
   if (!isOpen || !post) return null;
 
   const isShelter = post.accountType === "shelter";
+  const isOwnPost = post.autorId != null && user != null && post.autorId === user?.id;
+  const shareUrl = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
 
-  const handleSendComment = async () => {
-    const text = newComment.trim();
-    if (!text || sending) return;
-    setSending(true);
+  const openReactions = async () => {
+    setShowReactions(true);
+    setReactionsLoading(true);
     try {
-      await onComment?.(post.id, text);
-      setNewComment("");
-    } catch (e) {
-      // se conserva el texto si falla
+      const data = await obtenerReacciones(post.id);
+      setReactionsList(data || []);
+    } catch {
+      setReactionsList([]);
+      notify?.("No se pudieron cargar las reacciones", "error");
     } finally {
-      setSending(false);
+      setReactionsLoading(false);
     }
   };
 
-  const getInitials = (name) => {
-    if (!name) return "?";
-    const names = name.split(" ");
-    return names.length >= 2
-      ? (names[0][0] + names[1][0]).toUpperCase()
-      : names[0][0].toUpperCase();
+  const handleAddComment = async (postId, text, parentId) => {
+    const mapped = await onAddComment(postId, text, parentId);
+    setComments((prev) => [...prev, mapped]);
+    return mapped;
+  };
+
+  const handleEditComment = async (comentarioId, text) => {
+    const mapped = await onEditComment(comentarioId, text);
+    setComments((prev) => prev.map((c) => (c.id === comentarioId ? { ...c, ...mapped, replies: c.replies } : c)));
+    return mapped;
+  };
+
+  const handleDeleteComment = async (comentarioId) => {
+    await onDeleteComment(post.id, comentarioId);
+    setComments((prev) => prev.filter((c) => c.id !== comentarioId));
+  };
+
+  const handleToggleCommentLike = async (comment) => {
+    const res = await onToggleCommentLike(comment);
+    setComments((prev) => prev.map((c) => (c.id === comment.id ? { ...c, liked: !!res.activo, likes: res.likes } : c)));
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-modal-overlay">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
 
-      {/* Modal */}
-      <div
-        className={`relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col ${
-          isDark ? "bg-dark-card border border-dark-border" : "bg-white"
-        } animate-modal-content`}
-      >
+      <div className={`relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl flex flex-col ${isDark ? "bg-dark-card border border-dark-border" : "bg-white"} animate-modal-content`}>
         {/* Header */}
-        <div className={`flex items-center justify-between p-4 border-b ${
-          isDark ? "border-dark-border" : "border-gray-100"
-        }`}>
-          <button
-            onClick={onClose}
-            className={`flex items-center gap-2 text-sm font-medium transition-all ${
-              isDark
-                ? "text-dark-text-secondary hover:text-dark-text"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
+        <div className={`flex items-center justify-between p-4 border-b ${isDark ? "border-dark-border" : "border-gray-100"}`}>
+          <button onClick={onClose} className={`flex items-center gap-2 text-sm font-medium transition-all ${isDark ? "text-dark-text-secondary hover:text-dark-text" : "text-gray-600 hover:text-gray-900"}`}>
             <ArrowLeft className="w-4 h-4" />
             Volver al foro
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsSaved(!isSaved)}
-              className={`p-2 rounded-lg transition-all ${
-                isSaved
-                  ? "text-amber-500 bg-amber-100 dark:bg-amber-500/15"
-                  : isDark
-                  ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
-                  : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"
-              }`}
-            >
+          <div className="flex items-center gap-1">
+            {isOwnPost && (
+              <>
+                <button onClick={() => notify?.("La edición se realiza desde tu publicación en el feed", "info")} className={`p-2 rounded-lg transition-all ${isDark ? "text-dark-text-secondary hover:text-rose-400 hover:bg-white/5" : "text-gray-400 hover:text-rose-500 hover:bg-rose-50"}`} title="Editar">
+                  <Edit3 className="w-4 h-4" />
+                </button>
+                <button onClick={() => setShowDeleteConfirm(true)} className={`p-2 rounded-lg transition-all ${isDark ? "text-dark-text-secondary hover:text-red-400 hover:bg-red-500/10" : "text-gray-400 hover:text-red-500 hover:bg-red-50"}`} title="Eliminar">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            <button onClick={() => onToggleSave?.(post.id)} className={`p-2 rounded-lg transition-all ${isSaved ? "text-amber-500 bg-amber-100 dark:bg-amber-500/15" : isDark ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5" : "text-gray-400 hover:text-amber-500 hover:bg-amber-50"}`} title={isSaved ? "Quitar de guardadas" : "Guardar"}>
               <Bookmark className={`w-4 h-4 ${isSaved ? "fill-amber-500" : ""}`} />
             </button>
-            <button className={`p-2 rounded-lg transition-all ${
-              isDark
-                ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
-                : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-            }`}>
+            <button onClick={() => setShowShare(true)} className={`p-2 rounded-lg transition-all ${isDark ? "text-dark-text-secondary hover:text-rose-400 hover:bg-white/5" : "text-gray-400 hover:text-rose-500 hover:bg-rose-50"}`} title="Compartir">
               <Share2 className="w-4 h-4" />
             </button>
-            <button className={`p-2 rounded-lg transition-all ${
-              isDark
-                ? "text-dark-text-secondary hover:text-red-400 hover:bg-red-500/10"
-                : "text-gray-400 hover:text-red-500 hover:bg-red-50"
-            }`}>
+            <button onClick={() => notify?.("Reporte enviado. ¡Gracias!", "success")} className={`p-2 rounded-lg transition-all ${isDark ? "text-dark-text-secondary hover:text-red-400 hover:bg-red-500/10" : "text-gray-400 hover:text-red-500 hover:bg-red-50"}`} title="Reportar">
               <Flag className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* Author Info */}
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+          {/* Author */}
           <div className="flex items-center gap-3 mb-4">
-            <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${
-              isShelter ? "from-emerald-500 to-teal-500" : "from-rose-500 to-amber-500"
-            } flex items-center justify-center text-white text-lg font-bold shrink-0`}>
-              {getInitials(post.author)}
-            </div>
+            {post.avatar ? (
+              <div className={`w-12 h-12 rounded-full overflow-hidden border-2 ${isDark ? "border-dark-border" : "border-gray-100"} shrink-0`}>
+                <img src={post.avatar} alt={post.author} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${isShelter ? "from-orange-500 to-rose-500" : "from-amber-400 to-orange-500"} flex items-center justify-center text-white text-base font-bold shrink-0`}>
+                {getInitials(post.author)}
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
-                <h3 className={`font-semibold ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-                  {post.author}
-                </h3>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                  isShelter
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                    : "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
-                }`}>
+                <h3 className={`font-semibold ${isDark ? "text-dark-text" : "text-gray-900"}`}>{post.author}</h3>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isShelter ? "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300" : "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"}`}>
                   {isShelter ? <Shield className="w-3 h-3" /> : <User className="w-3 h-3" />}
                   {isShelter ? "Refugio" : "Usuario"}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className={`text-xs flex items-center gap-1 ${
-                  isDark ? "text-dark-text-secondary" : "text-gray-500"
-                }`}>
+                <span className={`text-xs flex items-center gap-1 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
                   <Clock className="w-3 h-3" />
                   {post.time}
                 </span>
-                <span className={`w-1 h-1 rounded-full ${
-                  isDark ? "bg-dark-border" : "bg-gray-300"
-                }`}></span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  isDark
-                    ? "bg-rose-500/10 text-rose-300"
-                    : "bg-rose-50 text-rose-700"
-                }`}>
-                  {post.category}
-                </span>
+                <span className={`w-1 h-1 rounded-full ${isDark ? "bg-dark-border" : "bg-gray-300"}`}></span>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? "bg-rose-500/10 text-rose-300" : "bg-rose-50 text-rose-700"}`}>{post.category}</span>
               </div>
             </div>
           </div>
 
-          {/* Post Content */}
-          <h2 className={`text-2xl font-bold mb-3 font-display ${
-            isDark ? "text-dark-text" : "text-gray-900"
-          }`}>
-            {post.title}
-          </h2>
-          <p className={`text-sm leading-relaxed mb-4 ${
-            isDark ? "text-dark-text-secondary" : "text-gray-600"
-          }`}>
-            {post.content}
-          </p>
+          {/* Title & content */}
+          <h2 className={`text-2xl font-bold mb-3 font-display ${isDark ? "text-dark-text" : "text-gray-900"}`}>{post.title}</h2>
+          <p className={`text-sm sm:text-base leading-relaxed mb-4 whitespace-pre-line ${isDark ? "text-dark-text-secondary" : "text-gray-600"}`}>{post.content}</p>
 
           {/* Images */}
           {post.images && post.images.length > 0 && (
-            <div className={`mb-4 rounded-xl overflow-hidden ${
-              post.images.length === 1 ? "" : "grid grid-cols-2 gap-2"
-            }`}>
+            <div className={`mb-4 rounded-xl overflow-hidden ${post.images.length === 1 ? "" : "grid grid-cols-2 gap-1.5"}`}>
               {post.images.map((img, idx) => (
-                <img
-                  key={idx}
-                  src={typeof img === "string" ? img : img?.url}
-                  alt=""
-                  className="w-full h-64 object-cover"
-                />
+                <img key={idx} src={typeof img === "string" ? img : img?.url} alt="" className="w-full h-56 object-cover" />
               ))}
             </div>
           )}
@@ -347,145 +218,73 @@ export default function PostDetailModal({ post, isOpen, onClose, onComment, onRe
           {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-4">
               {post.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className={`text-xs px-2.5 py-1 rounded-lg ${
-                    isDark
-                      ? "bg-white/5 text-dark-text-secondary"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
+                <span key={tag} className={`text-xs px-2.5 py-1 rounded-lg ${isDark ? "bg-white/5 text-dark-text-secondary" : "bg-gray-100 text-gray-600"}`}>
                   #{tag}
                 </span>
               ))}
             </div>
           )}
 
-          {/* Reactions Bar */}
-          <div className="flex items-center gap-2 mb-4">
-            {reactionTypes.map((reaction) => {
-              const Icon = reaction.icon;
-              const isActive = userReaction === reaction.id;
-              return (
-                <button
-                  key={reaction.id}
-                  onClick={() => {
-                    setUserReaction(isActive ? null : reaction.id);
-                    onReact?.(post.id, reaction.id);
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    isActive
-                      ? `${reaction.activeBg} ${reaction.color}`
-                      : isDark
-                      ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                  }`}
-                  title={reaction.label}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? reaction.color : ""}`} />
-                  <span>{post.reactions?.[reaction.id] || 0}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Divider */}
-          <div className={`border-t mb-4 ${
-            isDark ? "border-dark-border" : "border-gray-100"
-          }`}></div>
-
-          {/* Comments Section */}
-          <div className="mb-4">
-            <h3 className={`text-lg font-semibold mb-4 ${
-              isDark ? "text-dark-text" : "text-gray-900"
-            }`}>
-              Comentarios ({post.comments?.length || 0})
-            </h3>
-
-            {/* AI Comment Summary - AI Ready */}
-            {post.comments?.length > 8 && (
-              <div className={`mb-4 p-3 rounded-xl ${
-                isDark
-                  ? "bg-violet-500/10 border border-violet-500/20"
-                  : "bg-violet-50 border border-violet-100"
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Sparkles className={`w-4 h-4 ${isDark ? "text-violet-300" : "text-violet-600"}`} />
-                  <span className={`text-sm font-medium ${isDark ? "text-violet-300" : "text-violet-700"}`}>
-                    Resumen de comentarios
-                  </span>
-                  <span className={`ml-auto text-xs px-2 py-0.5 rounded ${
-                    isDark ? "bg-violet-500/15 text-violet-300" : "bg-violet-100 text-violet-600"
-                  }`}>
-                    IA
-                  </span>
-                </div>
-                <p className={`text-xs mt-1 ${
-                  isDark ? "text-dark-text-secondary" : "text-gray-500"
-                }`}>
-                  La mayoría de los usuarios recomiendan consultar con un veterinario y compartir experiencias positivas. Haz clic para ver el resumen completo.
-                </p>
-              </div>
-            )}
-
-            {/* Comments List */}
-            <div className="space-y-1">
-              {post.comments?.map((comment) => (
-                <CommentItem
-                  key={comment.id}
-                  comment={comment}
-                  isDark={isDark}
-                />
-              ))}
+          {/* Stats + actions */}
+          <div className={`border-t pt-3 ${isDark ? "border-dark-border" : "border-gray-100"}`}>
+            <div className="flex items-center justify-between">
+              <ReactionSummary reactions={post.reactions} onOpen={openReactions} />
+              <span className={`text-sm font-medium ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                {comments.length} {comments.length === 1 ? "comentario" : "comentarios"}
+              </span>
             </div>
-          </div>
-        </div>
 
-        {/* Comment Input Footer */}
-        <div className={`p-4 border-t ${
-          isDark ? "border-dark-border" : "border-gray-100"
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center text-white text-sm font-bold shrink-0`}>
-              {getInitials("Tú")}
-            </div>
-            <div className="flex-1 flex items-center gap-2">
-              <input
-                type="text"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendComment()}
-                placeholder="Escribe un comentario..."
-                className={`flex-1 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 ${
-                  isDark
-                    ? "bg-[#15151f] border border-dark-border text-dark-text placeholder-dark-text-secondary"
-                    : "bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400"
-                }`}
-              />
-              <button className={`p-2 rounded-xl transition-all ${
-                isDark
-                  ? "text-dark-text-secondary hover:text-rose-400 hover:bg-white/5"
-                  : "text-gray-500 hover:text-rose-500 hover:bg-rose-50"
-              }`}>
-                <ImageIcon className="w-5 h-5" />
+            <div className="grid grid-cols-3 gap-1 mt-2">
+              <ReactionButton postId={post.id} myReaction={post.miReaccion} onReact={onReact} compact className="w-full" />
+              <button
+                onClick={() => document.getElementById("forum-comments")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all active:scale-95 ${isDark ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}
+              >
+                <MessageCircle className="w-5 h-5" />
+                Comentar
               </button>
               <button
-                onClick={handleSendComment}
-                className={`p-2.5 rounded-xl transition-all ${
-                  newComment.trim() && !sending
-                    ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg"
-                    : isDark
-                    ? "bg-dark-border text-dark-text-secondary"
-                    : "bg-gray-100 text-gray-400"
-                }`}
-                disabled={!newComment.trim() || sending}
+                onClick={() => setShowShare(true)}
+                className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all active:scale-95 ${isDark ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}
               >
-                <Send className="w-4 h-4" />
+                <Share2 className="w-5 h-5" />
+                Compartir
               </button>
             </div>
+          </div>
+
+          {/* Comments */}
+          <div id="forum-comments" className={`mt-6 pt-5 border-t scroll-mt-24 ${isDark ? "border-dark-border" : "border-gray-100"}`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
+              Comentarios ({comments.length})
+            </h3>
+            <CommentsSection
+              postId={post.id}
+              comments={comments}
+              currentUserId={currentUserIdResolved}
+              onAddComment={handleAddComment}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+              onToggleCommentLike={handleToggleCommentLike}
+              notify={notify}
+            />
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <ReactionsModal isOpen={showReactions} onClose={() => setShowReactions(false)} reactions={reactionsList} loading={reactionsLoading} />
+      <ShareMenu isOpen={showShare} onClose={() => setShowShare(false)} url={shareUrl} title={post.title} notify={notify} onTrack={() => onShare?.(post.id).catch(() => {})} />
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => { setShowDeleteConfirm(false); onClose(); }}
+        title="Eliminar publicación"
+        message="Para eliminar esta publicación ve a tu perfil y usa la opción de eliminar en la tarjeta."
+        confirmText="Entendido"
+        cancelText="Cerrar"
+        type="warning"
+      />
     </div>
   );
 }

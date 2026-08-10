@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import ScrollToTop from "../../components/ScrollToTop";
@@ -7,14 +7,12 @@ import {
   Search,
   Plus,
   MessageCircle,
-  Clock,
   Filter,
   ChevronDown,
   Heart,
   X,
   Grid3X3,
   List,
-  Sparkles,
   Shield,
   Zap,
   Loader2,
@@ -25,65 +23,25 @@ import ForumRightPanel from "./components/ForumRightPanel";
 import ForumPostCard from "./components/ForumPostCard";
 import CreatePostModal from "./components/CreatePostModal";
 import PostDetailModal from "./components/PostDetailModal";
-import { listarPosts, obtenerPost, crearPost, comentar, reaccionar, eliminarPost, guardarPost, fijarPost, listarPostsGuardados, actualizarPost } from "../../api/foro";
+import {
+  listarPosts,
+  obtenerPost,
+  crearPost,
+  comentar,
+  reaccionar,
+  eliminarPost,
+  guardarPost,
+  fijarPost,
+  listarPostsGuardados,
+  actualizarPost,
+  editarComentario,
+  eliminarComentario,
+  reaccionarComentario,
+  compartirPost,
+} from "../../api/foro";
 import { estadisticasPublicas } from "../../api/refugios";
-
-const EMPTY_REACCIONES = { like: 0, love: 0, celebrate: 0, support: 0, funny: 0 };
-
-// Convierte una fecha ISO en texto relativo ("hace 2 h").
-function tiempoRelativo(iso) {
-  if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "hace un momento";
-  if (min < 60) return `hace ${min} min`;
-  const horas = Math.floor(min / 60);
-  if (horas < 24) return `hace ${horas} h`;
-  const dias = Math.floor(horas / 24);
-  return `hace ${dias} d`;
-}
-
-// Normaliza una publicacion del backend a la forma que consumen los componentes.
-function mapPost(p) {
-  return {
-    id: p.id,
-    autorId: p.autor_id,
-    createdAt: p.creado_en,
-    title: p.titulo,
-    author: p.autor,
-    accountType: p.autor_rol === "refugio" ? "shelter" : "user",
-    badges: p.autor_rol === "refugio" ? ["verified"] : [],
-    time: tiempoRelativo(p.creado_en),
-    category: p.categoria || "General",
-    content: p.contenido || "",
-    tags: p.tags || [],
-    // Imágenes almacenadas en Cloudinary (solo secure_url + id en la BD).
-    images: (p.imagenes || []).map((img) => ({
-      id: img.id,
-      url: img.url,
-      publicId: img.public_id || "",
-    })),
-    reactions: { ...EMPTY_REACCIONES, ...(p.reacciones || {}) },
-    comments: [],
-    commentsCount: p.comentarios_count || 0,
-    isPinned: p.fijado,
-    isSaved: false,
-  };
-}
-
-// Normaliza un comentario del backend.
-function mapComentario(c) {
-  return {
-    id: c.id,
-    author: c.autor,
-    content: c.contenido,
-    isShelter: c.autor_rol === "refugio",
-    isAuthor: false,
-    time: tiempoRelativo(c.creado_en),
-    likes: c.likes || 0,
-    replies: [],
-  };
-}
+import ForumToast from "./components/ForumToast";
+import { mapPost, mapComentario } from "./forumData";
 
 export default function Forum() {
   const { theme } = useTheme();
@@ -99,6 +57,12 @@ export default function Forum() {
   const [myPostsFilter, setMyPostsFilter] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
   const [pinnedAnimId, setPinnedAnimId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const pendingReaccionRef = useRef(new Set());
+  const deepLinkOpenedRef = useRef(false);
+
+  const currentUserId = user?.id;
+  const notify = useCallback((message, type = "success") => setToast({ message, type }), []);
 
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -118,13 +82,13 @@ export default function Forum() {
     setLoading(true);
     try {
       const data = await listarPosts();
-      setPosts((data || []).map(mapPost));
+      setPosts((data || []).map((p) => mapPost(p, user?.id)));
     } catch (e) {
       setPosts([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   const cargarGuardados = useCallback(async () => {
     try {
@@ -183,16 +147,49 @@ export default function Forum() {
     try {
       const detalle = await obtenerPost(post.id);
       setSelectedPost({
-        ...mapPost(detalle),
-        comments: (detalle.comentarios || []).map(mapComentario),
+        ...mapPost(detalle, user?.id),
+        comments: (detalle.comentarios || []).map((c) => mapComentario(c, user?.id)),
       });
     } catch (e) {
       // se mantiene el resumen basico si falla el detalle
     }
   };
 
-  const handleReactionChange = (postId, reactionId) => {
-    reaccionar(postId, reactionId).catch(() => {});
+  // Aplica una reacción de forma optimista a un post del estado.
+  const applyReactionLocal = (p, tipo) => {
+    const prev = p.miReaccion;
+    const reactions = { ...p.reactions };
+    if (prev === tipo) {
+      reactions[tipo] = Math.max(0, (reactions[tipo] || 0) - 1);
+      return { ...p, reactions, miReaccion: null };
+    }
+    if (prev) reactions[prev] = Math.max(0, (reactions[prev] || 0) - 1);
+    reactions[tipo] = (reactions[tipo] || 0) + 1;
+    return { ...p, reactions, miReaccion: tipo };
+  };
+
+  const handleReact = async (postId, tipo) => {
+    // Protección contra doble clic / doble solicitud por publicación.
+    if (pendingReaccionRef.current.has(postId)) return;
+    pendingReaccionRef.current.add(postId);
+    const prev = posts.find((p) => p.id === postId);
+    const snapshot = prev ? { reactions: { ...prev.reactions }, miReaccion: prev.miReaccion } : null;
+    setPosts((prevList) => prevList.map((p) => (p.id === postId ? applyReactionLocal(p, tipo) : p)));
+    setSelectedPost((sp) => (sp && sp.id === postId ? applyReactionLocal(sp, tipo) : sp));
+    try {
+      const res = await reaccionar(postId, tipo);
+      const server = { reactions: res.reacciones, miReaccion: res.mi_reaccion };
+      setPosts((prevList) => prevList.map((p) => (p.id === postId ? { ...p, ...server } : p)));
+      setSelectedPost((sp) => (sp && sp.id === postId ? { ...sp, ...server } : sp));
+    } catch (e) {
+      if (snapshot) {
+        setPosts((prevList) => prevList.map((p) => (p.id === postId ? { ...p, ...snapshot } : p)));
+        setSelectedPost((sp) => (sp && sp.id === postId ? { ...sp, ...snapshot } : sp));
+      }
+      notify("No se pudo registrar la reacción. Inténtalo nuevamente.", "error");
+    } finally {
+      pendingReaccionRef.current.delete(postId);
+    }
   };
 
   const handleCreatePost = async (payload) => {
@@ -264,18 +261,89 @@ export default function Forum() {
     }
   };
 
-  const handleAddComment = async (postId, text) => {
-    await comentar(postId, { contenido: text });
-    const detalle = await obtenerPost(postId);
-    setSelectedPost({
-      ...mapPost(detalle),
-      comments: (detalle.comentarios || []).map(mapComentario),
-    });
-    // Actualiza el conteo en el feed
-    setPosts((prev) =>
-      prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
-    );
+  const handleAddComment = async (postId, text, parentId) => {
+    try {
+      const creado = await comentar(postId, { contenido: text, comentario_padre_id: parentId || null });
+      const mapped = mapComentario(creado, user?.id);
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
+      );
+      setSelectedPost((sp) =>
+        sp && sp.id === postId
+          ? { ...sp, commentsCount: (sp.commentsCount || 0) + 1, comments: [...(sp.comments || []), mapped] }
+          : sp
+      );
+      return mapped;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("Error al publicar comentario:", e);
+      notify("No se pudo publicar el comentario. Inténtalo nuevamente.", "error");
+      throw e;
+    }
   };
+
+  const handleEditComment = async (comentarioId, text) => {
+    try {
+      const actualizado = await editarComentario(comentarioId, text);
+      return mapComentario(actualizado, user?.id);
+    } catch (e) {
+      notify("No se pudieron guardar los cambios.", "error");
+      throw e;
+    }
+  };
+
+  const handleDeleteComment = async (postId, comentarioId) => {
+    try {
+      await eliminarComentario(comentarioId);
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, commentsCount: Math.max(0, (p.commentsCount || 0) - 1) } : p))
+      );
+      setSelectedPost((sp) =>
+        sp && sp.id === postId
+          ? { ...sp, commentsCount: Math.max(0, (sp.commentsCount || 0) - 1), comments: (sp.comments || []).filter((c) => c.id !== comentarioId) }
+          : sp
+      );
+    } catch (e) {
+      notify("No se pudo eliminar el comentario.", "error");
+      throw e;
+    }
+  };
+
+  const handleToggleCommentLike = async (comment) => {
+    try {
+      const res = await reaccionarComentario(comment.id);
+      return { activo: !!res.activo, likes: res.likes };
+    } catch (e) {
+      notify("No se pudo actualizar el me gusta.", "error");
+      throw e;
+    }
+  };
+
+  const handleShare = async (postId) => {
+    try {
+      const res = await compartirPost(postId);
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, compartidos: res.compartidos } : p)));
+      setSelectedPost((sp) => (sp && sp.id === postId ? { ...sp, compartidos: res.compartidos } : sp));
+    } catch (e) {
+      // el compartir no se bloquea si el contador falla
+    }
+  };
+
+  // Deep link: si se abre el foro con ?post=<id>, abre esa publicación directamente.
+  useEffect(() => {
+    if (deepLinkOpenedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const postId = params.get("post");
+    if (postId && posts.length > 0) {
+      const found = posts.find((p) => String(p.id) === postId);
+      if (found) {
+        deepLinkOpenedRef.current = true;
+        // Se difiere para no llamar setState de forma síncrona dentro del efecto.
+        setTimeout(() => handlePostClick(found), 0);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posts]);
 
   // Stats data (reales)
   const totalComentarios = posts.reduce((acc, p) => acc + (p.commentsCount || 0), 0);
@@ -835,7 +903,7 @@ export default function Forum() {
                     key={post.id}
                     post={post}
                     onPostClick={handlePostClick}
-                    onReactionChange={handleReactionChange}
+                    onReact={handleReact}
                     onDeletePost={handleDeletePost}
                     isSaved={savedIds.includes(post.id)}
                     onToggleSave={handleToggleSave}
@@ -843,6 +911,13 @@ export default function Forum() {
                     pinnedCount={pinnedCount}
                     onEditPost={handleEditPost}
                     isPinnedAnim={post.id === pinnedAnimId}
+                    currentUserId={currentUserId}
+                    notify={notify}
+                    onAddComment={handleAddComment}
+                    onEditComment={handleEditComment}
+                    onDeleteComment={handleDeleteComment}
+                    onToggleCommentLike={handleToggleCommentLike}
+                    onShare={handleShare}
                   />
                 ))}
               </div>
@@ -854,7 +929,7 @@ export default function Forum() {
                     key={post.id}
                     post={post}
                     onPostClick={handlePostClick}
-                    onReactionChange={handleReactionChange}
+                    onReact={handleReact}
                     onDeletePost={handleDeletePost}
                     isSaved={savedIds.includes(post.id)}
                     onToggleSave={handleToggleSave}
@@ -862,6 +937,13 @@ export default function Forum() {
                     pinnedCount={pinnedCount}
                     onEditPost={handleEditPost}
                     isPinnedAnim={post.id === pinnedAnimId}
+                    currentUserId={currentUserId}
+                    notify={notify}
+                    onAddComment={handleAddComment}
+                    onEditComment={handleEditComment}
+                    onDeleteComment={handleDeleteComment}
+                    onToggleCommentLike={handleToggleCommentLike}
+                    onShare={handleShare}
                   />
                 ))}
               </div>
@@ -963,9 +1045,18 @@ export default function Forum() {
           setShowPostDetail(false);
           setSelectedPost(null);
         }}
-        onComment={handleAddComment}
-        onReact={handleReactionChange}
+        onReact={handleReact}
+        currentUserId={currentUserId}
+        notify={notify}
+        onAddComment={handleAddComment}
+        onEditComment={handleEditComment}
+        onDeleteComment={handleDeleteComment}
+        onToggleCommentLike={handleToggleCommentLike}
+        onShare={handleShare}
+        onToggleSave={handleToggleSave}
+        isSaved={selectedPost ? savedIds.includes(selectedPost.id) : false}
       />
+      <ForumToast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
       <ScrollToTop />
     </div>
   );

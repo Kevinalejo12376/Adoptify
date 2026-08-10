@@ -12,7 +12,7 @@ export default function Footer() {
   const navigate = useNavigate();
 
   const isAuthenticated = !!user;
-  const isShelter = user?.role === "refugio";
+  const isShelter = (user?.role === "refugio") || (user?.role === "empleado_refugio");
   const isStoreEnabled = user?.settings?.storeEnabled ?? false;
 
   const navigateWithScroll = (path) => {

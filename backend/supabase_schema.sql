@@ -59,6 +59,7 @@ CREATE TABLE roles (
 INSERT INTO roles (codigo, nombre) VALUES
     ('usuario', 'Usuario adoptante'),
     ('refugio', 'Refugio'),
+    ('empleado_refugio', 'Empleado de refugio'),
     ('administrador_principal', 'Administrador principal'),
     ('administrador', 'Administrador'),
     ('tienda_aliada', 'Tienda aliada');
@@ -190,9 +191,12 @@ CREATE TABLE tipos_reaccion (
 INSERT INTO tipos_reaccion (codigo, nombre) VALUES
     ('like',      'Me gusta'),
     ('love',      'Me encanta'),
+    ('funny',     'Me divierte'),
+    ('wow',       'Me asombra'),
+    ('sad',       'Me entristece'),
+    ('angry',     'Me enoja'),
     ('celebrate', 'Celebrar'),
-    ('support',   'Apoyo'),
-    ('funny',     'Divertido');
+    ('support',   'Apoyo');
 
 -- ============================================================
 -- 2. USUARIOS Y PERFILES
@@ -526,6 +530,55 @@ INSERT INTO tienda_permisos (codigo, nombre, modulo, descripcion) VALUES
     ('administradores.asignar_permisos','Asignar permisos',                      'administradores','Asignar permisos a los administradores')
 ON CONFLICT (codigo) DO NOTHING;
 
+-- ============================================================
+-- RBAC del modulo Equipo de refugio (empleados y permisos)
+-- ============================================================
+-- Catalogo de permisos disponibles para los empleados del refugio.
+CREATE TABLE refugio_permisos (
+    id          BIGSERIAL PRIMARY KEY,
+    codigo      VARCHAR(80) NOT NULL UNIQUE,
+    nombre      VARCHAR(120) NOT NULL,
+    modulo      VARCHAR(40) NOT NULL,
+    descripcion TEXT,
+    activo      BOOLEAN NOT NULL DEFAULT true
+);
+CREATE INDEX idx_refugio_permisos_modulo ON refugio_permisos(modulo);
+
+-- Vinculo empleado -> refugio (un usuario puede pertenecer a un solo refugio).
+CREATE TABLE refugio_empleados (
+    id             BIGSERIAL PRIMARY KEY,
+    refugio_id     BIGINT NOT NULL REFERENCES refugios(id) ON DELETE CASCADE,
+    usuario_id     BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    creado_por     BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (refugio_id, usuario_id)
+);
+CREATE INDEX idx_refugio_empleados_refugio  ON refugio_empleados(refugio_id);
+CREATE INDEX idx_refugio_empleados_usuario  ON refugio_empleados(usuario_id);
+
+-- Permisos asignados a cada empleado del refugio.
+CREATE TABLE refugio_empleado_permisos (
+    id                 BIGSERIAL PRIMARY KEY,
+    refugio_empleado_id BIGINT NOT NULL REFERENCES refugio_empleados(id) ON DELETE CASCADE,
+    permiso_id         BIGINT NOT NULL REFERENCES refugio_permisos(id) ON DELETE CASCADE,
+    UNIQUE (refugio_empleado_id, permiso_id)
+);
+
+-- Datos semilla del catalogo de permisos (idempotente con ON CONFLICT).
+INSERT INTO refugio_permisos (codigo, nombre, modulo, descripcion) VALUES
+    ('mascotas',               'Mascotas',               'mascotas',       'Gestionar las mascotas del refugio'),
+    ('solicitudes',            'Solicitudes de adopción', 'solicitudes',    'Gestionar las solicitudes de adopción'),
+    ('adopciones',             'Adopciones',             'adopciones',      'Gestionar las adopciones exitosas'),
+    ('foro',                   'Foro',                   'foro',            'Publicar y gestionar el foro'),
+    ('marketplace',            'Marketplace',            'marketplace',     'Gestionar el marketplace/tienda'),
+    ('pedidos',                'Pedidos',                'pedidos',         'Gestionar los pedidos'),
+    ('donaciones',             'Donaciones',             'donaciones',      'Gestionar las donaciones'),
+    ('estadisticas',           'Estadísticas',           'estadisticas',    'Consultar las estadísticas'),
+    ('configuracion',          'Configuración del refugio', 'configuracion', 'Acceder a la configuración del refugio'),
+    ('administrar_empleados',  'Administrar empleados',  'empleados',       'Crear, editar, eliminar empleados y asignar permisos')
+ON CONFLICT (codigo) DO NOTHING;
+
 CREATE TABLE tienda_imagenes (
     id         BIGSERIAL PRIMARY KEY,
     tienda_id  BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
@@ -700,7 +753,8 @@ CREATE TABLE foro_reacciones (
     post_id           BIGINT NOT NULL REFERENCES foro_posts(id) ON DELETE CASCADE,
     usuario_id        BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     tipo_reaccion_id  BIGINT NOT NULL REFERENCES tipos_reaccion(id),
-    UNIQUE (post_id, usuario_id, tipo_reaccion_id)
+    -- Una única reacción por usuario y publicación (el tipo se actualiza al cambiar).
+    UNIQUE (post_id, usuario_id)
 );
 
 CREATE TABLE foro_comentario_likes (

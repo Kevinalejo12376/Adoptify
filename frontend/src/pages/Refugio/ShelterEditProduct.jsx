@@ -9,6 +9,8 @@ import { categoryIcons, categoryColors } from "../../data/products";
 import { actualizarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
 import ImageUploader from "../../components/ImageUploader";
+import FieldError from "../../components/FieldError";
+import { claseInput, limpiarEspacios } from "../../utils/validaciones";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -113,6 +115,8 @@ export default function ShelterEditProduct() {
   const [isSaving, setIsSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
 
   if (!productData) {
     return (
@@ -132,6 +136,32 @@ export default function ShelterEditProduct() {
     );
   }
 
+  // Validación por tipo de campo (mensajes específicos, sin iconos).
+  const validarCampo = (campo, valor) => {
+    switch (campo) {
+      case "name":
+        if (!limpiarEspacios(valor)) return "El nombre del producto es obligatorio.";
+        return "";
+      case "price": {
+        if (valor === "" || valor == null) return "El precio es obligatorio.";
+        const precio = parseFloat(valor);
+        if (isNaN(precio) || precio <= 0) return "El precio debe ser un número mayor a 0.";
+        return "";
+      }
+      case "stock": {
+        if (valor === "" || valor == null) return "El stock es obligatorio.";
+        const stock = parseInt(valor, 10);
+        if (isNaN(stock) || stock < 0) return "El stock debe ser un número mayor o igual a 0.";
+        return "";
+      }
+      case "description":
+        if (!limpiarEspacios(valor)) return "La descripción es obligatoria.";
+        return "";
+      default:
+        return "";
+    }
+  };
+
   // Sube las imágenes a Cloudinary con el flujo unificado y guarda su URL.
   const handleImagesChange = (newImages) => {
     setProductData(prev => ({ ...prev, images: newImages }));
@@ -141,6 +171,10 @@ export default function ShelterEditProduct() {
   const handleChange = (field, value) => {
     setProductData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
+    if (["name", "price", "stock", "description"].includes(field)) {
+      setErrors(prev => ({ ...prev, [field]: validarCampo(field, value) }));
+      setSubmitError("");
+    }
   };
 
   const handleCategoryChange = (cat) => {
@@ -150,12 +184,25 @@ export default function ShelterEditProduct() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError("");
+    const nuevosErrores = {
+      name: validarCampo("name", productData.name),
+      price: validarCampo("price", productData.price),
+      stock: validarCampo("stock", productData.stock),
+      description: validarCampo("description", productData.description),
+    };
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some(Boolean)) return;
+
     setIsSaving(true);
     try {
       await actualizarProducto(productData.id, toPayload(productData));
       navigate("/refugio/tienda", { state: { updatedProduct: true } });
     } catch (err) {
       setIsSaving(false);
+      setSubmitError(
+        err?.message || "No se pudo guardar el producto. Revisa los datos e inténtalo de nuevo."
+      );
     }
   };
 
@@ -199,8 +246,9 @@ export default function ShelterEditProduct() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Nombre del Producto *</label>
-                <input type="text" required value={productData.name} onChange={(e) => handleChange("name", e.target.value)}
-                  className={InputClass} placeholder="Ej: Collar Premium Ajustable" />
+                <input type="text" value={productData.name} onChange={(e) => handleChange("name", e.target.value)}
+                  className={claseInput(InputClass, !!errors.name)} placeholder="Ej: Collar Premium Ajustable" />
+                <FieldError mensaje={errors.name} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Categoría</label>
@@ -221,17 +269,19 @@ export default function ShelterEditProduct() {
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Precio ($) *</label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="number" step="0.01" min="0" required value={productData.price}
+                  <input type="number" step="0.01" min="0" value={productData.price}
                     onChange={(e) => handleChange("price", e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                    className={claseInput("w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.price)}
                     placeholder="0.00" />
                 </div>
+                <FieldError mensaje={errors.price} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Stock *</label>
-                <input type="number" min="0" required value={productData.stock}
+                <input type="number" min="0" value={productData.stock}
                   onChange={(e) => handleChange("stock", e.target.value)}
-                  className={InputClass} placeholder="0" />
+                  className={claseInput(InputClass, !!errors.stock)} placeholder="0" />
+                <FieldError mensaje={errors.stock} />
               </div>
             </div>
           </FormSection>
@@ -268,10 +318,11 @@ export default function ShelterEditProduct() {
           <FormSection icon={Tag} title="Descripción y Características" color="text-emerald-500">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Descripción *</label>
-              <textarea rows={3} required value={productData.description}
+              <textarea rows={3} value={productData.description}
                 onChange={(e) => handleChange("description", e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none"
+                className={claseInput("w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none", !!errors.description)}
                 placeholder="Describe el producto y sus beneficios..." />
+              <FieldError mensaje={errors.description} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Características (separado por comas)</label>
@@ -291,6 +342,15 @@ export default function ShelterEditProduct() {
               onChange={handleImagesChange}
             />
           </div>
+
+          {/* General submit error */}
+          {submitError && (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-red-500 leading-snug">
+                <span className="font-bold">*</span> {submitError}
+              </p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 dark:border-dark-border">

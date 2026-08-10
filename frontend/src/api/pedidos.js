@@ -10,6 +10,9 @@ export const crearPedido = (payload) =>
 /** Lista mis pedidos. */
 export const misPedidos = () => apiFetch(`${base}/mios`);
 
+/** Pedidos que contienen productos del refugio autenticado (rol Refugio). */
+export const misPedidosRefugio = () => apiFetch(`${base}/refugio`);
+
 /** Detalle de un pedido propio. */
 export const obtenerPedido = (id) => apiFetch(`${base}/${id}`);
 

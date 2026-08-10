@@ -1,71 +1,170 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Settings, Store, Bell, Shield, Globe, Save, ToggleLeft, ToggleRight, Building2, MapPin, Phone, Mail, Globe2, Camera, ChevronRight, ExternalLink } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
+import { Settings, Store, Bell, Shield, Globe, Save, Building2, MapPin, Phone, Mail, Globe2, Camera, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import { miPerfil, actualizarPerfil } from "../../api/refugios";
+import { obtenerConfiguracion, actualizarConfiguracion } from "../../api/configuraciones";
+import FieldError from "../../components/FieldError";
+import { claseInput, limpiarEspacios, soloDigitos, validarEmail, validarTelefono10 } from "../../utils/validaciones";
 
 export default function ShelterSettings() {
-  const { user, login } = useAuth();
-
   const [shelterInfo, setShelterInfo] = useState({
-    name: user?.name || "Refugio Patitas Felices",
-    email: user?.email || "",
-    phone: user?.phone || "+57 301 987 6543",
-    location: user?.location || "Bogotá, Colombia",
-    address: user?.address || "Cra 45 # 67-89, Bogotá",
-    description: user?.description || "Somos un refugio dedicado a rescatar y encontrar hogares amorosos para perros y gatos en situación de calle.",
-    facebook: user?.socialMedia?.facebook || "",
-    instagram: user?.socialMedia?.instagram || "",
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    departamento: "",
+    address: "",
+    description: "",
+    facebook: "",
+    instagram: "",
+    website: "",
   });
 
-  const [settings, setSettings] = useState({
-    storeEnabled: user?.settings?.storeEnabled || false,
-    notifications: {
-      newRequests: true,
-      statusChanges: true,
-      forumMessages: true,
-      emailUpdates: false,
-    },
-    privacy: {
-      showPhone: true,
-      showEmail: true,
-      showAddress: false,
-    },
+  const [storeEnabled, setStoreEnabled] = useState(false);
+
+  const [notifications, setNotifications] = useState({
+    newRequests: true,
+    statusChanges: true,
+    forumMessages: true,
+    emailUpdates: false,
   });
 
+  const [privacy, setPrivacy] = useState({
+    showPhone: true,
+    showEmail: true,
+    showAddress: false,
+  });
+
+  const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState("informacion");
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
 
+  // Carga la informacion real del refugio y sus notificaciones desde el backend.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const [perfil, cfg] = await Promise.all([
+          miPerfil(),
+          obtenerConfiguracion().catch(() => null),
+        ]);
+        if (!activo) return;
+        if (perfil) {
+          setShelterInfo({
+            name: perfil.nombre || "",
+            email: perfil.email || "",
+            phone: perfil.telefono || "",
+            location: perfil.ubicacion || "",
+            departamento: perfil.departamento || "",
+            address: perfil.direccion || "",
+            description: perfil.descripcion || "",
+            facebook: perfil.facebook || "",
+            instagram: perfil.instagram || "",
+            website: perfil.website || "",
+          });
+          setStoreEnabled(!!perfil.tienda_habilitada);
+        }
+        if (cfg) {
+          setNotifications({
+            newRequests: cfg.notif_nuevas_solicitudes ?? true,
+            statusChanges: cfg.notif_cambios_estado ?? true,
+            forumMessages: cfg.notif_respuestas_foro ?? true,
+            emailUpdates: cfg.notif_email ?? false,
+          });
+        }
+      } catch {
+        // se mantienen los valores vacios si falla la carga
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  // Persiste el estado de la tienda en la base de datos (tienda_habilitada).
   const handleStoreToggle = () => {
-    const newStoreEnabled = !settings.storeEnabled;
-    setSettings(prev => ({ ...prev, storeEnabled: newStoreEnabled }));
-    const updatedUser = { ...user, settings: { ...user?.settings, storeEnabled: newStoreEnabled } };
-    login(updatedUser);
+    const nuevo = !storeEnabled;
+    setStoreEnabled(nuevo);
+    actualizarPerfil({ tienda_habilitada: nuevo }).catch(() => {});
   };
 
   const handleNotificationToggle = (key) => {
-    setSettings(prev => ({
-      ...prev,
-      notifications: { ...prev.notifications, [key]: !prev.notifications[key] }
-    }));
+    setNotifications((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      actualizarConfiguracion({
+        notif_nuevas_solicitudes: next.newRequests,
+        notif_cambios_estado: next.statusChanges,
+        notif_respuestas_foro: next.forumMessages,
+        notif_email: next.emailUpdates,
+      }).catch(() => {});
+      return next;
+    });
   };
 
   const handlePrivacyToggle = (key) => {
-    setSettings(prev => ({
-      ...prev,
-      privacy: { ...prev.privacy, [key]: !prev.privacy[key] }
-    }));
+    setPrivacy((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSave = () => {
+  // Validación por tipo de campo (mensajes específicos, sin iconos).
+  const validarCampo = (campo, valor) => {
+    switch (campo) {
+      case "name":
+        if (!limpiarEspacios(valor)) return "El nombre del refugio es obligatorio.";
+        return "";
+      case "email":
+        return validarEmail(valor, { obligatorio: false });
+      case "phone":
+        return validarTelefono10(soloDigitos(valor), { obligatorio: false });
+      default:
+        return "";
+    }
+  };
+
+  const handleChange = (campo, valor) => {
+    const nuevoValor = campo === "phone" ? soloDigitos(valor).slice(0, 10) : valor;
+    setShelterInfo((prev) => ({ ...prev, [campo]: nuevoValor }));
+    if (["name", "email", "phone"].includes(campo)) {
+      setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, nuevoValor) }));
+      setSubmitError("");
+    }
+  };
+
+  const handleSave = async () => {
+    setSubmitError("");
+    const nuevosErrores = {
+      name: validarCampo("name", shelterInfo.name),
+      email: validarCampo("email", shelterInfo.email),
+      phone: validarCampo("phone", shelterInfo.phone),
+    };
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some(Boolean)) return;
+
     setIsSaving(true);
-    setTimeout(() => {
-      const updatedUser = { ...user, ...shelterInfo, settings };
-      login(updatedUser);
-      setIsSaving(false);
+    try {
+      await actualizarPerfil({
+        nombre: shelterInfo.name,
+        email: shelterInfo.email || undefined,
+        telefono: shelterInfo.phone || null,
+        ubicacion: shelterInfo.location,
+        departamento: shelterInfo.departamento,
+        direccion: shelterInfo.address,
+        descripcion: shelterInfo.description,
+        facebook: shelterInfo.facebook,
+        instagram: shelterInfo.instagram,
+        website: shelterInfo.website,
+      });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    }, 1000);
+    } catch (err) {
+      setSubmitError(
+        err?.message || "No se pudieron guardar los cambios. Revisa los datos e inténtalo de nuevo."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const Toggle = ({ enabled, onChange, label, description }) => (
@@ -89,6 +188,14 @@ export default function ShelterSettings() {
     { id: "notificaciones", label: "Notificaciones", icon: Bell },
     { id: "privacidad", label: "Privacidad", icon: Shield },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center pt-24">
+        <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-24 pb-16">
@@ -115,6 +222,13 @@ export default function ShelterSettings() {
         {saveSuccess && (
           <div className="mt-4 px-4 py-3 bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 rounded-xl text-sm font-medium animate-fade-in-down">
             ✓ Cambios guardados exitosamente
+          </div>
+        )}
+        {submitError && (
+          <div className="mt-4 px-4 py-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl text-sm font-medium">
+            <p className="text-xs font-medium text-red-500 leading-snug">
+              <span className="font-bold">*</span> {submitError}
+            </p>
           </div>
         )}
       </section>
@@ -171,22 +285,30 @@ export default function ShelterSettings() {
 
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Refugio</label>
-                      <input type="text" value={shelterInfo.name} onChange={(e) => setShelterInfo({...shelterInfo, name: e.target.value})}
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Refugio *</label>
+                      <input type="text" value={shelterInfo.name} onChange={(e) => handleChange("name", e.target.value)}
+                        className={claseInput("w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.name)} />
+                      <FieldError mensaje={errors.name} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                      <input type="email" value={shelterInfo.email} onChange={(e) => setShelterInfo({...shelterInfo, email: e.target.value})}
-                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                      <input type="email" value={shelterInfo.email} onChange={(e) => handleChange("email", e.target.value)}
+                        className={claseInput("w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.email)} />
+                      <FieldError mensaje={errors.email} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono</label>
-                      <input type="text" value={shelterInfo.phone} onChange={(e) => setShelterInfo({...shelterInfo, phone: e.target.value})}
+                      <input type="text" value={shelterInfo.phone} onChange={(e) => handleChange("phone", e.target.value)}
+                        className={claseInput("w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.phone)} placeholder="10 dígitos" />
+                      <FieldError mensaje={errors.phone} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Departamento</label>
+                      <input type="text" value={shelterInfo.departamento} onChange={(e) => setShelterInfo({...shelterInfo, departamento: e.target.value})}
                         className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ubicación</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ciudad / Ubicación</label>
                       <input type="text" value={shelterInfo.location} onChange={(e) => setShelterInfo({...shelterInfo, location: e.target.value})}
                         className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
                     </div>
@@ -210,6 +332,11 @@ export default function ShelterSettings() {
                       <input type="text" value={shelterInfo.instagram} onChange={(e) => setShelterInfo({...shelterInfo, instagram: e.target.value})}
                         className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white" placeholder="@usuario" />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sitio web</label>
+                      <input type="text" value={shelterInfo.website} onChange={(e) => setShelterInfo({...shelterInfo, website: e.target.value})}
+                        className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                    </div>
                   </div>
                 </div>
               )}
@@ -225,13 +352,13 @@ export default function ShelterSettings() {
                   <div className="p-6 rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 border border-rose-100 dark:border-rose-500/20">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-xl ${settings.storeEnabled ? 'bg-gradient-to-br from-rose-500 to-amber-500' : 'bg-gray-200 dark:bg-dark-border'} flex items-center justify-center transition-all`}>
-                          <Store className={`w-7 h-7 ${settings.storeEnabled ? 'text-white' : 'text-gray-400'}`} />
+                        <div className={`w-14 h-14 rounded-xl ${storeEnabled ? 'bg-gradient-to-br from-rose-500 to-amber-500' : 'bg-gray-200 dark:bg-dark-border'} flex items-center justify-center transition-all`}>
+                          <Store className={`w-7 h-7 ${storeEnabled ? 'text-white' : 'text-gray-400'}`} />
                         </div>
                         <div>
                           <h3 className="text-lg font-bold text-gray-900 dark:text-white font-display">Activar Tienda</h3>
                           <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-                            {settings.storeEnabled
+                            {storeEnabled
                               ? "Tu tienda está visible para los usuarios. Puedes desactivarla en cualquier momento."
                               : "Activa la tienda para que los usuarios puedan ver y comprar productos de tu refugio."}
                           </p>
@@ -239,14 +366,14 @@ export default function ShelterSettings() {
                       </div>
                       <button
                         onClick={handleStoreToggle}
-                        className={`relative w-16 h-8 rounded-full transition-all duration-300 ${settings.storeEnabled ? 'bg-gradient-to-r from-rose-500 to-amber-500 shadow-lg shadow-rose-200 dark:shadow-rose-500/20' : 'bg-gray-200 dark:bg-dark-border'}`}
+                        className={`relative w-16 h-8 rounded-full transition-all duration-300 ${storeEnabled ? 'bg-gradient-to-r from-rose-500 to-amber-500 shadow-lg shadow-rose-200 dark:shadow-rose-500/20' : 'bg-gray-200 dark:bg-dark-border'}`}
                       >
-                        <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${settings.storeEnabled ? 'translate-x-9' : 'translate-x-1'}`} />
+                        <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${storeEnabled ? 'translate-x-9' : 'translate-x-1'}`} />
                       </button>
                     </div>
                   </div>
 
-                  {settings.storeEnabled && (
+                  {storeEnabled && (
                     <div className="space-y-3">
                       <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20">
                         <div className="flex items-center gap-3">
@@ -293,13 +420,13 @@ export default function ShelterSettings() {
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-dark-text-secondary">Configura qué notificaciones deseas recibir</p>
                   <div className="divide-y divide-gray-100 dark:divide-dark-border">
-                    <Toggle enabled={settings.notifications.newRequests} onChange={() => handleNotificationToggle('newRequests')}
+                    <Toggle enabled={notifications.newRequests} onChange={() => handleNotificationToggle('newRequests')}
                       label="Nuevas solicitudes" description="Notificar cuando llegue una nueva solicitud de adopción" />
-                    <Toggle enabled={settings.notifications.statusChanges} onChange={() => handleNotificationToggle('statusChanges')}
+                    <Toggle enabled={notifications.statusChanges} onChange={() => handleNotificationToggle('statusChanges')}
                       label="Cambios de estado" description="Notificar cuando una solicitud cambie de estado" />
-                    <Toggle enabled={settings.notifications.forumMessages} onChange={() => handleNotificationToggle('forumMessages')}
+                    <Toggle enabled={notifications.forumMessages} onChange={() => handleNotificationToggle('forumMessages')}
                       label="Mensajes del foro" description="Notificar cuando alguien comente en tus publicaciones" />
-                    <Toggle enabled={settings.notifications.emailUpdates} onChange={() => handleNotificationToggle('emailUpdates')}
+                    <Toggle enabled={notifications.emailUpdates} onChange={() => handleNotificationToggle('emailUpdates')}
                       label="Actualizaciones por email" description="Recibir resumen semanal por correo electrónico" />
                   </div>
                 </div>
@@ -314,11 +441,11 @@ export default function ShelterSettings() {
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-dark-text-secondary">Controla qué información se muestra públicamente</p>
                   <div className="divide-y divide-gray-100 dark:divide-dark-border">
-                    <Toggle enabled={settings.privacy.showPhone} onChange={() => handlePrivacyToggle('showPhone')}
+                    <Toggle enabled={privacy.showPhone} onChange={() => handlePrivacyToggle('showPhone')}
                       label="Mostrar teléfono" description="Mostrar número de contacto en el perfil público" />
-                    <Toggle enabled={settings.privacy.showEmail} onChange={() => handlePrivacyToggle('showEmail')}
+                    <Toggle enabled={privacy.showEmail} onChange={() => handlePrivacyToggle('showEmail')}
                       label="Mostrar email" description="Mostrar correo electrónico en el perfil público" />
-                    <Toggle enabled={settings.privacy.showAddress} onChange={() => handlePrivacyToggle('showAddress')}
+                    <Toggle enabled={privacy.showAddress} onChange={() => handlePrivacyToggle('showAddress')}
                       label="Mostrar dirección" description="Mostrar dirección del refugio en el perfil público" />
                   </div>
                 </div>

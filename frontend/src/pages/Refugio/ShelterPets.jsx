@@ -10,6 +10,8 @@ import {
 import ConfirmModal from "../../components/ConfirmModal";
 import { Loader2 } from "lucide-react";
 import { misMascotas, crearMascota, eliminarMascota } from "../../api/mascotas";
+import FieldError from "../../components/FieldError";
+import { claseInput, limpiarEspacios } from "../../utils/validaciones";
 
 // Mapea las etiquetas del formulario a los codigos de catalogo del backend.
 const TIPO_MAP = { Perro: "perro", Gato: "gato" };
@@ -81,6 +83,54 @@ const FormField = ({ label, children, span = "col-span-1" }) => (
 
 const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => {
   const inputRef = useRef(null);
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
+
+  // Validación por tipo de campo (mensajes específicos, sin iconos).
+  const validarCampo = (campo, valor) => {
+    switch (campo) {
+      case "name":
+        if (!limpiarEspacios(valor)) return "El nombre de la mascota es obligatorio.";
+        if (limpiarEspacios(valor).length > 60) return "El nombre no puede superar los 60 caracteres.";
+        return "";
+      case "breed":
+        if (!limpiarEspacios(valor)) return "La raza es obligatoria.";
+        if (limpiarEspacios(valor).length > 60) return "La raza no puede superar los 60 caracteres.";
+        return "";
+      case "age":
+        if (!limpiarEspacios(valor)) return "La edad es obligatoria.";
+        if (limpiarEspacios(valor).length > 20) return "La edad no puede superar los 20 caracteres.";
+        return "";
+      case "description":
+        if (!valor) return "";
+        if (limpiarEspacios(valor).length > 1000) return "La descripción no puede superar los 1000 caracteres.";
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  const handleChange = (campo, valor) => {
+    setPetData((prev) => ({ ...prev, [campo]: valor }));
+    if (["name", "breed", "age", "description"].includes(campo)) {
+      setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, valor) }));
+      setSubmitError("");
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setSubmitError("");
+    const nuevosErrores = {
+      name: validarCampo("name", petData.name),
+      breed: validarCampo("breed", petData.breed),
+      age: validarCampo("age", petData.age),
+      description: validarCampo("description", petData.description),
+    };
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some(Boolean)) return;
+    onSubmit(e);
+  };
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files);
@@ -106,29 +156,32 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
   const SelectClass = "w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white appearance-none cursor-pointer";
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
         <FormSection icon={Info} title="Información Básica" color="text-blue-500">
-          <FormField label="Nombre" span="col-span-3">
-            <input type="text" required value={petData.name} onChange={(e) => setPetData({...petData, name: e.target.value})}
-              className={InputClass} placeholder="Nombre de la mascota" />
+          <FormField label="Nombre *" span="col-span-3">
+            <input type="text" value={petData.name} onChange={(e) => handleChange("name", e.target.value)}
+              className={claseInput(InputClass, !!errors.name)} placeholder="Nombre de la mascota" />
+            <FieldError mensaje={errors.name} />
           </FormField>
           <FormField label="Tipo">
             <div className="relative">
-              <select value={petData.type} onChange={(e) => setPetData({...petData, type: e.target.value})} className={SelectClass}>
+              <select value={petData.type} onChange={(e) => handleChange("type", e.target.value)} className={SelectClass}>
                 <option>Perro</option>
                 <option>Gato</option>
               </select>
               <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
             </div>
           </FormField>
-          <FormField label="Raza">
-            <input type="text" required value={petData.breed} onChange={(e) => setPetData({...petData, breed: e.target.value})}
-              className={InputClass} placeholder="Ej: Golden Retriever" />
+          <FormField label="Raza *">
+            <input type="text" value={petData.breed} onChange={(e) => handleChange("breed", e.target.value)}
+              className={claseInput(InputClass, !!errors.breed)} placeholder="Ej: Golden Retriever" />
+            <FieldError mensaje={errors.breed} />
           </FormField>
-          <FormField label="Edad">
-            <input type="text" required value={petData.age} onChange={(e) => setPetData({...petData, age: e.target.value})}
-              className={InputClass} placeholder="Ej: 2 años" />
+          <FormField label="Edad *">
+            <input type="text" value={petData.age} onChange={(e) => handleChange("age", e.target.value)}
+              className={claseInput(InputClass, !!errors.age)} placeholder="Ej: 2 años" />
+            <FieldError mensaje={errors.age} />
           </FormField>
         </FormSection>
 
@@ -197,9 +250,10 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
             <Heart className="w-4 h-4 text-rose-500" />
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Descripción</span>
           </div>
-          <textarea rows={3} value={petData.description} onChange={(e) => setPetData({...petData, description: e.target.value})}
-            className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none"
+          <textarea rows={3} value={petData.description} onChange={(e) => handleChange("description", e.target.value)}
+            className={claseInput("w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none", !!errors.description)}
             placeholder="Describe la personalidad y características de la mascota..." />
+          <FieldError mensaje={errors.description} />
         </div>
 
         <ImageUploadSection
@@ -209,6 +263,12 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
           label="Fotos de la Mascota"
         />
       </div>
+
+      {submitError && (
+        <p className="text-xs font-medium text-red-500 leading-snug">
+          <span className="font-bold">*</span> {submitError}
+        </p>
+      )}
 
       <div className="flex gap-3 pt-3 border-t border-gray-100 dark:border-dark-border">
         <button type="submit"

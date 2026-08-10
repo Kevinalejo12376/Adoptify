@@ -3,6 +3,7 @@ Inserta cada valor solo si su 'codigo' aun no existe."""
 from app.db.database import SessionLocal
 from app.models import catalogos as cat
 from app.models.tienda import TiendaPermiso
+from app.models.refugio import RefugioPermiso
 
 # (codigo, nombre) por cada catalogo
 DATOS = {
@@ -15,6 +16,7 @@ DATOS = {
     cat.Rol: [
         ("usuario", "Usuario adoptante"),
         ("refugio", "Refugio"),
+        ("empleado_refugio", "Empleado de refugio"),
         ("administrador_principal", "Administrador principal"),
         ("administrador", "Administrador"),
         ("tienda_aliada", "Tienda aliada"),
@@ -76,9 +78,13 @@ DATOS = {
     cat.TipoReaccion: [
         ("like", "Me gusta"),
         ("love", "Me encanta"),
+        ("funny", "Me divierte"),
+        ("wow", "Me asombra"),
+        ("sad", "Me entristece"),
+        ("angry", "Me enoja"),
+        # Tipos históricos (se conservan para no romper datos existentes).
         ("celebrate", "Celebrar"),
         ("support", "Apoyo"),
-        ("funny", "Divertido"),
     ],
 }
 
@@ -166,6 +172,21 @@ TIENDA_PERMISOS = [
 ]
 
 
+# Permisos del módulo Equipo de refugio (representante asigna a cada empleado).
+REFUGIO_PERMISOS = [
+    ("mascotas", "Mascotas", "mascotas", "Gestionar las mascotas del refugio"),
+    ("solicitudes", "Solicitudes de adopción", "solicitudes", "Gestionar las solicitudes de adopción"),
+    ("adopciones", "Adopciones", "adopciones", "Gestionar las adopciones exitosas"),
+    ("foro", "Foro", "foro", "Publicar y gestionar el foro"),
+    ("marketplace", "Marketplace", "marketplace", "Gestionar el marketplace/tienda"),
+    ("pedidos", "Pedidos", "pedidos", "Gestionar los pedidos"),
+    ("donaciones", "Donaciones", "donaciones", "Gestionar las donaciones"),
+    ("estadisticas", "Estadísticas", "estadisticas", "Consultar las estadísticas"),
+    ("configuracion", "Configuración del refugio", "configuracion", "Acceder a la configuración del refugio"),
+    ("administrar_empleados", "Administrar empleados", "empleados", "Crear, editar, eliminar empleados y asignar permisos"),
+]
+
+
 def seed_catalogos():
     db = SessionLocal()
     try:
@@ -185,6 +206,12 @@ def seed_catalogos():
         for codigo, nombre, modulo, descripcion in TIENDA_PERMISOS:
             if codigo not in existentes_tp:
                 db.add(TiendaPermiso(codigo=codigo, nombre=nombre, modulo=modulo, descripcion=descripcion))
+
+        # Catálogo de permisos del módulo Equipo de refugio (idempotente)
+        existentes_rp = {c for (c,) in db.query(RefugioPermiso.codigo).all()}
+        for codigo, nombre, modulo, descripcion in REFUGIO_PERMISOS:
+            if codigo not in existentes_rp:
+                db.add(RefugioPermiso(codigo=codigo, nombre=nombre, modulo=modulo, descripcion=descripcion))
 
         db.commit()
 

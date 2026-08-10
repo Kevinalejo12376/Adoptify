@@ -39,6 +39,15 @@ class Usuario(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    # Si este usuario es empleado de un refugio (rol 'empleado_refugio').
+    # 'foreign_keys' desambigua: refugio_empleados tiene dos FKs a usuarios
+    # (usuario_id y creado_por); este lado usa usuario_id.
+    refugio_empleado = relationship(
+        "RefugioEmpleado",
+        back_populates="usuario",
+        uselist=False,
+        foreign_keys="RefugioEmpleado.usuario_id",
+    )
     solicitudes = relationship("SolicitudAdopcion", back_populates="usuario")
 
     @property

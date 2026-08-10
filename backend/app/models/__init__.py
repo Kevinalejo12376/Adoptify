@@ -15,7 +15,9 @@ from app.models.catalogos import (
     TipoReaccion,
 )
 from app.models.usuario import Usuario
-from app.models.refugio import Refugio
+from app.models.refugio import (
+    Refugio, RefugioImagen, RefugioPermiso, RefugioEmpleado, RefugioEmpleadoPermiso,
+)
 from app.models.mascota import Mascota
 from app.models.solicitud import SolicitudAdopcion
 from app.models.solicitud_refugio import (
@@ -46,7 +48,8 @@ __all__ = [
     "TipoDocumento", "Rol", "TipoMascota", "TamanoMascota", "GeneroMascota",
     "EstadoMascota", "EstadoSolicitud", "EstadoPedido", "CategoriaProducto",
     "ForoCategoria", "TipoPostForo", "EstadoPostForo", "TipoReaccion",
-    "Usuario", "Refugio", "Mascota", "SolicitudAdopcion",
+    "Usuario", "Refugio", "RefugioImagen", "RefugioPermiso", "RefugioEmpleado",
+    "RefugioEmpleadoPermiso", "Mascota", "SolicitudAdopcion",
     "Tienda", "TiendaPermiso", "TiendaUsuario", "TiendaUsuarioPermiso", "TiendaActividad",
     "Producto", "ProductoImagen",
     "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",
