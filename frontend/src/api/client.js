@@ -71,6 +71,15 @@ export async function apiFetch(path, { method = "GET", body, auth = true, form =
 
   if (!res.ok) {
     const detail = (data && data.detail) || "Error en la solicitud";
+    // Si el token no es válido o expiró (401) en una petición autenticada,
+    // se limpia la sesión y se redirige al login en lugar de dejar al usuario
+    // en un estado roto viendo errores de "Not authenticated".
+    if (res.status === 401 && auth) {
+      clearToken();
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
+    }
     const error = new Error(typeof detail === "string" ? detail : "Error en la solicitud");
     error.status = res.status;
     error.data = data;

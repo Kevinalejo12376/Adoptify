@@ -4,10 +4,14 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
+import UserRoute from "./components/UserRoute";
 import AdminRoute from "./components/AdminRoute";
 import StoreRoute from "./components/StoreRoute";
+import StorePermisoRuta from "./components/StorePermisoRuta";
+import ShelterPermisoRuta from "./components/ShelterPermisoRuta";
 import CompleteProfileModal from "./components/CompleteProfileModal";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { StoreProvider } from "./context/StoreContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { I18nProvider } from "./context/I18nContext";
 import { CartProvider } from "./context/CartContext";
@@ -49,6 +53,7 @@ import ShelterProductDetail from "./pages/Refugio/ShelterProductDetail";
 import ShelterEditProduct from "./pages/Refugio/ShelterEditProduct";
 import ShelterOrders from "./pages/Refugio/ShelterOrders";
 import ShelterOrderDetail from "./pages/Refugio/ShelterOrderDetail";
+import ShelterTeam from "./pages/Refugio/ShelterTeam";
 
 // ========================================================
 // IMPORTACIONES DE VISTAS DE TIENDA ALIADA
@@ -66,6 +71,10 @@ import StoreProfile from "./pages/Tienda/StoreProfile";
 import StoreStatistics from "./pages/Tienda/StoreStatistics";
 import StoreNotifications from "./pages/Tienda/StoreNotifications";
 import StoreSettings from "./pages/Tienda/StoreSettings";
+import StoreAdministradores from "./pages/Tienda/StoreAdministradores";
+import StoreActividad from "./pages/Tienda/StoreActividad";
+import StoreDonaciones from "./pages/Tienda/StoreDonaciones";
+import StorePqrs from "./pages/Tienda/StorePqrs";
 import ProductAnalysisView from "./pages/Tienda/ProductAnalysisView";
 import KardexView from "./pages/Tienda/KardexView";
 
@@ -152,32 +161,33 @@ function AppContent() {
           {/* ================================================ */}
           {/* RUTAS DE USUARIO (src/pages/Usuario/)            */}
           {/* ================================================ */}
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-          <Route path="/adoption-history" element={<ProtectedRoute><AdoptionHistory /></ProtectedRoute>} />
-          <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
-          <Route path="/mis-pedidos" element={<ProtectedRoute><UserOrders /></ProtectedRoute>} />
-          <Route path="/mis-pedidos/:id" element={<ProtectedRoute><UserOrderDetail /></ProtectedRoute>} />
-          <Route path="/notificaciones" element={<ProtectedRoute><UserNotifications /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<UserRoute><Dashboard /></UserRoute>} />
+          <Route path="/profile" element={<UserRoute><UserProfile /></UserRoute>} />
+          <Route path="/adoption-history" element={<UserRoute><AdoptionHistory /></UserRoute>} />
+          <Route path="/favorites" element={<UserRoute><Favorites /></UserRoute>} />
+          <Route path="/mis-pedidos" element={<UserRoute><UserOrders /></UserRoute>} />
+          <Route path="/mis-pedidos/:id" element={<UserRoute><UserOrderDetail /></UserRoute>} />
+          <Route path="/notificaciones" element={<UserRoute><UserNotifications /></UserRoute>} />
+          <Route path="/settings" element={<UserRoute><Settings /></UserRoute>} />
 
           {/* ================================================ */}
           {/* RUTAS DE REFUGIO (src/pages/Refugio/)            */}
           {/* ================================================ */}
-          <Route path="/refugio/dashboard" element={<ProtectedRoute><ShelterDashboard /></ProtectedRoute>} />
-          <Route path="/refugio/mascotas" element={<ProtectedRoute><ShelterPets /></ProtectedRoute>} />
-          <Route path="/refugio/mascotas/:id" element={<ProtectedRoute><ShelterPetDetail /></ProtectedRoute>} />
-          <Route path="/refugio/mascotas/editar/:id" element={<ProtectedRoute><ShelterEditPet /></ProtectedRoute>} />
-          <Route path="/refugio/solicitudes" element={<ProtectedRoute><ShelterRequests /></ProtectedRoute>} />
-          <Route path="/refugio/configuracion" element={<ProtectedRoute><ShelterSettings /></ProtectedRoute>} />
-          <Route path="/refugio/foro" element={<ProtectedRoute><ShelterForum /></ProtectedRoute>} />
-          <Route path="/refugio/perfil" element={<ProtectedRoute><ShelterProfile /></ProtectedRoute>} />
-          <Route path="/refugio/historial" element={<ProtectedRoute><ShelterAdoptionHistory /></ProtectedRoute>} />
-          <Route path="/refugio/tienda" element={<ProtectedRoute><ShelterStore /></ProtectedRoute>} />
-          <Route path="/refugio/tienda/:id" element={<ProtectedRoute><ShelterProductDetail /></ProtectedRoute>} />
-          <Route path="/refugio/tienda/editar/:id" element={<ProtectedRoute><ShelterEditProduct /></ProtectedRoute>} />
-          <Route path="/refugio/pedidos" element={<ProtectedRoute><ShelterOrders /></ProtectedRoute>} />
-          <Route path="/refugio/pedidos/:id" element={<ProtectedRoute><ShelterOrderDetail /></ProtectedRoute>} />
+          <Route path="/refugio/dashboard" element={<ShelterPermisoRuta><ShelterDashboard /></ShelterPermisoRuta>} />
+          <Route path="/refugio/mascotas" element={<ShelterPermisoRuta permiso="mascotas"><ShelterPets /></ShelterPermisoRuta>} />
+          <Route path="/refugio/mascotas/:id" element={<ShelterPermisoRuta permiso="mascotas"><ShelterPetDetail /></ShelterPermisoRuta>} />
+          <Route path="/refugio/mascotas/editar/:id" element={<ShelterPermisoRuta permiso="mascotas"><ShelterEditPet /></ShelterPermisoRuta>} />
+          <Route path="/refugio/solicitudes" element={<ShelterPermisoRuta permiso="solicitudes"><ShelterRequests /></ShelterPermisoRuta>} />
+          <Route path="/refugio/configuracion" element={<ShelterPermisoRuta permiso="configuracion"><ShelterSettings /></ShelterPermisoRuta>} />
+          <Route path="/refugio/foro" element={<ShelterPermisoRuta permiso="foro"><ShelterForum /></ShelterPermisoRuta>} />
+          <Route path="/refugio/perfil" element={<ShelterPermisoRuta><ShelterProfile /></ShelterPermisoRuta>} />
+          <Route path="/refugio/historial" element={<ShelterPermisoRuta permiso="adopciones"><ShelterAdoptionHistory /></ShelterPermisoRuta>} />
+          <Route path="/refugio/tienda" element={<ShelterPermisoRuta permiso="marketplace"><ShelterStore /></ShelterPermisoRuta>} />
+          <Route path="/refugio/tienda/:id" element={<ShelterPermisoRuta permiso="marketplace"><ShelterProductDetail /></ShelterPermisoRuta>} />
+          <Route path="/refugio/tienda/editar/:id" element={<ShelterPermisoRuta permiso="marketplace"><ShelterEditProduct /></ShelterPermisoRuta>} />
+          <Route path="/refugio/pedidos" element={<ShelterPermisoRuta permiso="pedidos"><ShelterOrders /></ShelterPermisoRuta>} />
+          <Route path="/refugio/pedidos/:id" element={<ShelterPermisoRuta permiso="pedidos"><ShelterOrderDetail /></ShelterPermisoRuta>} />
+          <Route path="/refugio/equipo" element={<ShelterPermisoRuta permiso="administrar_empleados"><ShelterTeam /></ShelterPermisoRuta>} />
 
           {/* ================================================ */}
           {/* RUTAS DE TIENDA ALIADA (src/pages/Tienda/)       */}
@@ -195,7 +205,11 @@ function AppContent() {
             <Route path="perfil" element={<StoreProfile />} />
             <Route path="estadisticas" element={<StoreStatistics />} />
             <Route path="notificaciones" element={<StoreNotifications />} />
-            <Route path="configuracion" element={<StoreSettings />} />
+            <Route path="configuracion" element={<StorePermisoRuta permiso="configuracion.acceder"><StoreSettings /></StorePermisoRuta>} />
+            <Route path="administradores" element={<StorePermisoRuta superAdmin><StoreAdministradores /></StorePermisoRuta>} />
+            <Route path="actividad" element={<StorePermisoRuta permiso="historial.ver"><StoreActividad /></StorePermisoRuta>} />
+            <Route path="donaciones" element={<StorePermisoRuta permiso="donaciones.ver"><StoreDonaciones /></StorePermisoRuta>} />
+            <Route path="pqrs" element={<StorePermisoRuta permiso="pqrs.ver"><StorePqrs /></StorePermisoRuta>} />
           </Route>
 
           {/* Ruta de análisis con IA (fuera del layout de tienda para máxima atención) */}
@@ -203,7 +217,11 @@ function AppContent() {
             path="/tienda/productos/analizar"
             element={
               <StoreRoute>
-                <ProductAnalysisView />
+                <StoreProvider>
+                  <StorePermisoRuta permiso="productos.crear">
+                    <ProductAnalysisView />
+                  </StorePermisoRuta>
+                </StoreProvider>
               </StoreRoute>
             }
           />
@@ -213,7 +231,11 @@ function AppContent() {
             path="/tienda/productos/escanear"
             element={
               <StoreRoute>
-                <BarcodeScanner />
+                <StoreProvider>
+                  <StorePermisoRuta permiso="productos.ver">
+                    <BarcodeScanner />
+                  </StorePermisoRuta>
+                </StoreProvider>
               </StoreRoute>
             }
           />

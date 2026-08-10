@@ -32,7 +32,7 @@ from app.core.email import (
     enviar_codigo_verificacion,
 )
 from app.models.usuario import Usuario
-from app.models.refugio import Refugio
+from app.models.refugio import Refugio, RefugioEmpleado, RefugioPermiso
 from app.models.catalogos import Rol, TipoDocumento
 from app.models.verificacion import CodigoVerificacion
 from app.schemas.usuario import (
@@ -521,15 +521,51 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
             "reportes": True, "pqrs": True, "estadisticas": todos,
             "administradores": todos, "configuracion": todos,
         }
-    if rol_codigo == "refugio":
-        refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+    if rol_codigo in ("refugio", "empleado_refugio"):
+        refugio = None
+        es_representante = False
+        if rol_codigo == "refugio":
+            # Representante: el refugio es el que está vinculado a su cuenta.
+            refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+            es_representante = refugio is not None
+        else:
+            # Empleado de refugio: se busca su vínculo activo (refugio_empleados).
+            vinculo = (
+                db.query(RefugioEmpleado)
+                .filter(
+                    RefugioEmpleado.usuario_id == current_user.id,
+                    RefugioEmpleado.activo == True,
+                )
+                .first()
+            )
+            if vinculo:
+                refugio = vinculo.refugio
         if refugio:
-            data["name"] = refugio.nombre
+            # El nombre mostrado en el avatar: para el representante es el nombre
+            # del refugio; para el empleado es su propio nombre (el nombre del
+            # refugio se expone aparte como shelterName).
+            if not es_representante:
+                data["name"] = nombre_completo
+                data["shelterName"] = refugio.nombre
+            else:
+                data["name"] = refugio.nombre
             data["shelterId"] = refugio.id
             data["description"] = refugio.descripcion
             data["address"] = refugio.direccion
             data["location"] = refugio.ubicacion or current_user.ubicacion
             data["settings"] = {"storeEnabled": bool(refugio.tienda_habilitada)}
+            data["es_representante"] = es_representante
+            # Permisos reales desde la BD: el representante tiene todos los
+            # activos; el empleado solo los que le asignó el representante.
+            if es_representante:
+                data["permisos"] = [
+                    p.codigo
+                    for p in db.query(RefugioPermiso)
+                    .filter(RefugioPermiso.activo == True)
+                    .all()
+                ]
+            else:
+                data["permisos"] = [p.permiso.codigo for p in vinculo.permisos]
     if rol_codigo == "tienda_aliada":
         from app.models.tienda import Tienda
         tienda = db.query(Tienda).filter(Tienda.usuario_id == current_user.id).first()

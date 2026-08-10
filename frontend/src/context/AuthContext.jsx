@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { loginRequest, registerRequest, fetchMe, logoutRequest, fetchProfile, googleLoginRequest } from "../api/auth";
 import { getToken } from "../api/client";
+import { useTheme } from "./ThemeContext";
 import {
   listarMascotasFavoritas,
   agregarMascotaFavorita,
@@ -23,6 +24,7 @@ const mapMascotaFav = (m) => ({
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  const { markAuthenticated, loadUserTheme } = useTheme();
   const [user, setUser] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +73,10 @@ export const AuthProvider = ({ children }) => {
         try {
           const me = await fetchMe();
           setUser(me);
+          // Marca sesión activa y recupera la preferencia de tema del usuario
+          // para que el sistema vuelva a su último modo (claro u oscuro).
+          markAuthenticated(true);
+          loadUserTheme();
           // Carga los favoritos de mascotas reales desde la base de datos.
           try {
             const favs = await listarMascotasFavoritas();
@@ -78,16 +84,23 @@ export const AuthProvider = ({ children }) => {
           } catch { /* sin favoritos */ }
         } catch {
           logoutRequest();
+          markAuthenticated(false);
         }
       } else {
         const storedUser = localStorage.getItem("user");
         if (storedUser) {
-          try { setUser(JSON.parse(storedUser)); } catch { /* ignore */ }
+          try {
+            setUser(JSON.parse(storedUser));
+            markAuthenticated(true);
+          } catch { /* ignore */ }
+        } else {
+          markAuthenticated(false);
         }
       }
       setLoading(false);
     };
     restore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cuando el usuario se cargue, verificar estado del perfil
@@ -102,6 +115,9 @@ export const AuthProvider = ({ children }) => {
   const apiLogin = async (email, password) => {
     const me = await loginRequest(email, password);
     setUser(me);
+    // Recupera la preferencia de tema guardada del usuario.
+    markAuthenticated(true);
+    loadUserTheme();
     try {
       const favs = await listarMascotasFavoritas();
       setFavorites((favs || []).map(mapMascotaFav));
@@ -118,6 +134,9 @@ export const AuthProvider = ({ children }) => {
   const googleLogin = async (credential) => {
     const me = await googleLoginRequest(credential);
     setUser(me);
+    // Recupera la preferencia de tema guardada del usuario.
+    markAuthenticated(true);
+    loadUserTheme();
     try {
       const favs = await listarMascotasFavoritas();
       setFavorites((favs || []).map(mapMascotaFav));
@@ -157,8 +176,10 @@ export const AuthProvider = ({ children }) => {
     setProfileCompleted(false);
     localStorage.removeItem("user");
     localStorage.removeItem("favorites");
-    localStorage.setItem("theme", "light");
-    document.documentElement.classList.remove("dark");
+    // IMPORTANTE: la preferencia de tema del usuario NO se elimina. Solo se
+    // marca que ya no hay sesión para que las vistas públicas (Inicio, Login y
+    // Register) vuelvan a mostrarse SIEMPRE en modo claro.
+    markAuthenticated(false);
     window.location.href = "/";
   };
 
@@ -167,6 +188,28 @@ export const AuthProvider = ({ children }) => {
     return r === "administrador_principal" || r === "administrador";
   };
   const isStore = () => (user?.role || user?.rol) === "tienda_aliada";
+
+  // ===== Refugio (representante + empleados) =====
+  /** El usuario pertenece a un refugio (representante o empleado). */
+  const isShelter = () => {
+    const r = user?.role || user?.rol;
+    return r === "refugio" || r === "empleado_refugio";
+  };
+  /** El usuario es el representante del refugio. */
+  const esRepresentanteRefugio = () => {
+    if (user?.es_representante !== undefined) {
+      return user.es_representante === true;
+    }
+    return (user?.role || user?.rol) === "refugio";
+  };
+  /** Códigos de permisos del usuario en su refugio (desde la BD). */
+  const permisosRefugio = () => user?.permisos || [];
+  /** ¿El usuario posee un permiso específico en su refugio? El representante
+   *  siempre los tiene todos; el empleado solo los asignados. */
+  const tienePermisoRefugio = (codigo) => {
+    if (esRepresentanteRefugio()) return true;
+    return (user?.permisos || []).includes(codigo);
+  };
 
   // ===== Favoritos de mascotas (persistidos en la base de datos) =====
   const addFavorite = (animal) => {
@@ -192,6 +235,7 @@ export const AuthProvider = ({ children }) => {
         apiLogin, apiRegister, googleLogin,  // reales (usuario/refugio/google)
         login, register, logout,     // mock setters
         isAdmin, isStore,
+        isShelter, esRepresentanteRefugio, permisosRefugio, tienePermisoRefugio,
         addFavorite, removeFavorite, isFavorite,
         checkProfileStatus, markProfileCompleted, openProfileModal,
       }}

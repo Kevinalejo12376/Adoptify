@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import {
-  Package, PlusCircle, Search, Edit3, Eye, EyeOff,
-  Trash2, Star, Grid3X3, List, MoreHorizontal, Loader2,
+  Package, PlusCircle, Search, Star, Grid3X3, List, Loader2,
+  ChevronRight, TrendingUp, Eye, EyeOff,
 } from "lucide-react";
-import { misProductosTienda, actualizarMiProducto, eliminarMiProducto } from "../../api/tienda";
+import { misProductosTienda } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
+import { useStore } from "../../context/StoreContext";
 import ProductSelectionModal from "../../components/ProductSelectionModal";
 
 // Normaliza un producto del backend a la forma que usa esta vista.
@@ -15,10 +16,8 @@ const mapProducto = (p) => ({
   categoria: p.categoria || "",
   precio: Number(p.precio) || 0,
   stock: p.stock ?? 0,
-  stockMinimo: 0,
   estado: p.activo ? "visible" : "oculto",
   calificacion: Number(p.rating) || 0,
-  totalValoraciones: 0,
   vendidos: p.ventas || 0,
 });
 
@@ -36,17 +35,11 @@ function StatusBadge({ estado }) {
   );
 }
 
-function StockBadge({ stock }) {
-  if (stock === 0) {
-    return <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">Agotado</span>;
-  }
-  if (stock <= 5) {
-    return <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">Bajo stock</span>;
-  }
-  return <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">{stock} uds</span>;
-}
-
 export default function StoreProducts() {
+  const { tienePermiso } = useStore();
+  const navigate = useNavigate();
+  const puedeCrear = tienePermiso("productos.crear");
+
   const [busqueda, setBusqueda] = useState("");
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("");
@@ -56,11 +49,13 @@ export default function StoreProducts() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
+  // Carga el catálogo desde la BD. Al volver del detalle o del formulario de
+  // edición, este componente se remonta y vuelve a cargar (UI siempre fresca).
   const cargar = async () => {
     try {
       const data = await misProductosTienda();
       setProductos((data || []).map(mapProducto));
-    } catch (e) {
+    } catch {
       setProductos([]);
     } finally {
       setLoading(false);
@@ -70,6 +65,7 @@ export default function StoreProducts() {
   useEffect(() => {
     cargar();
     getCategoriasProducto().then(setCategorias).catch(() => setCategorias([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredProducts = productos.filter((p) => {
@@ -79,20 +75,8 @@ export default function StoreProducts() {
     return true;
   });
 
-  const toggleDisponibilidad = async (product) => {
-    const nuevoActivo = product.estado !== "visible";
-    setProductos((prev) => prev.map((p) => p.id === product.id ? { ...p, estado: nuevoActivo ? "visible" : "oculto" } : p));
-    try {
-      await actualizarMiProducto(product.id, { activo: nuevoActivo });
-    } catch (e) { cargar(); }
-  };
-
-  const handleEliminar = async (id) => {
-    setProductos((prev) => prev.filter((p) => p.id !== id));
-    try {
-      await eliminarMiProducto(id);
-    } catch (e) { cargar(); }
-  };
+  const colorStock = (stock) =>
+    stock === 0 ? "text-red-500" : stock <= 5 ? "text-amber-500" : "text-emerald-600";
 
   return (
     <div className="space-y-6">
@@ -101,16 +85,18 @@ export default function StoreProducts() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text font-display">Productos</h1>
           <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-            Gestiona el catálogo de productos de tu tienda.
+            Haz clic en un producto para ver su detalle, editar su información, ajustar el stock o gestionar su disponibilidad.
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all"
-        >
-          <PlusCircle size={16} />
-          Nuevo Producto
-        </button>
+        {puedeCrear && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all"
+          >
+            <PlusCircle size={16} />
+            Nuevo Producto
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -167,43 +153,58 @@ export default function StoreProducts() {
       ) : vista === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredProducts.map((product) => (
-            <div key={product.id} className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden hover:shadow-lg transition-all group">
-              <div className="h-40 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-bg dark:to-dark-border flex items-center justify-center relative">
-                <Package size={48} className="text-gray-300 dark:text-gray-600" />
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="min-w-0 flex-1">
-                  <Link to={`/tienda/productos/${product.id}`} className="text-sm font-semibold text-gray-900 dark:text-dark-text hover:text-rose-500 transition-colors line-clamp-2">
-                    {product.nombre}
-                  </Link>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{product.categoria}</p>
-                </div>
-                <span className="text-lg font-bold text-gray-900 dark:text-dark-text">
-                  ${product.precio.toLocaleString("es-CO")}
-                </span>
-                <div className="flex items-center justify-between">
-                  <StockBadge stock={product.stock} />
+            <Link
+              key={product.id}
+              to={`/tienda/productos/${product.id}`}
+              className="group bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-500/30 transition-all duration-300 flex flex-col"
+            >
+              {/* Encabezado con imagen */}
+              <div className="relative h-36 bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 dark:from-dark-bg dark:via-dark-border/60 dark:to-dark-border flex items-center justify-center overflow-hidden">
+                <Package size={48} className="text-rose-200 dark:text-gray-600 group-hover:scale-110 transition-transform duration-300" />
+                <div className="absolute top-3 right-3">
                   <StatusBadge estado={product.estado} />
                 </div>
-                <div className="flex items-center justify-between pt-1">
+              </div>
+
+              {/* Cuerpo */}
+              <div className="p-4 flex flex-col gap-3 flex-1">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-dark-text line-clamp-2 group-hover:text-rose-500 transition-colors">
+                    {product.nombre}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 truncate">{product.categoria || "Sin categoría"}</p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-bold text-gray-900 dark:text-dark-text">
+                    ${product.precio.toLocaleString("es-CO")}
+                  </span>
                   <div className="flex items-center gap-1 text-xs text-gray-400">
-                    <Star size={12} className="text-amber-400" />
+                    <Star size={12} className="text-amber-400 fill-amber-400" />
                     {product.calificacion}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => toggleDisponibilidad(product)} className={`p-1.5 rounded-lg transition-colors ${product.estado === "visible" ? "text-emerald-500" : "text-gray-400 hover:text-emerald-500"} hover:bg-gray-50`} title={product.estado === "visible" ? "Ocultar" : "Mostrar"}>
-                      {product.estado === "visible" ? <Eye size={14} /> : <EyeOff size={14} />}
-                    </button>
-                    <Link to={`/tienda/productos/editar/${product.id}`} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-gray-50 transition-colors" title="Editar">
-                      <Edit3 size={14} />
-                    </Link>
-                    <button onClick={() => handleEliminar(product.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-50 transition-colors" title="Eliminar">
-                      <Trash2 size={14} />
-                    </button>
+                </div>
+
+                {/* Stock (solo lectura; la edición se hace en el detalle) */}
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 dark:bg-dark-bg border border-gray-100 dark:border-dark-border px-2.5 py-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Stock</span>
+                  <span className={`text-sm font-bold tabular-nums ${colorStock(product.stock)}`}>
+                    {product.stock} uds
+                  </span>
+                </div>
+
+                {/* Pie de tarjeta */}
+                <div className="flex items-center justify-between pt-2 mt-auto border-t border-gray-100 dark:border-dark-border">
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                    <TrendingUp size={12} />
+                    {product.vendidos} vendidos
                   </div>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-500">
+                    Ver detalle <ChevronRight size={12} />
+                  </span>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       ) : (
@@ -213,49 +214,43 @@ export default function StoreProducts() {
               <thead>
                 <tr className="border-b border-gray-100 dark:border-dark-border">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Producto</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Categoría</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Precio</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Stock</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Estado</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Vendidos</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Acciones</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase">Ver</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
                 {filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
+                  <tr
+                    key={product.id}
+                    onClick={() => navigate(`/tienda/productos/${product.id}`)}
+                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-border transition-colors"
+                  >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-dark-border flex items-center justify-center">
                           <Package size={16} className="text-gray-400" />
                         </div>
-                        <Link to={`/tienda/productos/${product.id}`} className="text-sm font-semibold text-gray-900 dark:text-dark-text hover:text-rose-500">
-                          {product.nombre}
-                        </Link>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-dark-text truncate">{product.nombre}</p>
+                          <p className="text-xs text-gray-400">{product.categoria}</p>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{product.categoria}</td>
                     <td className="px-4 py-3">
                       <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">${product.precio.toLocaleString("es-CO")}</span>
                     </td>
-                    <td className="px-4 py-3"><StockBadge stock={product.stock} /></td>
+                    <td className="px-4 py-3">
+                      <span className={`text-sm font-bold tabular-nums ${colorStock(product.stock)}`}>{product.stock}</span>
+                    </td>
                     <td className="px-4 py-3"><StatusBadge estado={product.estado} /></td>
                     <td className="px-4 py-3 text-sm text-gray-500">{product.vendidos}</td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => toggleDisponibilidad(product)} className={`p-1.5 rounded-lg ${product.estado === "visible" ? "text-emerald-500" : "text-gray-400"} hover:bg-gray-100`} title={product.estado === "visible" ? "Ocultar" : "Mostrar"}>
-                          {product.estado === "visible" ? <Eye size={14} /> : <EyeOff size={14} />}
-                        </button>
-                        <Link to={`/tienda/productos/editar/${product.id}`} className="p-1.5 rounded-lg text-blue-500 hover:bg-gray-100" title="Editar">
-                          <Edit3 size={14} />
-                        </Link>
-                        <button onClick={() => handleEliminar(product.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-gray-100" title="Eliminar">
-                          <Trash2 size={14} />
-                        </button>
-                        <Link to={`/tienda/productos/${product.id}`} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100" title="Ver detalle">
-                          <MoreHorizontal size={14} />
-                        </Link>
-                      </div>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-500">
+                        Detalle <ChevronRight size={14} />
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -269,7 +264,7 @@ export default function StoreProducts() {
         <div className="text-center py-12">
           <Package size={48} className="mx-auto text-gray-300 mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">No hay productos</h3>
-          <p className="text-sm text-gray-500 mt-1">Crea tu primer producto para empezar a vender.</p>
+          <p className="text-sm text-gray-500 mt-1">{puedeCrear ? "Crea tu primer producto para empezar a vender." : "Aún no hay productos en tu tienda."}</p>
         </div>
       )}
 

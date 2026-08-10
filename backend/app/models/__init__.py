@@ -15,7 +15,9 @@ from app.models.catalogos import (
     TipoReaccion,
 )
 from app.models.usuario import Usuario
-from app.models.refugio import Refugio
+from app.models.refugio import (
+    Refugio, RefugioImagen, RefugioPermiso, RefugioEmpleado, RefugioEmpleadoPermiso,
+)
 from app.models.mascota import Mascota
 from app.models.solicitud import SolicitudAdopcion
 from app.models.solicitud_refugio import (
@@ -24,10 +26,18 @@ from app.models.solicitud_refugio import (
     SolicitudRefugioHistorial,
     EnlaceCreacionPassword,
 )
-from app.models.tienda import Tienda
+from app.models.tienda import (
+    Tienda,
+    TiendaPermiso,
+    TiendaUsuario,
+    TiendaUsuarioPermiso,
+    TiendaActividad,
+)
 from app.models.producto import Producto, ProductoImagen
 from app.models.kardex import MovimientoKardex
 from app.models.soporte import Notificacion, Pqrs, Reporte, Auditoria
+from app.models.donacion import Donacion, DonacionItem
+from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdjunto
 from app.models.pedido import Pedido, PedidoItem
 from app.models.foro import ForoPost
 from app.models.interaccion import (
@@ -39,9 +49,13 @@ __all__ = [
     "TipoDocumento", "Rol", "TipoMascota", "TamanoMascota", "GeneroMascota",
     "EstadoMascota", "EstadoSolicitud", "EstadoPedido", "CategoriaProducto",
     "ForoCategoria", "TipoPostForo", "EstadoPostForo", "TipoReaccion",
-    "Usuario", "Refugio", "Mascota", "SolicitudAdopcion", "Tienda", "Producto",
-    "ProductoImagen", "MovimientoKardex",
+    "MovimientoKardex","Usuario", "Refugio", "RefugioImagen", 
+    "RefugioPermiso", "RefugioEmpleado","RefugioEmpleadoPermiso", "Mascota", 
+    "Tienda", "TiendaPermiso", "TiendaUsuario", "TiendaUsuarioPermiso", 
+    "TiendaActividad","Producto", "ProductoImagen","SolicitudAdopcion",
     "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",
+    "Donacion", "DonacionItem",
+    "TiendaPqrs", "TiendaPqrsMensaje", "TiendaPqrsAdjunto",
     "CodigoVerificacion",
     "SolicitudRefugio", "SolicitudRefugioDocumento", "SolicitudRefugioHistorial",
     "EnlaceCreacionPassword",

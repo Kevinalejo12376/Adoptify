@@ -1,6 +1,6 @@
-import React from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "../context/ThemeContext";
-import { AlertTriangle, Trash2, LogOut, X, AlertCircle, Ban, Archive } from "lucide-react";
+import { AlertTriangle, Trash2, LogOut, AlertCircle, Archive } from "lucide-react";
 
 const typeConfig = {
   danger: {
@@ -59,7 +59,7 @@ export default function ConfirmModal({
   const config = typeConfig[type] || typeConfig.danger;
   const Icon = config.icon;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-modal-overlay">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -131,6 +131,7 @@ export default function ConfirmModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

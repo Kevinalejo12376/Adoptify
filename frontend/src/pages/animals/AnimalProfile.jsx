@@ -332,7 +332,7 @@ export default function AnimalProfile() {
             {!adoptionStatus && (
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <button
-                  onClick={handleAdoptionRequest}
+                  onClick={() => setShowAdoptionModal(true)}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg"
                 >
                   <Heart className="w-5 h-5" />

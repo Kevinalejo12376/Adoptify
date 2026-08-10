@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from decimal import Decimal
 
 from app.db.database import get_db
-from app.core.security import get_current_user
+from app.core.security import (
+    get_current_user,
+    get_refugio_de_usuario,
+    require_permiso_refugio,
+)
 from app.core.lookups import id_por_codigo
 from app.models.usuario import Usuario
 from app.models.producto import Producto
@@ -140,6 +144,26 @@ def mis_pedidos(current_user: Usuario = Depends(get_current_user), db: Session =
         .order_by(Pedido.creado_en.desc())
         .all()
     )
+    return [serialize_pedido(p) for p in pedidos]
+
+
+@router.get("/refugio")
+def pedidos_refugio(current_user: Usuario = Depends(require_permiso_refugio("pedidos")), db: Session = Depends(get_db)):
+    """Pedidos que contienen productos de la tienda del refugio autenticado."""
+    refugio = get_refugio_de_usuario(db, current_user)
+    if not refugio:
+        return []
+    ids = (
+        db.query(PedidoItem.pedido_id)
+        .join(Producto, Producto.id == PedidoItem.producto_id)
+        .filter(Producto.refugio_id == refugio.id)
+        .distinct()
+        .all()
+    )
+    ids = [r[0] for r in ids]
+    if not ids:
+        return []
+    pedidos = db.query(Pedido).filter(Pedido.id.in_(ids)).order_by(Pedido.creado_en.desc()).all()
     return [serialize_pedido(p) for p in pedidos]
 
 

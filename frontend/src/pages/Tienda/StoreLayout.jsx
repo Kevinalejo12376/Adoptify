@@ -1,12 +1,17 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { StoreProvider, useStore } from "../../context/StoreContext";
 import StoreSidebar from "./components/StoreSidebar";
 import StoreHeader from "./components/StoreHeader";
 
-export default function StoreLayout() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+function StoreLayoutContent() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const { user, logout } = useAuth();
+  const {
+    storeNombre, storeLogo, usuarioNombre,
+    esSuperAdmin, tienePermiso,
+  } = useStore();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -14,15 +19,20 @@ export default function StoreLayout() {
     navigate("/login");
   };
 
-  const storeNombre = user?.nombre || "Tienda";
+  // Nombre de la tienda proviene del contexto (base de datos).
+  const nombreTienda = storeNombre || user?.nombre || "Mi Tienda";
+  const logo = storeLogo || null;
+  // Nombre de la persona autenticada (representante o admin).
+  const nombreUsuario = usuarioNombre || user?.nombre || "Usuario";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg">
       {/* Sidebar */}
       <StoreSidebar
         collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        storeNombre={storeNombre}
+        setCollapsed={setSidebarCollapsed}
+        storeNombre={nombreTienda}
+        storeLogo={logo}
         onLogout={handleLogout}
       />
 
@@ -36,7 +46,10 @@ export default function StoreLayout() {
       >
         {/* Header */}
         <StoreHeader
-          storeNombre={storeNombre}
+          storeNombre={nombreTienda}
+          usuarioNombre={nombreUsuario}
+          esSuperAdmin={esSuperAdmin}
+          tienePermiso={tienePermiso}
           onLogout={handleLogout}
         />
 
@@ -49,5 +62,13 @@ export default function StoreLayout() {
       {/* Bottom spacing for mobile nav */}
       <div className="h-16 lg:hidden" />
     </div>
+  );
+}
+
+export default function StoreLayout() {
+  return (
+    <StoreProvider>
+      <StoreLayoutContent />
+    </StoreProvider>
   );
 }

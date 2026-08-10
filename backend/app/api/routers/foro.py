@@ -6,12 +6,12 @@ from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from sqlalchemy import func
 # pyrefly: ignore [missing-import]
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 # pyrefly: ignore [missing-import]
 from typing import Optional, List
 
 from app.db.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_user_optional
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import registrar_auditoria, crear_notificacion
 from app.models.usuario import Usuario
@@ -42,22 +42,105 @@ class PostCreate(BaseModel):
     # IDs de imágenes existentes que el usuario desea eliminar (solo edición).
     imagenes_eliminar: List[int] = []
 
+    @field_validator("titulo")
+    @classmethod
+    def _validar_titulo(cls, v):
+        valor = (v or "").strip()
+        if len(valor) < 3:
+            raise ValueError("El título debe tener al menos 3 caracteres")
+        if len(valor) > 120:
+            raise ValueError("El título no puede superar los 120 caracteres")
+        return valor
+
+    @field_validator("contenido")
+    @classmethod
+    def _validar_contenido(cls, v):
+        if v is None:
+            return v
+        valor = v.strip()
+        if len(valor) < 10:
+            raise ValueError("El contenido de la publicación debe tener al menos 10 caracteres")
+        if len(valor) > 10000:
+            raise ValueError("El contenido no puede superar los 10000 caracteres")
+        return valor
+
 
 class ComentarioCreate(BaseModel):
     contenido: str
     comentario_padre_id: Optional[int] = None
+
+    @field_validator("contenido")
+    @classmethod
+    def _validar_contenido(cls, v):
+        valor = (v or "").strip()
+        if len(valor) < 2:
+            raise ValueError("El comentario debe tener al menos 2 caracteres")
+        if len(valor) > 2000:
+            raise ValueError("El comentario no puede superar los 2000 caracteres")
+        return valor
 
 
 class ReaccionCreate(BaseModel):
     tipo: str = "like"  # codigo de tipos_reaccion
 
 
+class ComentarioUpdate(BaseModel):
+    contenido: str
+
+    @field_validator("contenido")
+    @classmethod
+    def _validar_contenido(cls, v):
+        valor = (v or "").strip()
+        if len(valor) < 2:
+            raise ValueError("El comentario debe tener al menos 2 caracteres")
+        if len(valor) > 2000:
+            raise ValueError("El comentario no puede superar los 2000 caracteres")
+        return valor
+
+
 def _autor_info(u: Usuario):
+    """Resuelve la informacion visible del autor segun su rol.
+
+    - REFUGIO   -> el nombre visible es el NOMBRE DEL REFUGIO (no el representante).
+    - TIENDA    -> el nombre visible es el NOMBRE DE LA TIENDA.
+    - USUARIO/ADMIN -> se muestra el nombre personal del usuario.
+    """
     if not u:
-        return {"autor": "Anonimo", "autor_rol": None, "autor_iniciales": "?"}
+        return {"autor": "Anonimo", "autor_rol": None, "autor_iniciales": "?", "autor_avatar": None}
+    rol = u.rol_codigo if u.rol else None
+
+    # REFUGIO: usar el refugio asociado al usuario (relacion existente).
+    if rol == "refugio":
+        ref = getattr(u, "refugio", None)
+        if ref is not None and ref.nombre:
+            nombre = ref.nombre
+            return {
+                "autor": nombre,
+                "autor_rol": rol,
+                "autor_iniciales": "".join([p[0] for p in nombre.split()[:2]]).upper() or "?",
+                "autor_avatar": ref.logo_url,
+            }
+
+    # TIENDA ALIADA: usar la tienda asociada al usuario (relacion existente).
+    if rol == "tienda_aliada":
+        tienda = getattr(u, "tienda", None)
+        if tienda is not None and tienda.nombre:
+            nombre = tienda.nombre
+            return {
+                "autor": nombre,
+                "autor_rol": rol,
+                "autor_iniciales": "".join([p[0] for p in nombre.split()[:2]]).upper() or "?",
+                "autor_avatar": tienda.logo_url,
+            }
+
+    # USUARIO NORMAL / ADMINISTRADOR: nombre personal del usuario.
     nombre = f"{u.nombre} {u.apellido or ''}".strip()
-    iniciales = "".join([p[0] for p in nombre.split()[:2]]).upper() or "?"
-    return {"autor": nombre, "autor_rol": u.rol_codigo if u.rol else None, "autor_iniciales": iniciales}
+    return {
+        "autor": nombre,
+        "autor_rol": rol,
+        "autor_iniciales": "".join([p[0] for p in nombre.split()[:2]]).upper() or "?",
+        "autor_avatar": u.avatar_url,
+    }
 
 
 def _reacciones_de(db: Session, post_id: int) -> dict:
@@ -68,13 +151,27 @@ def _reacciones_de(db: Session, post_id: int) -> dict:
         .group_by(TipoReaccion.codigo)
         .all()
     )
-    d = {"like": 0, "love": 0, "celebrate": 0, "support": 0, "funny": 0}
+    # Incluye los tipos nuevos y los históricos (celebrate/support) por compatibilidad.
+    d = {"like": 0, "love": 0, "funny": 0, "wow": 0, "sad": 0, "angry": 0, "celebrate": 0, "support": 0}
     for codigo, n in filas:
         d[codigo] = n
     return d
 
 
-def _serialize_post(p: ForoPost, db: Session, incluir_comentarios: bool = False) -> dict:
+def _mi_reaccion(db: Session, post_id: int, usuario_id: Optional[int]):
+    """Devuelve el codigo de la reaccion del usuario sobre el post (o None)."""
+    if not usuario_id:
+        return None
+    fila = (
+        db.query(TipoReaccion.codigo)
+        .join(ForoReaccion, ForoReaccion.tipo_reaccion_id == TipoReaccion.id)
+        .filter(ForoReaccion.post_id == post_id, ForoReaccion.usuario_id == usuario_id)
+        .first()
+    )
+    return fila[0] if fila else None
+
+
+def _serialize_post(p: ForoPost, db: Session, incluir_comentarios: bool = False, current_user: Optional[Usuario] = None) -> dict:
     n_com = db.query(func.count(ForoComentario.id)).filter(ForoComentario.post_id == p.id).scalar()
     data = {
         "id": p.id,
@@ -88,6 +185,7 @@ def _serialize_post(p: ForoPost, db: Session, incluir_comentarios: bool = False)
         "compartidos": p.compartidos,
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
         "reacciones": _reacciones_de(db, p.id),
+        "mi_reaccion": _mi_reaccion(db, p.id, current_user.id if current_user else None),
         "comentarios_count": n_com,
         # Solo se exponen las secure_url (y su id) almacenadas en la BD.
         "imagenes": [{"id": img.id, "url": img.url} for img in (p.imagenes or [])],
@@ -103,10 +201,12 @@ def _serialize_post(p: ForoPost, db: Session, incluir_comentarios: bool = False)
         data["comentarios"] = [
             {
                 "id": c.id,
+                "autor_id": c.autor_id,
                 "contenido": c.contenido,
                 "likes": c.likes,
                 "comentario_padre_id": c.comentario_padre_id,
                 "creado_en": c.creado_en.isoformat() if c.creado_en else None,
+                "editado": False,
                 **_autor_info(c.autor),
             }
             for c in comentarios
@@ -115,14 +215,18 @@ def _serialize_post(p: ForoPost, db: Session, incluir_comentarios: bool = False)
 
 
 @router.get("/posts")
-def listar_posts(db: Session = Depends(get_db), categoria: Optional[str] = None):
+def listar_posts(
+    current_user: Optional[Usuario] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+    categoria: Optional[str] = None,
+):
     query = db.query(ForoPost)
     if categoria and categoria != "all":
         cat_id = id_por_codigo(db, ForoCategoria, categoria)
         if cat_id:
             query = query.filter(ForoPost.categoria_id == cat_id)
     posts = query.order_by(ForoPost.fijado.desc(), ForoPost.creado_en.desc()).all()
-    return [_serialize_post(p, db) for p in posts]
+    return [_serialize_post(p, db, current_user=current_user) for p in posts]
 
 
 @router.get("/posts/guardados")
@@ -138,15 +242,62 @@ def listar_posts_guardados(current_user: Usuario = Depends(get_current_user), db
     return [_serialize_post(p, db) for p in posts]
 
 
+@router.get("/posts/mios")
+def mis_posts(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Lista las publicaciones creadas por el usuario autenticado (rol Refugio/Usuario)."""
+    posts = (
+        db.query(ForoPost)
+        .filter(ForoPost.autor_id == current_user.id)
+        .order_by(ForoPost.fijado.desc(), ForoPost.creado_en.desc())
+        .all()
+    )
+    return [_serialize_post(p, db) for p in posts]
+
+
 @router.get("/posts/{post_id}")
-def obtener_post(post_id: int, db: Session = Depends(get_db)):
+def obtener_post(
+    post_id: int,
+    current_user: Optional[Usuario] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
     p = db.query(ForoPost).filter(ForoPost.id == post_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Publicacion no encontrada")
     p.vistas = (p.vistas or 0) + 1
     db.commit()
     db.refresh(p)
-    return _serialize_post(p, db, incluir_comentarios=True)
+    return _serialize_post(p, db, incluir_comentarios=True, current_user=current_user)
+
+
+@router.get("/posts/{post_id}/comentarios")
+def listar_comentarios(post_id: int, db: Session = Depends(get_db)):
+    """Lista los comentarios de una publicación con la información de su autor.
+
+    No incrementa el contador de vistas (a diferencia de obtener_post), por lo
+    que es seguro usarlo para mostrar los comentarios en el feed.
+    """
+    post = db.query(ForoPost).filter(ForoPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicacion no encontrada")
+    comentarios = (
+        db.query(ForoComentario)
+        .filter(ForoComentario.post_id == post_id)
+        .order_by(ForoComentario.creado_en.asc())
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "autor_id": c.autor_id,
+            "contenido": c.contenido,
+            "likes": c.likes,
+            "comentario_padre_id": c.comentario_padre_id,
+            "creado_en": c.creado_en.isoformat() if c.creado_en else None,
+            "editado": False,
+            **_autor_info(c.autor),
+        }
+        for c in comentarios
+    ]
 
 
 @router.post("/posts", status_code=status.HTTP_201_CREATED)
@@ -200,24 +351,51 @@ def comentar(post_id: int, payload: ComentarioCreate, current_user: Usuario = De
     db.add(com)
     db.commit()
     db.refresh(com)
-    return {"id": com.id, "contenido": com.contenido, **_autor_info(current_user)}
+    return {
+        "id": com.id,
+        "autor_id": com.autor_id,
+        "contenido": com.contenido,
+        "comentario_padre_id": com.comentario_padre_id,
+        "creado_en": com.creado_en.isoformat() if com.creado_en else None,
+        "editado": False,
+        **_autor_info(current_user),
+    }
 
 
 @router.post("/posts/{post_id}/reacciones")
 def reaccionar(post_id: int, payload: ReaccionCreate, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Registra/actualiza/elimina la reaccion del usuario sobre una publicacion.
+
+    Un usuario solo puede tener UNA reaccion por publicacion:
+    - Sin reaccion previa  -> se crea la reaccion.
+    - Misma reaccion       -> se elimina (toggle off).
+    - Reaccion diferente   -> se REEMPLAZA la anterior (nunca se duplica).
+    """
     post = db.query(ForoPost).filter(ForoPost.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Publicacion no encontrada")
     tipo_id = id_por_codigo(db, TipoReaccion, payload.tipo, requerido=True)
-    existe = db.query(ForoReaccion).filter(
-        ForoReaccion.post_id == post_id,
-        ForoReaccion.usuario_id == current_user.id,
-        ForoReaccion.tipo_reaccion_id == tipo_id,
-    ).first()
+
+    # La reaccion del usuario sobre el post (independientemente del tipo).
+    existe = (
+        db.query(ForoReaccion)
+        .filter(
+            ForoReaccion.post_id == post_id,
+            ForoReaccion.usuario_id == current_user.id,
+        )
+        .first()
+    )
     if existe:
-        db.delete(existe)  # toggle: quitar reaccion
+        if existe.tipo_reaccion_id == tipo_id:
+            # Toggle off: el usuario retira su reaccion.
+            db.delete(existe)
+            db.commit()
+            return {"activo": False, "mi_reaccion": None, "reacciones": _reacciones_de(db, post_id)}
+        # Cambio de reaccion: se actualiza la existente (nunca se duplica).
+        existe.tipo_reaccion_id = tipo_id
         db.commit()
-        return {"activo": False, "reacciones": _reacciones_de(db, post_id)}
+        return {"activo": True, "mi_reaccion": payload.tipo, "reacciones": _reacciones_de(db, post_id)}
+
     db.add(ForoReaccion(post_id=post_id, usuario_id=current_user.id, tipo_reaccion_id=tipo_id))
     # Notifica al autor de la publicacion (si no es el mismo que reacciona)
     if post.autor_id and post.autor_id != current_user.id:
@@ -228,7 +406,75 @@ def reaccionar(post_id: int, payload: ReaccionCreate, current_user: Usuario = De
             "/forum",
         )
     db.commit()
-    return {"activo": True, "reacciones": _reacciones_de(db, post_id)}
+    return {"activo": True, "mi_reaccion": payload.tipo, "reacciones": _reacciones_de(db, post_id)}
+
+
+@router.get("/posts/{post_id}/reacciones")
+def listar_reacciones(post_id: int, db: Session = Depends(get_db)):
+    """Devuelve los usuarios que reaccionaron y su tipo de reaccion (datos reales)."""
+    post = db.query(ForoPost).filter(ForoPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicacion no encontrada")
+    filas = (
+        db.query(ForoReaccion, TipoReaccion.codigo, Usuario)
+        .join(TipoReaccion, ForoReaccion.tipo_reaccion_id == TipoReaccion.id)
+        .join(Usuario, ForoReaccion.usuario_id == Usuario.id)
+        .filter(ForoReaccion.post_id == post_id)
+        .order_by(ForoReaccion.id.desc())
+        .all()
+    )
+    return [
+        {"usuario_id": r.usuario_id, "tipo": codigo, **_autor_info(u)}
+        for r, codigo, u in filas
+    ]
+
+
+@router.put("/comentarios/{comentario_id}")
+def editar_comentario(comentario_id: int, payload: ComentarioUpdate, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Edita un comentario (solo su autor o un administrador). Mantiene el mismo id."""
+    com = db.query(ForoComentario).filter(ForoComentario.id == comentario_id).first()
+    if not com:
+        raise HTTPException(status_code=404, detail="Comentario no encontrado")
+    rol = current_user.rol_codigo if current_user.rol else None
+    es_admin = rol in ("administrador", "administrador_principal")
+    if com.autor_id != current_user.id and not es_admin:
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar este comentario")
+    com.contenido = payload.contenido
+    db.commit()
+    db.refresh(com)
+    return {
+        "id": com.id,
+        "autor_id": com.autor_id,
+        "contenido": com.contenido,
+        "creado_en": com.creado_en.isoformat() if com.creado_en else None,
+        "editado": True,
+        **_autor_info(com.autor),
+    }
+
+
+@router.delete("/comentarios/{comentario_id}", status_code=status.HTTP_200_OK)
+def eliminar_comentario(comentario_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Elimina un comentario y sus respuestas (solo su autor o un administrador)."""
+    com = db.query(ForoComentario).filter(ForoComentario.id == comentario_id).first()
+    if not com:
+        raise HTTPException(status_code=404, detail="Comentario no encontrado")
+    rol = current_user.rol_codigo if current_user.rol else None
+    es_admin = rol in ("administrador", "administrador_principal")
+    if com.autor_id != current_user.id and not es_admin:
+        raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este comentario")
+
+    def _eliminar_descendientes(pid: int):
+        hijos = db.query(ForoComentario).filter(ForoComentario.comentario_padre_id == pid).all()
+        for h in hijos:
+            _eliminar_descendientes(h.id)
+            db.query(ForoComentarioLike).filter(ForoComentarioLike.comentario_id == h.id).delete(synchronize_session=False)
+            db.delete(h)
+
+    _eliminar_descendientes(com.id)
+    db.query(ForoComentarioLike).filter(ForoComentarioLike.comentario_id == com.id).delete(synchronize_session=False)
+    db.delete(com)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/comentarios/{comentario_id}/like")
@@ -371,6 +617,18 @@ def editar_post(post_id: int, payload: PostCreate, current_user: Usuario = Depen
 
     db.refresh(post)
     return _serialize_post(post, db)
+
+
+@router.post("/posts/{post_id}/compartir")
+def compartir_post(post_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Incrementa el contador de veces que se compartió la publicación."""
+    post = db.query(ForoPost).filter(ForoPost.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Publicacion no encontrada")
+    post.compartidos = (post.compartidos or 0) + 1
+    db.commit()
+    db.refresh(post)
+    return {"compartidos": post.compartidos}
 
 
 @router.post("/posts/{post_id}/fijar")

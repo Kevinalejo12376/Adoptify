@@ -6,8 +6,12 @@ import {
   FileText, AlertTriangle, Loader2, Building2, Image as ImageIcon,
   Globe, RefreshCw, User, Home,
 } from "lucide-react";
-import Badge from "../../../components/admin/Badge";
+import FieldError from "../../../components/FieldError";
 import { listarUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from "../../../api/admin";
+import {
+  validarNombre, validarApellido, validarEmail, validarTelefonoAdmin, validarPassword,
+  normalizarEmail, limpiarEspacios, claseInput, soloDigitos,
+} from "../../../utils/validaciones";
 
 // ========================================================
 // GENERADOR DE AVATARES CON INICIALES Y COLORES PASTEL
@@ -343,39 +347,94 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
 // ========================================================
 function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
   const emptyForm = {
-    nombre: "", apellido: "", email: "", password: "",
+    nombre: "", apellido: "", email: "", password: "", confirmar_password: "",
     telefono: "", ubicacion: "", nombre_refugio: "",
   };
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
       if (user) {
-        const parts = (user.nombre || "").split(" ");
+        // El backend devuelve 'nombre' y 'apellido' por separado: cada dato se
+        // carga en su respectivo input (sin concatenar ni dividir el nombre).
         setForm({
-          nombre: parts[0] || "",
-          apellido: parts.slice(1).join(" ") || "",
+          nombre: user.nombre || "",
+          apellido: user.apellido || "",
           email: user.email || "",
           password: "",
-          telefono: user.telefono || "",
+          confirmar_password: "",
+          // Solo dígitos (máx 10) para que coincida con el validador del formulario.
+          telefono: soloDigitos(user.telefono || "").slice(0, 10),
           ubicacion: user.ubicacion || user.ciudad || "",
           nombre_refugio: user.refugio_nombre || "",
         });
       } else {
         setForm(emptyForm);
       }
+      setErrors({});
       setError(null);
     }
   }, [isOpen, user]);
 
   if (!isOpen) return null;
 
+  const validarCampo = (campo, valor) => {
+    const v = valor === undefined ? form[campo] : valor;
+    switch (campo) {
+      case "nombre":
+        return validarNombre(v, { campo: "nombre" });
+      case "apellido":
+        return validarApellido(v);
+      case "email":
+        return validarEmail(v);
+      case "password":
+        return user ? "" : validarPassword(v);
+      case "confirmar_password":
+        if (user) return "";
+        if (form.password && !v) return "Confirma la contraseña.";
+        if (form.password && v !== form.password) return "Las contraseñas no coinciden.";
+        return "";
+      case "telefono":
+        return validarTelefonoAdmin(v);
+      default:
+        return "";
+    }
+  };
+
+  const handleChange = (campo, valor) => {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+    setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, valor) }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const nuevosErrores = {};
+    ["nombre", "apellido", "email", "telefono"].forEach((c) => {
+      nuevosErrores[c] = validarCampo(c);
+    });
+    if (!user) {
+      nuevosErrores.password = validarPassword(form.password);
+      nuevosErrores.confirmar_password = form.password
+        ? (form.confirmar_password === form.password ? "" : "Las contraseñas no coinciden.")
+        : "";
+    }
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some((m) => m)) return;
+
     setError(null);
     try {
-      await onSave(form, user);
+      const payload = {
+        nombre: limpiarEspacios(form.nombre),
+        apellido: limpiarEspacios(form.apellido) || null,
+        email: normalizarEmail(form.email),
+        password: form.password,
+        telefono: form.telefono ? form.telefono.trim() : null,
+        ubicacion: form.ubicacion,
+        nombre_refugio: form.nombre_refugio,
+      };
+      await onSave(payload, user);
     } catch (err) {
       setError(err?.message || "Error al guardar");
     }
@@ -411,38 +470,86 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-3">
+        <form onSubmit={handleSubmit} noValidate className="p-5 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Nombre *</label>
-              <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className={inputClass} placeholder="Ej: Ana" />
+              <input
+                value={form.nombre}
+                onChange={(e) => handleChange("nombre", e.target.value)}
+                className={claseInput(inputClass, !!errors.nombre)}
+                placeholder="Ej: Ana"
+              />
+              <FieldError mensaje={errors.nombre} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Apellido</label>
-              <input value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} className={inputClass} placeholder="Ej: Martínez" />
+              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Apellido *</label>
+              <input
+                value={form.apellido}
+                onChange={(e) => handleChange("apellido", e.target.value)}
+                className={claseInput(inputClass, !!errors.apellido)}
+                placeholder="Ej: Martínez"
+              />
+              <FieldError mensaje={errors.apellido} />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Email *</label>
-            <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputClass} placeholder="usuario@email.com" />
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => handleChange("email", e.target.value)}
+              className={claseInput(inputClass, !!errors.email)}
+              placeholder="usuario@email.com"
+            />
+            <FieldError mensaje={errors.email} />
           </div>
 
           {!user && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña *</label>
-              <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={inputClass} placeholder="••••••••" />
-            </div>
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña *</label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => handleChange("password", e.target.value)}
+                  className={claseInput(inputClass, !!errors.password)}
+                  placeholder="Mínimo 8 caracteres"
+                />
+                <FieldError mensaje={errors.password} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Confirmar contraseña *</label>
+                <input
+                  type="password"
+                  value={form.confirmar_password}
+                  onChange={(e) => handleChange("confirmar_password", e.target.value)}
+                  className={claseInput(inputClass, !!errors.confirmar_password)}
+                  placeholder="Repite la contraseña"
+                />
+                <FieldError mensaje={errors.confirmar_password} />
+              </div>
+            </>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono</label>
-              <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} className={inputClass} placeholder="+57 300 123 4567" />
+              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono *</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={form.telefono}
+                onChange={(e) => handleChange("telefono", soloDigitos(e.target.value).slice(0, 10))}
+                className={claseInput(inputClass, !!errors.telefono)}
+                placeholder="3001234567"
+              />
+              <FieldError mensaje={errors.telefono} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Ciudad</label>
-              <input value={form.ubicacion} onChange={(e) => setForm({ ...form, ubicacion: e.target.value })} className={inputClass} placeholder="Bogotá" />
+              <input value={form.ubicacion} onChange={(e) => handleChange("ubicacion", e.target.value)} className={inputClass} placeholder="Bogotá" />
             </div>
           </div>
 
@@ -633,16 +740,29 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
       setError("El correo del responsable es obligatorio");
       return;
     }
+    // Separa el nombre completo del responsable en nombre y apellido para que
+    // cada campo se persista de forma independiente (nunca concatenados).
+    const partesNombre = (formData.responsable_nombre || "").trim().split(/\s+/);
+    if (partesNombre.length < 2) {
+      setError("Ingresa el nombre y apellido del responsable");
+      return;
+    }
+    const telefonoResponsable = soloDigitos(formData.responsable_telefono || formData.telefono).slice(0, 10);
+    const errTel = validarTelefonoAdmin(telefonoResponsable);
+    if (errTel) {
+      setError(errTel);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       // Llamar al API de crearUsuario con rol refugio
       await onSave({
-        nombre: formData.responsable_nombre,
-        apellido: "",
+        nombre: partesNombre[0] || "",
+        apellido: partesNombre.slice(1).join(" ") || "",
         email: formData.responsable_email,
         password: formData.password,
-        telefono: formData.responsable_telefono || formData.telefono,
+        telefono: telefonoResponsable,
         ubicacion: formData.ubicacion,
         rol: "refugio",
         nombre_refugio: formData.nombre_refugio,
@@ -785,8 +905,8 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
                 <input required type="email" value={formData.responsable_email} onChange={(e) => setFormData({ ...formData, responsable_email: e.target.value })} className={inputClass} placeholder="responsable@email.com" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono del responsable</label>
-                <input value={formData.responsable_telefono} onChange={(e) => setFormData({ ...formData, responsable_telefono: e.target.value })} className={inputClass} placeholder="+57 300 123 4567" />
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono del responsable *</label>
+                <input type="text" inputMode="numeric" maxLength={10} value={formData.responsable_telefono} onChange={(e) => setFormData({ ...formData, responsable_telefono: soloDigitos(e.target.value).slice(0, 10) })} className={inputClass} placeholder="3001234567" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña temporal</label>
