@@ -1,9 +1,7 @@
-"""Servicio de envio de correos electronicos via SMTP (Gmail)."""
-import smtplib
+"""Servicio de envio de correos electronicos via Brevo (Sendinblue) API."""
 import logging
 import random
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import httpx
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -361,42 +359,41 @@ def _build_codigo_html(codigo: str, tipo: str, nombre: str = "") -> str:
 
 
 def _enviar_correo(email_destino: str, asunto: str, html: str) -> bool:
-    """Función interna para enviar un correo SMTP con HTML."""
-    if not settings.SMTP_HOST or not settings.SMTP_PASSWORD:
-        logger.warning("SMTP no configurado — no se envió correo a %s", email_destino)
+    """Función interna para enviar un correo mediante la API de Brevo (Sendinblue)."""
+    if not settings.BREVO_API_KEY:
+        logger.warning("Brevo no configurado — no se envió correo a %s", email_destino)
         return False
 
-    logger.info(
-        "Intentando enviar correo a %s — SMTP_HOST=%s, SMTP_PORT=%s, SMTP_USER=%s, SMTP_FROM=%s",
-        email_destino,
-        settings.SMTP_HOST,
-        settings.SMTP_PORT,
-        settings.SMTP_USER,
-        settings.SMTP_FROM,
-    )
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "api-key": settings.BREVO_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    payload = {
+        "sender": {"name": settings.BREVO_FROM_NAME, "email": settings.BREVO_FROM_EMAIL},
+        "to": [{"email": email_destino}],
+        "subject": asunto,
+        "htmlContent": html,
+    }
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = settings.SMTP_FROM
-        msg["To"] = email_destino
-        msg["Subject"] = asunto
-
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.set_debuglevel(1)  # ← Muestra la conversación SMTP en los logs
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SMTP_FROM, email_destino, msg.as_string())
-
-        logger.info("✓ Correo enviado EXITOSAMENTE a %s — Asunto: %s", email_destino, asunto)
-        return True
-
-    except smtplib.SMTPAuthenticationError:
-        logger.error("✗ Error de AUTENTICACION SMTP — verifica usuario/contraseña de aplicación para %s", settings.SMTP_USER)
-        return False
-    except smtplib.SMTPException as exc:
-        logger.error("✗ Error SMTP al enviar correo a %s: %s", email_destino, exc)
+        resp = httpx.post(url, json=payload, headers=headers, timeout=30)
+        if resp.status_code == 201:
+            data = resp.json()
+            logger.info(
+                "✓ Correo enviado EXITOSAMENTE vía Brevo a %s — Asunto: %s | ID: %s",
+                email_destino,
+                asunto,
+                data.get("messageId"),
+            )
+            return True
+        logger.error(
+            "✗ Brevo respondió %s al enviar a %s: %s",
+            resp.status_code,
+            email_destino,
+            resp.text,
+        )
         return False
     except Exception as exc:
         logger.error("✗ Error inesperado al enviar correo a %s: %s", email_destino, exc)

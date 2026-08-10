@@ -232,7 +232,7 @@ export default function Register() {
           ...prev,
           email:
             "El código se generó pero no se pudo enviar el correo. " +
-            "Verifica la configuración SMTP del servidor o contacta al administrador.",
+            "Verifica la configuración de Brevo o contacta al administrador.",
         }));
         return;
       }

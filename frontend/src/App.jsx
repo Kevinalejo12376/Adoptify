@@ -67,6 +67,7 @@ import StoreStatistics from "./pages/Tienda/StoreStatistics";
 import StoreNotifications from "./pages/Tienda/StoreNotifications";
 import StoreSettings from "./pages/Tienda/StoreSettings";
 import ProductAnalysisView from "./pages/Tienda/ProductAnalysisView";
+import KardexView from "./pages/Tienda/KardexView";
 
 // Otras importaciones existentes
 import Animals from "./pages/animals/Animals";
@@ -188,6 +189,7 @@ function AppContent() {
             <Route path="productos/nuevo" element={<StoreEditProduct />} />
             <Route path="productos/:id" element={<StoreProductDetail />} />
             <Route path="productos/editar/:id" element={<StoreEditProduct />} />
+            <Route path="kardex" element={<KardexView />} />
             <Route path="pedidos" element={<StoreOrders />} />
             <Route path="pedidos/:id" element={<StoreOrderDetail />} />
             <Route path="perfil" element={<StoreProfile />} />

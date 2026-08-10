@@ -30,3 +30,4 @@ class Tienda(Base):
 
     usuario = relationship("Usuario", backref="tienda", uselist=False)
     productos = relationship("Producto", back_populates="tienda")
+    movimientos_kardex = relationship("MovimientoKardex", back_populates="tienda")

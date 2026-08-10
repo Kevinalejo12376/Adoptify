@@ -96,7 +96,11 @@ def _run_migrations():
         )
         db.commit()
 
+        # Tabla del módulo de Kardex de inventario (tiendas aliadas)
+        _crear_tabla_movimientos_kardex(db)
+
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
+        print("[migracion] Tabla 'movimientos_kardex' verificada correctamente.")
     except Exception as e:
         print(f"[migracion] Error ejecutando migraciones: {e}")
     finally:
@@ -225,6 +229,31 @@ def _crear_tabla_solicitudes_refugio(db):
     db.execute(text(
         "CREATE INDEX IF NOT EXISTS idx_enlaces_pass_user ON enlaces_creacion_password(usuario_id)"
     ))
+
+
+def _crear_tabla_movimientos_kardex(db):
+    """Crea la tabla del Kardex de inventario si no existe (Supabase)."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS movimientos_kardex (
+            id BIGSERIAL PRIMARY KEY,
+            producto_id BIGINT NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+            tienda_id BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+            tipo_movimiento VARCHAR(30) NOT NULL,
+            concepto VARCHAR(255) NOT NULL DEFAULT '',
+            cantidad INTEGER NOT NULL DEFAULT 0,
+            costo_unitario NUMERIC(12,2) NOT NULL DEFAULT 0,
+            costo_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+            saldo_cantidad INTEGER NOT NULL DEFAULT 0,
+            saldo_valor NUMERIC(14,2) NOT NULL DEFAULT 0,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_kardex_producto ON movimientos_kardex(producto_id)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_kardex_tienda ON movimientos_kardex(tienda_id)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_kardex_tipo ON movimientos_kardex(tipo_movimiento)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_kardex_fecha ON movimientos_kardex(creado_en)"))
+    db.commit()
 
 
 app = FastAPI(title="Adoptify API", lifespan=lifespan)

@@ -26,6 +26,7 @@ from app.models.solicitud_refugio import (
 )
 from app.models.tienda import Tienda
 from app.models.producto import Producto, ProductoImagen
+from app.models.kardex import MovimientoKardex
 from app.models.soporte import Notificacion, Pqrs, Reporte, Auditoria
 from app.models.pedido import Pedido, PedidoItem
 from app.models.foro import ForoPost
@@ -39,7 +40,7 @@ __all__ = [
     "EstadoMascota", "EstadoSolicitud", "EstadoPedido", "CategoriaProducto",
     "ForoCategoria", "TipoPostForo", "EstadoPostForo", "TipoReaccion",
     "Usuario", "Refugio", "Mascota", "SolicitudAdopcion", "Tienda", "Producto",
-    "ProductoImagen",
+    "ProductoImagen", "MovimientoKardex",
     "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",
     "CodigoVerificacion",
     "SolicitudRefugio", "SolicitudRefugioDocumento", "SolicitudRefugioHistorial",

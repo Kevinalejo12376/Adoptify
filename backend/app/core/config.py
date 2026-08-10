@@ -23,12 +23,11 @@ class Settings(BaseSettings):
     # Obtener API Key en: https://upcitemdb.com/
     UPCITEMDB_API_KEY: str = ""
 
-    # --- Correo SMTP (Gmail) ---
-    SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = ""
+    # --- Brevo (Sendinblue) — envío de correos ---
+    # API Key v3 (xkeysib-...) en: https://app.brevo.com/settings/keys/smtp
+    BREVO_API_KEY: str = ""
+    BREVO_FROM_EMAIL: str = "adoptifyoficial@gmail.com"
+    BREVO_FROM_NAME: str = "Adoptify"
 
     # --- Frontend ---
     FRONTEND_URL: str = "http://localhost:5173"
