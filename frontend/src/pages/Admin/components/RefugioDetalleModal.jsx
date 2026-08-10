@@ -3,7 +3,7 @@ import {
   Building2, Mail, Phone, MapPin, Globe, Music2, Calendar, X,
   Edit3, Lock, Unlock, Trash2, PawPrint, Package, HeartHandshake,
   Loader2, ShieldCheck, User, CheckCircle2, AlertTriangle, Clock,
-  FileText, MessageSquare, Save,
+  FileText, MessageSquare, Save, Locate,
 } from "lucide-react";
 import { FacebookIcon, InstagramIcon } from "../../../components/SocialIcons";
 import {
@@ -33,6 +33,8 @@ export default function RefugioDetalleModal({ refugio, onClose, onActualizar, no
   const [confirmAccion, setConfirmAccion] = useState(null); // 'activar' | 'inactivar' | 'eliminar'
   const [cargandoAccion, setCargandoAccion] = useState(false);
   const [form, setForm] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState("");
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -68,6 +70,53 @@ export default function RefugioDetalleModal({ refugio, onClose, onActualizar, no
   };
 
   const set = (campo, valor) => setForm((prev) => ({ ...prev, [campo]: valor }));
+
+  // Obtiene la ubicación actual del dispositivo (geolocalización) y rellena
+  // los campos de ubicación + coordenadas del refugio.
+  const usarMiUbicacion = async () => {
+    if (!("geolocation" in navigator)) {
+      setGeoError("Tu navegador no soporta geolocalización. Puedes escribir la ubicación manualmente.");
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError("");
+    try {
+      const posicion = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        });
+      });
+      // Geocodificación inversa (opcional) para rellenar el texto de ubicación.
+      let departamento = "", municipio = "", ciudad = "", direccion = "";
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${posicion.coords.latitude}&lon=${posicion.coords.longitude}&accept-language=es`,
+          { headers: { "User-Agent": "AdoptifyApp/1.0" } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const a = data.address || {};
+          departamento = a.state || a.region || "";
+          municipio = a.city || a.town || a.village || a.municipality || a.county || "";
+          ciudad = a.city || a.town || a.village || municipio || "";
+          direccion = [a.road, a.neighbourhood, a.suburb, a.hamlet].filter(Boolean).join(", ");
+        }
+      } catch { /* la geocodificación es opcional */ }
+      setForm((prev) => ({
+        ...prev,
+        departamento: departamento || prev.departamento,
+        municipio: municipio || prev.municipio,
+        ciudad: ciudad || prev.ciudad,
+        direccion: direccion || prev.direccion,
+      }));
+    } catch {
+      setGeoError("No se pudo obtener la ubicación. Verifica los permisos o ingrésala manualmente.");
+    } finally {
+      setGeoLoading(false);
+    }
+  };
 
   const guardarEdicion = async () => {
     setCargandoAccion(true);
@@ -233,6 +282,19 @@ export default function RefugioDetalleModal({ refugio, onClose, onActualizar, no
                   <CampoForm label="Ciudad" value={form.ciudad} onChange={(v) => set("ciudad", v)} />
                   <CampoForm label="Municipio" value={form.municipio} onChange={(v) => set("municipio", v)} />
                   <CampoForm label="Dirección" value={form.direccion} onChange={(v) => set("direccion", v)} />
+                  {/* Ubicación automática: obtener la ubicación del dispositivo */}
+                  <div className="sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={usarMiUbicacion}
+                      disabled={geoLoading}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 font-semibold text-xs hover:bg-rose-100 transition-colors disabled:opacity-60"
+                    >
+                      {geoLoading ? <Loader2 size={14} className="animate-spin" /> : <Locate size={14} />}
+                      {geoLoading ? "Obteniendo ubicación..." : "Obtener mi ubicación"}
+                    </button>
+                    {geoError && <p className="text-xs text-rose-600 mt-1.5">{geoError}</p>}
+                  </div>
                   <CampoForm label="Teléfono" value={form.telefono} onChange={(v) => set("telefono", v)} />
                   <CampoForm label="Correo de contacto" value={form.email} onChange={(v) => set("email", v)} />
                   <CampoForm label="Sitio web" value={form.website} onChange={(v) => set("website", v)} />

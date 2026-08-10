@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.database import get_db
-from app.core.security import get_current_user, get_current_refugio
+from app.core.security import (
+    get_current_user,
+    get_refugio_de_usuario,
+    require_permiso_refugio,
+)
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import crear_notificacion, registrar_auditoria
 from app.models.usuario import Usuario
@@ -88,9 +92,9 @@ def mis_solicitudes(current_user: Usuario = Depends(get_current_user), db: Sessi
 
 
 @router.get("/recibidas", response_model=List[SolicitudResponse])
-def solicitudes_recibidas(current_user: Usuario = Depends(get_current_refugio), db: Session = Depends(get_db)):
+def solicitudes_recibidas(current_user: Usuario = Depends(require_permiso_refugio("solicitudes")), db: Session = Depends(get_db)):
     """Solicitudes recibidas por el refugio autenticado."""
-    refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+    refugio = get_refugio_de_usuario(db, current_user)
     if not refugio:
         raise HTTPException(status_code=404, detail="Refugio no encontrado")
     solicitudes = (
@@ -116,11 +120,11 @@ _NOTIF_ESTADO_SOLICITUD = {
 def actualizar_estado(
     solicitud_id: int,
     payload: SolicitudEstadoUpdate,
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("solicitudes")),
     db: Session = Depends(get_db),
 ):
     nuevo_estado_id = id_por_codigo(db, EstadoSolicitud, payload.estado, requerido=True)
-    refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+    refugio = get_refugio_de_usuario(db, current_user)
     solicitud = db.query(SolicitudAdopcion).filter(SolicitudAdopcion.id == solicitud_id).first()
     if not solicitud:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")

@@ -376,7 +376,7 @@ export default function Register() {
       setTimeout(() => {
         if (role === "administrador" || role === "administrador_principal") {
           navigate("/admin/dashboard");
-        } else if (role === "refugio") {
+        } else if (role === "refugio" || role === "empleado_refugio") {
           navigate("/refugio/dashboard");
         } else if (role === "tienda_aliada") {
           navigate("/tienda/dashboard");

@@ -1,18 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Building2, MapPin, Phone, Mail, Globe, PawPrint, Heart, Users,
+  Building2, MapPin, Phone, Mail, Globe, PawPrint, Heart,
   Calendar, Edit3, Camera, CheckCircle, X, ChevronRight, Dog, Cat,
   Image, Upload, Trash2, ArrowUp, ArrowDown, Clock, AlertCircle,
   ClipboardList, MessageSquare, Settings,
   ChevronLeft, Sparkles, ShieldCheck, Star, Target, Trophy,
-  Eye, EyeOff, Loader2
+  Eye, EyeOff, Loader2, Locate
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
 import { miPerfil, misEstadisticas, actualizarPerfil } from "../../api/refugios";
+import { subirImagen } from "../../api/upload";
 import FieldError from "../../components/FieldError";
 import {
-  validarEmail, validarTelefono, normalizarEmail, limpiarEspacios, claseInput,
+  validarEmail, validarTelefono10, normalizarEmail, limpiarEspacios, soloDigitos, claseInput,
 } from "../../utils/validaciones";
 
 const MAX_SHELTER_IMAGES = 6;
@@ -26,12 +27,16 @@ export default function ShelterProfile() {
   const [saving, setSaving] = useState(false);
   const [statsData, setStatsData] = useState(null);
   const [errors, setErrors] = useState({});
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const [profile, setProfile] = useState({
     name: user?.name || "",
     email: user?.email || "",
     phone: "",
     location: user?.location || "",
+    departamento: "",
     address: "",
     description: "",
     facebook: "",
@@ -46,63 +51,89 @@ export default function ShelterProfile() {
   const galleryInputRef = useRef(null);
 
   // Carga el perfil y las estadisticas reales del refugio autenticado.
+  // Se cargan de forma independiente: si fallan las estadisticas no se pierde
+  // la informacion del perfil (incluido el año de fundación).
   useEffect(() => {
     let activo = true;
     (async () => {
-      try {
-        const [perfil, stats] = await Promise.all([miPerfil(), misEstadisticas()]);
-        if (!activo) return;
-        const p = {
-          name: perfil.nombre || "",
-          email: perfil.email || "",
-          phone: perfil.telefono || "",
-          location: perfil.ubicacion || "",
-          address: perfil.direccion || "",
-          description: perfil.descripcion || "",
-          facebook: perfil.facebook || "",
-          instagram: perfil.instagram || "",
-          founded: stats?.anio_fundacion ? String(stats.anio_fundacion) : "",
-          website: "",
-          images: [],
-        };
-        setProfile(p);
-        setEditForm(p);
-        setStatsData(stats);
-      } catch (e) {
-        // se mantiene el perfil vacio si falla la carga
-      } finally {
-        if (activo) setLoading(false);
-      }
+      let perfil = null;
+      let stats = null;
+      try { perfil = await miPerfil(); } catch { /* perfil vacio */ }
+      try { stats = await misEstadisticas(); } catch { /* sin estadisticas */ }
+      if (!activo) return;
+      // Año de fundación: se toma del perfil (mi-perfil) y, como respaldo, de
+      // las estadisticas. Ambos usan el campo `anio_fundacion` de la BD.
+      const foundedRaw = perfil?.anio_fundacion ?? stats?.anio_fundacion;
+      const p = {
+        name: perfil?.nombre || "",
+        email: perfil?.email || "",
+        phone: perfil?.telefono || "",
+        location: perfil?.ubicacion || "",
+        departamento: perfil?.departamento || "",
+        address: perfil?.direccion || "",
+        description: perfil?.descripcion || "",
+        facebook: perfil?.facebook || "",
+        instagram: perfil?.instagram || "",
+        founded: foundedRaw ? String(foundedRaw) : "",
+        website: "",
+        images: (perfil?.imagenes || []).map((img) => ({
+          id: img.id,
+          key: `db_${img.id}`,
+          url: img.url,
+        })),
+      };
+      setProfile(p);
+      setEditForm(p);
+      setStatsData(stats);
+      if (activo) setLoading(false);
     })();
     return () => { activo = false; };
   }, []);
 
   // ─── Image handlers ───────────────────────────────────────────────
-  const handleImageUpload = (e) => {
+  // Sube cada imagen seleccionada a Cloudinary (tipo 'refugio_galeria') y la
+  // agrega a la galería en edición. Solo la secure_url se guarda en la BD.
+  const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
     const remaining = MAX_SHELTER_IMAGES - (editForm.images?.length || 0);
     const toAdd = files.slice(0, remaining);
-    toAdd.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const newImg = {
-          id: Date.now() + Math.random(),
-          src: ev.target.result,
-          file,
-        };
-        setEditForm((prev) => ({
-          ...prev,
-          images: [...(prev.images || []), newImg],
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
+    if (toAdd.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of toAdd) {
+        try {
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const subida = await subirImagen("refugio_galeria", dataUrl, `refugio_${Date.now()}`);
+          setEditForm((prev) => ({
+            ...prev,
+            images: [
+              ...(prev.images || []),
+              {
+                id: null, // aún no está en la BD
+                key: `nuevo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                url: subida.url,
+              },
+            ],
+          }));
+        } catch {
+          // si una imagen falla, se omite y se continúa con las demás
+        }
+      }
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = "";
+    }
   };
 
-  const removeImage = (imgId) => {
+  const removeImage = (imgKey) => {
     setEditForm((prev) => ({
       ...prev,
-      images: (prev.images || []).filter((img) => img.id !== imgId),
+      images: (prev.images || []).filter((img) => img.key !== imgKey),
     }));
   };
 
@@ -114,11 +145,56 @@ export default function ShelterProfile() {
     setEditForm((prev) => ({ ...prev, images: imgs }));
   };
 
+  // ─── Geolocalización: obtiene la ubicación actual del dispositivo ──
+  const usarMiUbicacion = async () => {
+    if (!("geolocation" in navigator)) {
+      setGeoError("Tu navegador no soporta geolocalización. Puedes escribir la ubicación manualmente.");
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError("");
+    try {
+      const posicion = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        });
+      });
+      // Geocodificación inversa (opcional) para rellenar departamento/ciudad.
+      let departamento = "", ciudad = "", direccion = "";
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${posicion.coords.latitude}&lon=${posicion.coords.longitude}&accept-language=es`,
+          { headers: { "User-Agent": "AdoptifyApp/1.0" } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const a = data.address || {};
+          departamento = a.state || a.region || "";
+          ciudad = a.city || a.town || a.village || a.municipality || a.county || "";
+          direccion = [a.road, a.neighbourhood, a.suburb, a.hamlet].filter(Boolean).join(", ");
+        }
+      } catch { /* la geocodificación es opcional */ }
+      setEditForm((prev) => ({
+        ...prev,
+        departamento: departamento || prev.departamento,
+        location: ciudad || prev.location,
+        address: direccion || prev.address,
+      }));
+    } catch {
+      setGeoError("No se pudo obtener la ubicación. Verifica los permisos o ingrésala manualmente.");
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
   // ─── Datos derivados de la API ────────────────────────────────────
   const aniosTrayectoria = profile.founded
     ? new Date().getFullYear() - parseInt(profile.founded)
     : null;
 
+  // Solo las estadísticas MÁS IMPORTANTES del refugio.
   const stats = [
     {
       icon: PawPrint,
@@ -130,6 +206,15 @@ export default function ShelterProfile() {
       progress: 78,
     },
     {
+      icon: Dog,
+      label: "Mascotas",
+      value: String(statsData?.mascotas ?? 0),
+      sublabel: "en el refugio",
+      color: "text-blue-500",
+      bg: "bg-blue-50 dark:bg-blue-500/10",
+      progress: 80,
+    },
+    {
       icon: Heart,
       label: "Adoptados",
       value: String(statsData?.exitosas ?? 0),
@@ -139,22 +224,13 @@ export default function ShelterProfile() {
       progress: 84,
     },
     {
-      icon: Users,
-      label: "Voluntarios",
-      value: String(statsData?.voluntarios ?? 0),
-      sublabel: "activos",
+      icon: ClipboardList,
+      label: "Pendientes",
+      value: String(statsData?.pendientes ?? 0),
+      sublabel: "solicitudes por revisar",
       color: "text-amber-500",
       bg: "bg-amber-50 dark:bg-amber-500/10",
       progress: 60,
-    },
-    {
-      icon: Calendar,
-      label: "Trayectoria",
-      value: aniosTrayectoria != null ? `${aniosTrayectoria} años` : "—",
-      sublabel: profile.founded ? `Desde ${profile.founded}` : "Sin definir",
-      color: "text-emerald-500",
-      bg: "bg-emerald-50 dark:bg-emerald-500/10",
-      progress: 100,
     },
   ];
 
@@ -228,11 +304,35 @@ export default function ShelterProfile() {
     { id: "informacion", label: "Información", icon: Building2 },
   ];
 
+  // ─── Validación en tiempo real ────────────────────────────────────
+  const validarCampoEdit = (campo, valor) => {
+    switch (campo) {
+      case "phone":
+        return validarTelefono10(valor);
+      case "email":
+        return validarEmail(valor, { obligatorio: false });
+      case "description":
+        return valor && valor.trim().length > 1000
+          ? "La descripción no puede superar los 1000 caracteres."
+          : "";
+      default:
+        return "";
+    }
+  };
+
+  const handleEditChange = (campo, valor) => {
+    const nuevoValor = campo === "phone" ? soloDigitos(valor).slice(0, 10) : valor;
+    setEditForm((prev) => ({ ...prev, [campo]: nuevoValor }));
+    if (["phone", "email", "description"].includes(campo)) {
+      setErrors((prev) => ({ ...prev, [campo]: validarCampoEdit(campo, nuevoValor) }));
+    }
+  };
+
   // ─── Save handler ─────────────────────────────────────────────────
   const handleSave = async () => {
     const nuevosErrores = {
       email: validarEmail(editForm.email, { obligatorio: false }),
-      phone: validarTelefono(editForm.phone, { obligatorio: false }),
+      phone: validarTelefono10(editForm.phone),
       description: editForm.description && editForm.description.trim().length > 1000
         ? "La descripción no puede superar los 1000 caracteres."
         : "",
@@ -245,11 +345,17 @@ export default function ShelterProfile() {
         nombre: limpiarEspacios(editForm.name),
         telefono: editForm.phone ? editForm.phone.trim() : null,
         ubicacion: editForm.location,
+        departamento: editForm.departamento,
         direccion: editForm.address,
         descripcion: editForm.description,
         facebook: editForm.facebook,
         instagram: editForm.instagram,
         email: normalizarEmail(editForm.email) || undefined,
+        // Galería completa en orden: {id} para ya guardadas, {url} para nuevas.
+        imagenes: (editForm.images || []).map((img) => ({
+          id: img.id ?? null,
+          url: img.url,
+        })),
       });
       setProfile({ ...editForm });
       login({
@@ -374,8 +480,16 @@ export default function ShelterProfile() {
               <div className="flex items-center gap-3 shrink-0">
                 <button
                   onClick={() => {
-                    setIsEditing(!isEditing);
-                    if (!isEditing) setEditForm({ ...profile });
+                    if (isEditing) {
+                      // Cancelar: solo sale del modo edición.
+                      setIsEditing(false);
+                    } else {
+                      // Editar Perfil: acceso directo a la sección Información
+                      // + activación del modo edición (campos editables).
+                      setEditForm({ ...profile });
+                      setActiveTab("informacion");
+                      setIsEditing(true);
+                    }
                   }}
                   className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 shadow-lg ${
                     isEditing
@@ -633,10 +747,11 @@ export default function ShelterProfile() {
                 {isEditing && (
                   <button
                     onClick={() => galleryInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:scale-105 transition-all duration-300 shadow-md"
+                    disabled={uploading}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:scale-105 transition-all duration-300 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Upload className="w-4 h-4" />
-                    Agregar Fotos
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {uploading ? "Subiendo..." : "Agregar Fotos"}
                   </button>
                 )}
                 <input
@@ -655,18 +770,18 @@ export default function ShelterProfile() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {(editForm.images || []).map((img, index) => (
                       <div
-                        key={img.id}
+                        key={img.key}
                         className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border img-zoom-container"
                       >
                         <img
-                          src={img.src}
+                          src={img.url}
                           alt={`Refugio ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                           <button
                             type="button"
-                            onClick={() => removeImage(img.id)}
+                            onClick={() => removeImage(img.key)}
                             className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
                             title="Eliminar"
                           >
@@ -707,6 +822,7 @@ export default function ShelterProfile() {
                       <button
                         type="button"
                         onClick={() => galleryInputRef.current?.click()}
+                        disabled={uploading}
                         className="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-rose-400 dark:hover:border-rose-500 flex flex-col items-center justify-center gap-2 transition-all hover:bg-rose-50/50 dark:hover:bg-rose-500/5 group"
                       >
                         <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-dark-border flex items-center justify-center group-hover:bg-rose-100 dark:group-hover:bg-rose-500/20 transition-colors">
@@ -733,12 +849,12 @@ export default function ShelterProfile() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                       {(profile.images || []).map((img, index) => (
                         <div
-                          key={img.id}
+                          key={img.key || img.id}
                           className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border img-zoom-container cursor-pointer group"
-                          onClick={() => setSelectedImage(img.src)}
+                          onClick={() => setSelectedImage(img.url)}
                         >
                           <img
-                            src={img.src}
+                            src={img.url}
                             alt={`Refugio ${index + 1}`}
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                           />
@@ -798,9 +914,7 @@ export default function ShelterProfile() {
                     <textarea
                       rows={5}
                       value={editForm.description}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, description: e.target.value })
-                      }
+                      onChange={(e) => handleEditChange("description", e.target.value)}
                       className={claseInput("w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none", !!errors.description)}
                       placeholder="Describe la misión y visión de tu refugio..."
                     />
@@ -811,6 +925,57 @@ export default function ShelterProfile() {
                     <div className="absolute -left-2 top-0 w-1 h-full bg-gradient-to-b from-rose-500 to-amber-500 rounded-full" />
                     <p className="text-gray-600 dark:text-gray-400 leading-relaxed pl-4">
                       {profile.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Ubicación */}
+              <div className="bg-white dark:bg-dark-card rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 dark:border-dark-border">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white font-display mb-4 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-rose-500" />
+                  Ubicación
+                </h2>
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-dark-text-secondary mb-1">Departamento</label>
+                        <input
+                          type="text"
+                          value={editForm.departamento}
+                          onChange={(e) => setEditForm({ ...editForm, departamento: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                          placeholder="Ej: Cundinamarca"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-dark-text-secondary mb-1">Ciudad</label>
+                        <input
+                          type="text"
+                          value={editForm.location}
+                          onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                          placeholder="Ej: Bogotá"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={usarMiUbicacion}
+                      disabled={geoLoading}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 font-semibold text-xs hover:bg-rose-100 transition-colors disabled:opacity-60"
+                    >
+                      {geoLoading ? <Loader2 size={14} className="animate-spin" /> : <Locate size={14} />}
+                      {geoLoading ? "Obteniendo ubicación..." : "Obtener mi ubicación"}
+                    </button>
+                    {geoError && <p className="text-xs text-rose-600">{geoError}</p>}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-rose-500" />
+                      {[profile.departamento, profile.location].filter(Boolean).join(", ") || "Sin ubicación registrada"}
                     </p>
                   </div>
                 )}
@@ -877,12 +1042,7 @@ export default function ShelterProfile() {
                               <input
                                 type={item.type}
                                 value={editForm[item.value]}
-                                onChange={(e) =>
-                                  setEditForm({
-                                    ...editForm,
-                                    [item.value]: e.target.value,
-                                  })
-                                }
+                                onChange={(e) => handleEditChange(item.value, e.target.value)}
                                 className={claseInput("w-full mt-0.5 px-3 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors[item.value])}
                               />
                               <FieldError mensaje={errors[item.value]} />

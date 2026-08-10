@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from app.db.database import get_db
-from app.core.security import get_current_user, get_current_refugio
+from app.core.security import get_current_user, get_refugio_de_usuario, require_permiso_refugio
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.models.usuario import Usuario
@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 def _get_refugio_de(usuario: Usuario, db: Session) -> Refugio:
-    refugio = db.query(Refugio).filter(Refugio.usuario_id == usuario.id).first()
+    refugio = get_refugio_de_usuario(db, usuario)
     if not refugio:
         raise HTTPException(status_code=404, detail="El refugio no existe para este usuario")
     return refugio
@@ -46,7 +46,7 @@ def listar_mascotas(
 
 
 @router.get("/mias", response_model=List[MascotaResponse])
-def mis_mascotas(current_user: Usuario = Depends(get_current_refugio), db: Session = Depends(get_db)):
+def mis_mascotas(current_user: Usuario = Depends(require_permiso_refugio("mascotas")), db: Session = Depends(get_db)):
     refugio = _get_refugio_de(current_user, db)
     mascotas = db.query(Mascota).filter(Mascota.refugio_id == refugio.id).order_by(Mascota.creado_en.desc()).all()
     return [serialize_mascota(m) for m in mascotas]
@@ -63,7 +63,7 @@ def obtener_mascota(mascota_id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=MascotaResponse, status_code=status.HTTP_201_CREATED)
 def crear_mascota(
     payload: MascotaCreate,
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("mascotas")),
     db: Session = Depends(get_db),
 ):
     refugio = _get_refugio_de(current_user, db)
@@ -105,7 +105,7 @@ def crear_mascota(
 def actualizar_mascota(
     mascota_id: int,
     payload: MascotaUpdate,
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("mascotas")),
     db: Session = Depends(get_db),
 ):
     refugio = _get_refugio_de(current_user, db)
@@ -136,7 +136,7 @@ def actualizar_mascota(
 @router.delete("/{mascota_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_mascota(
     mascota_id: int,
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("mascotas")),
     db: Session = Depends(get_db),
 ):
     refugio = _get_refugio_de(current_user, db)

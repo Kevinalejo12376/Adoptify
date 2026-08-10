@@ -111,6 +111,13 @@ def _run_migrations():
             # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
             print(f"[migracion] No se pudieron crear tablas nuevas de tienda por SQL (SQLite las crea via modelos): {e}")
 
+        # ---- Equipo de refugio (empleados con rol 'empleado_refugio' + permisos) ----
+        try:
+            _crear_tablas_equipo_refugio(db)
+        except Exception as e:
+            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
+            print(f"[migracion] No se pudieron crear tablas de equipo de refugio por SQL (SQLite las crea via modelos): {e}")
+
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
     except Exception as e:
         print(f"[migracion] Error ejecutando migraciones: {e}")
@@ -287,6 +294,50 @@ def _crear_tablas_rbac_tienda(db):
     # Un usuario solo puede pertenecer a una tienda (evita duplicados de membresia)
     db.execute(text(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_tienda_usuarios_usuario ON tienda_usuarios(usuario_id)"
+    ))
+    db.commit()
+
+
+def _crear_tablas_equipo_refugio(db):
+    """Crea las tablas del módulo Equipo de refugio si no existen (Supabase/PostgreSQL)."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS refugio_permisos (
+            id BIGSERIAL PRIMARY KEY,
+            codigo VARCHAR(80) NOT NULL UNIQUE,
+            nombre VARCHAR(120) NOT NULL,
+            modulo VARCHAR(40) NOT NULL,
+            descripcion TEXT,
+            activo BOOLEAN NOT NULL DEFAULT TRUE
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS refugio_empleados (
+            id BIGSERIAL PRIMARY KEY,
+            refugio_id BIGINT NOT NULL REFERENCES refugios(id) ON DELETE CASCADE,
+            usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
+            creado_por BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (refugio_id, usuario_id)
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS refugio_empleado_permisos (
+            id BIGSERIAL PRIMARY KEY,
+            refugio_empleado_id BIGINT NOT NULL REFERENCES refugio_empleados(id) ON DELETE CASCADE,
+            permiso_id BIGINT NOT NULL REFERENCES refugio_permisos(id) ON DELETE CASCADE,
+            UNIQUE (refugio_empleado_id, permiso_id)
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_refugio_empleados_refugio ON refugio_empleados(refugio_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_refugio_empleados_usuario ON refugio_empleados(usuario_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_refugio_permisos_modulo ON refugio_permisos(modulo)"
     ))
     db.commit()
 

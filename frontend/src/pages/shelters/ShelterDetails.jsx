@@ -80,7 +80,7 @@ export default function ShelterDetails() {
           verified: r.verificado,
           rating: 0,
           totalRatings: 0,
-          logo: null,
+          logo: r.logo_url || null,
           description: r.descripcion || "Refugio comprometido con el bienestar animal.",
           availablePets: pets.length,
           adoptionsThisMonth: null,
@@ -90,7 +90,7 @@ export default function ShelterDetails() {
           phone: r.telefono || "",
           email: r.email || "",
           address: r.direccion || r.ubicacion || "",
-          gallery: [],
+          gallery: (r.imagenes || []).map((img) => ({ id: img.id, image: img.url })),
           pets,
         });
       } catch (e) {

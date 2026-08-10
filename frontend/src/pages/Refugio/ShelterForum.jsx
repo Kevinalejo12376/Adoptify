@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
+import { misPosts, crearPost, actualizarPost, eliminarPost } from "../../api/foro";
 import {
   MessageSquare,
   Search,
@@ -162,122 +163,56 @@ function DraftsListModal({ isOpen, onClose, onSelect, onDelete, drafts, isDark }
   );
 }
 
-const SAMPLE_POSTS = [
-  {
-    id: 1,
-    title: "🐾 ¡Gran Jornada de Adopción! 30 animales esperan un hogar",
-    content: "Este sábado 20 de julio los esperamos en nuestra jornada de adopción en el Parque Central. Tendremos 30 perros y gatos de todas las edades buscando un hogar lleno de amor. Todos están desparasitados, vacunados y esterilizados. ¡No faltes! 🐶🐱",
-    category: "adopciones",
-    tags: ["AdopciónResponsable", "JornadaAdopción", "Bogotá"],
-    images: [],
-    status: "published",
-    isPinned: true,
-    likes: 89,
-    comments: [
-      { id: 101, author: "Ana López", content: "¡Allí estaré! Busco un compañero para mi hija.", time: "hace 4 horas", likes: 7 },
-      { id: 102, author: "Carlos Ruiz", content: "¿Llevo mi propia transportadora?", time: "hace 3 horas", likes: 4 },
-    ],
-    shares: 23,
-    time: "hace 2 horas",
-    views: 345,
-  },
-  {
-    id: 2,
-    title: "🆘 Caso urgente: Max necesita cirugía de cadera",
-    content: "Max es un pastor alemán de 5 años rescatado de una situación de maltrato. Necesita una cirugía de cadera urgente con un costo de $2,500,000. Hemos reunido el 40% pero necesitamos su ayuda. Cualquier donación nos acerca a salvar a Max. 🐾",
-    category: "rescates",
-    tags: ["RescateAnimal", "CasoUrgente", "Donación"],
-    images: [],
-    status: "published",
-    isPinned: true,
-    likes: 156,
-    comments: [
-      { id: 201, author: "María García", content: "Acabo de donar. ¡Fuerza Max! 🐶❤️", time: "hace 2 días", likes: 23 },
-    ],
-    shares: 67,
-    time: "hace 1 día",
-    views: 892,
-  },
-  {
-    id: 3,
-    title: "📢 Campaña de Vacunación Gratuita en la Comuna 13",
-    content: "Este fin de semana estaremos realizando una jornada de vacunación gratuita para perros y gatos. Tendremos 500 dosis disponibles de vacuna múltiple y antirrábica. ¡No es necesario agendar! Lleguen con sus mascotas con correa o en transportadora.",
-    category: "campanas",
-    tags: ["Vacunación", "SaludAnimal", "Gratuito"],
-    images: [],
-    status: "published",
-    isPinned: false,
-    likes: 98,
-    comments: [
-      { id: 301, author: "Laura Sánchez", content: "¡Excelente iniciativa! Allí estaremos.", time: "hace 4 días", likes: 10 },
-    ],
-    shares: 45,
-    time: "hace 3 días",
-    views: 567,
-  },
-  {
-    id: 4,
-    title: "🌟 Historia de éxito: Luna encontró su hogar",
-    content: "Hoy es un día especial. Luna, una gata de 4 años que llegó a nosotros desnutrida y asustada, finalmente encontró una familia que la ama. Después de 8 meses de cuidados, rehabilitación y mucho cariño, Luna se fue a su nuevo hogar. Gracias a todos los que hicieron esto posible. ❤️",
-    category: "historias",
-    tags: ["HistoriasDeÉxito", "GatosAdorables", "Adopción"],
-    images: [],
-    status: "published",
-    isPinned: false,
-    likes: 234,
-    comments: [
-      { id: 401, author: "Pedro Martínez", content: "Qué hermoso. Gracias por todo lo que hacen.", time: "hace 5 días", likes: 34 },
-    ],
-    shares: 89,
-    time: "hace 5 días",
-    views: 1203,
-  },
-  {
-    id: 5,
-    title: "🤝 Necesitamos voluntarios para el evento del sábado",
-    content: "Estamos organizando la jornada de adopción de este sábado y necesitamos manos amigas. Buscamos voluntarios para: recibir a los asistentes, pasear a los perros, ayudar con la logística y tomar fotografías. Si puedes ayudarnos aunque sea medio día, escríbenos. ¡Toda ayuda cuenta!",
-    category: "voluntariado",
-    tags: ["Voluntariado", "JornadaAdopción", "AyudaAnimal"],
-    images: [],
-    status: "published",
-    isPinned: false,
-    likes: 67,
-    comments: [],
-    shares: 34,
-    time: "hace 6 días",
-    views: 456,
-  },
-  {
-    id: 6,
-    title: "Borrador: Post para revisión interna",
-    content: "Este es un borrador que estamos preparando para la próxima publicación sobre nuestros rescates recientes. Pendiente de revisión por el equipo de comunicaciones.",
-    category: "general",
-    tags: ["Interno", "Borrador"],
-    images: [],
-    status: "draft",
-    isPinned: false,
-    likes: 0,
-    comments: [],
-    shares: 0,
-    time: "hace 2 días",
-    views: 12,
-  },
-  {
-    id: 7,
-    title: "Archivado: Campaña de diciembre 2025",
-    content: "Resumen de la campaña navideña del año pasado. Mantenemos este registro para referencia futura.",
-    category: "campanas",
-    tags: ["Archivado", "CampañaNavideña"],
-    images: [],
-    status: "archived",
-    isPinned: false,
-    likes: 45,
-    comments: [],
-    shares: 12,
-    time: "hace 3 meses",
-    views: 89,
-  },
-];
+// Mapea una publicación del backend a la forma que usa la vista.
+const CATEGORY_NAME_TO_ID = Object.fromEntries(
+  CATEGORIES.map((c) => [c.label.toLowerCase(), c.id])
+);
+
+const tiempoRelativo = (iso) => {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    const diff = Date.now() - d.getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "Ahora";
+    if (m < 60) return `Hace ${m} min`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `Hace ${h} h`;
+    const da = Math.floor(h / 24);
+    if (da < 7) return `Hace ${da} días`;
+    return d.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+  } catch {
+    return "";
+  }
+};
+
+const mapPost = (p) => ({
+  id: p.id,
+  autorId: p.autor_id,
+  title: p.titulo || "",
+  content: p.contenido || "",
+  category: CATEGORY_NAME_TO_ID[(p.categoria || "").toLowerCase()] || "general",
+  tags: p.tags || [],
+  images: (p.imagenes || []).map((img) => img.url),
+  avatar: p.autor_avatar || "",
+  status: "published",
+  isPinned: !!p.fijado,
+  likes:
+    p.reacciones && typeof p.reacciones === "object"
+      ? Object.values(p.reacciones).reduce((a, b) => a + (Number(b) || 0), 0)
+      : 0,
+  comments: (p.comentarios || []).map((c) => ({
+    id: c.id,
+    author: c.autor,
+    content: c.contenido,
+    time: tiempoRelativo(c.creado_en),
+    likes: c.likes || 0,
+  })),
+  shares: p.compartidos || 0,
+  time: tiempoRelativo(p.creado_en),
+  views: p.vistas || 0,
+  author: p.autor,
+});
 
 // ============================================================
 // COMPONENTES AUXILIARES
@@ -418,6 +353,9 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
   const [showDraftsModal, setShowDraftsModal] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState(false);
   const [confirm, setConfirm] = useState({ isOpen: false, title: "", message: "", confirmText: "Confirmar", type: "danger", onConfirm: () => {} });
+  // Estado de publicación con barra de progreso real.
+  const [publishing, setPublishing] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const uid = user?.id || user?.email || "anonymous";
 
@@ -435,7 +373,19 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
 
   if (!isOpen) return null;
 
-  const validate = () => { const e={}; if(!title.trim()) e.title="El título es obligatorio"; if(!content.trim()) e.content="El contenido es obligatorio"; if(!category) e.category="Selecciona una categoría"; setErrors(e); return Object.keys(e).length===0; };
+  const validarTitulo = (v) => (!v.trim() ? "*El título es obligatorio." : "");
+  const validarContenido = (v) => (!v.trim() ? "*El contenido es obligatorio." : "");
+  const validarCategoria = (v) => (!v ? "*Selecciona una categoría." : "");
+  const validate = () => {
+    const e = { title: validarTitulo(title), content: validarContenido(content), category: validarCategoria(category) };
+    Object.keys(e).forEach((k) => { if (!e[k]) delete e[k]; });
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+  const handleTitleChange = (v) => { setTitle(v); setErrors((prev) => ({ ...prev, title: validarTitulo(v) })); };
+  const handleContentChange = (v) => { setContent(v); setErrors((prev) => ({ ...prev, content: validarContenido(v) })); };
+  const handleCategoryChange = (v) => { setCategory(v); setErrors((prev) => ({ ...prev, category: validarCategoria(v) })); };
+  const inputCls = (err) => `w-full px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all ${isDark ? `bg-[#15151f] border ${err ? "border-red-500" : "border-dark-border"} text-dark-text placeholder-dark-text-secondary` : `bg-gray-50 border ${err ? "border-red-500" : "border-gray-200"} text-gray-700 placeholder-gray-400`}`;
   const hasContent = title.trim()||content.trim()||category||tags.length>0;
   const canPublish = title.trim()&&content.trim()&&category;
   const form = () => ({ title: title.trim(), content: content.trim(), category, tags, images });
@@ -453,10 +403,26 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
   const delCurrent = () => currentDraftId && setConfirm({ isOpen: true, title: "Eliminar borrador", message: "Se eliminará permanentemente. No podrás recuperarlo.", confirmText: "Eliminar", type: "danger", onConfirm: () => { const a=loadDrafts(uid); saveDrafts(uid,a.filter(d=>d.id!==currentDraftId)); setDrafts(loadDrafts(uid)); reset(); setConfirm(p=>({...p,isOpen:false})); } });
   const selectDraft = (d) => { setTitle(d.title||""); setContent(d.content||""); setCategory(d.category||""); setTags(d.tags||[]); setImages(d.images||[]); setCurrentDraftId(d.id); setShowDraftsModal(false); };
 
-  const publish = () => {
-    if (!validate()) return;
+  const publish = async () => {
+    // Evita publicaciones duplicadas si el usuario presiona varias veces.
+    if (!validate() || publishing) return;
+    setPublishing(true);
+    setProgress(0);
+    const progressTimer = setInterval(() => {
+      setProgress((prev) => (prev >= 90 ? prev : prev + 8));
+    }, 200);
     if (currentDraftId) { const a=loadDrafts(uid); saveDrafts(uid, a.filter(d=>d.id!==currentDraftId)); }
-    onSave({ title:title.trim(), content:content.trim(), category, tags, images, status:"published", isPinned:false });
+    const ok = await onSave({ title:title.trim(), content:content.trim(), category, tags, images, status:"published", isPinned:false });
+    if (ok === false) {
+      clearInterval(progressTimer);
+      setProgress(0);
+      setPublishing(false);
+      setErrors((prev) => ({ ...prev, general: "*No se pudo guardar la publicación. Verifica tu conexión e inténtalo de nuevo." }));
+      return;
+    }
+    clearInterval(progressTimer);
+    setProgress(100);
+    setPublishing(false);
     reset(); onClose();
   };
 
@@ -497,15 +463,15 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
 
           <div className="p-5 space-y-5">
             <div><label className={`block text-sm font-medium mb-2 ${isDark?"text-dark-text":"text-gray-700"}`}>Título <span className="text-rose-500">*</span></label>
-              <input type="text" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Escribe un título descriptivo..."
-                className={`w-full px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all ${isDark?"bg-[#15151f] border border-dark-border text-dark-text placeholder-dark-text-secondary":"bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400"}`} />
-              {errors.title && <p className="text-xs text-rose-500 mt-1">{errors.title}</p>}
+              <input type="text" value={title} onChange={e=>handleTitleChange(e.target.value)} placeholder="Escribe un título descriptivo..."
+                className={inputCls(!!errors.title)} />
+              {errors.title && <p className="text-xs font-medium text-red-500 mt-1">{errors.title}</p>}
             </div>
 
             <div><label className={`block text-sm font-medium mb-2 ${isDark?"text-dark-text":"text-gray-700"}`}>Categoría <span className="text-rose-500">*</span></label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {CATEGORIES.map(cat => (
-                  <button key={cat.id} type="button" onClick={()=>setCategory(cat.id)}
+                  <button key={cat.id} type="button" onClick={()=>handleCategoryChange(cat.id)}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${category===cat.id?`${cat.bg} ${cat.text} ring-2 ring-rose-500/50`:isDark?"bg-[#15151f] border border-dark-border text-dark-text-secondary hover:border-rose-500/30":"bg-gray-50 border border-gray-200 text-gray-600 hover:border-rose-300"}`}>
                     <span>{cat.icon}</span><span className="truncate">{cat.label}</span>
                   </button>
@@ -515,9 +481,9 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
             </div>
 
             <div><label className={`block text-sm font-medium mb-2 ${isDark?"text-dark-text":"text-gray-700"}`}>Contenido <span className="text-rose-500">*</span></label>
-              <textarea value={content} onChange={e=>setContent(e.target.value)} rows="6" placeholder="Comparte detalles sobre esta publicación..."
-                className={`w-full px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all resize-none ${isDark?"bg-[#15151f] border border-dark-border text-dark-text placeholder-dark-text-secondary":"bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400"}`} />
-              {errors.content && <p className="text-xs text-rose-500 mt-1">{errors.content}</p>}
+              <textarea value={content} onChange={e=>handleContentChange(e.target.value)} rows="6" placeholder="Comparte detalles sobre esta publicación..."
+                className={inputCls(!!errors.content) + " resize-none"} />
+              {errors.content && <p className="text-xs font-medium text-red-500 mt-1">{errors.content}</p>}
             </div>
 
             <div><label className={`block text-sm font-medium mb-2 ${isDark?"text-dark-text":"text-gray-700"}`}>Etiquetas <span className={`text-xs ml-2 ${isDark?"text-dark-text-secondary":"text-gray-400"}`}>({tags.length}/10)</span></label>
@@ -541,11 +507,12 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
 
           <div className={`sticky bottom-0 flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 border-t gap-3 bg-inherit ${isDark?"border-dark-border":"border-gray-100"}`}>
             <div className={`flex items-center gap-1.5 text-xs ${isDark?"text-dark-text-secondary":"text-gray-500"}`}><Eye className="w-3.5 h-3.5" /> Visible para todos</div>
+            {errors.general && <p className="text-xs text-rose-500 mt-1 mb-2 w-full">{errors.general}</p>}
             <div className="flex items-center gap-2 w-full sm:w-auto">
               {currentDraftId && <button onClick={delCurrent} className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${isDark?"text-red-400 hover:bg-red-500/10 border border-red-500/20":"text-red-600 hover:bg-red-50 border border-red-200"}`}><Trash2 className="w-4 h-4" /><span className="hidden sm:inline">Eliminar</span></button>}
               <button onClick={cancel} className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${isDark?"text-dark-text-secondary hover:text-dark-text hover:bg-white/5":"text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`}><X className="w-4 h-4" /><span className="hidden sm:inline">Cancelar</span></button>
               <button onClick={saveDraft} disabled={!hasContent} className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm ${hasContent?isDark?"text-amber-400 hover:bg-amber-500/10 border border-amber-500/20":"text-amber-700 hover:bg-amber-50 border border-amber-200":isDark?"text-dark-text-secondary cursor-not-allowed":"text-gray-400 cursor-not-allowed"}`}><Save className="w-4 h-4" />{saveFeedback?"¡Guardado!":<span className="hidden sm:inline">Guardar</span>}</button>
-              <button onClick={publish} disabled={!canPublish} className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg ${canPublish?"bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 active:scale-95":"bg-gray-300 cursor-not-allowed dark:bg-dark-border"}`}><Send className="w-4 h-4" />{editPost?"Actualizar":"Publicar"}</button>
+              <button onClick={publish} disabled={!canPublish || publishing} className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg ${canPublish && !publishing?"bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 active:scale-95":"bg-gray-300 cursor-not-allowed dark:bg-dark-border"}`}>{publishing ? <><span className="w-4 h-4 border-2 border-white/60 border-t-white rounded-full animate-spin" /> Publicando...</> : <><Send className="w-4 h-4" />{editPost?"Actualizar":"Publicar"}</>}</button>
             </div>
           </div>
         </div>
@@ -553,6 +520,26 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
 
       <DraftsListModal isOpen={showDraftsModal} onClose={()=>setShowDraftsModal(false)} onSelect={selectDraft} onDelete={delDraft} drafts={drafts} isDark={isDark} />
       <ConfirmModal isOpen={confirm.isOpen} onClose={()=>setConfirm(p=>({...p,isOpen:false}))} onConfirm={confirm.onConfirm} title={confirm.title} message={confirm.message} confirmText={confirm.confirmText} type={confirm.type} />
+
+      {/* Modal de publicación con barra de progreso real */}
+      {publishing && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className={`relative w-full max-w-sm p-8 text-center rounded-2xl shadow-2xl animate-modal-content ${isDark ? "bg-dark-card border border-dark-border" : "bg-white"}`}>
+            <div className={`w-14 h-14 mx-auto mb-4 rounded-2xl flex items-center justify-center bg-gradient-to-br from-rose-500 to-amber-500`}>
+              <Send className="w-7 h-7 text-white" />
+            </div>
+            <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>Publicando...</h3>
+            <p className={`text-sm mb-5 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>Esto puede tomar unos segundos</p>
+            <div>
+              <div className={`h-2.5 rounded-full overflow-hidden ${isDark ? "bg-dark-border" : "bg-gray-100"}`}>
+                <div className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-200" style={{ width: `${progress}%` }} />
+              </div>
+              <p className={`mt-2 text-xs font-semibold text-right ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>{progress}%</p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -561,7 +548,7 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
 // POST DETAIL MODAL
 // ============================================================
 
-function PostDetailModal({ post, isOpen, onClose, isDark, user, onDelete, onArchive, onPin, onEdit }) {
+function PostDetailModal({ post, isOpen, onClose, isDark, user, onDelete, onPin, onEdit }) {
   const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState(post?.comments || []);
   const [replyTo, setReplyTo] = useState(null);
@@ -634,11 +621,6 @@ function PostDetailModal({ post, isOpen, onClose, isDark, user, onDelete, onArch
             {onPin && (
               <button onClick={() => { onPin(post.id); }} className={`p-2 rounded-lg transition-all ${post.isPinned ? "text-rose-500" : isDark ? "text-dark-text-secondary hover:text-rose-400 hover:bg-white/5" : "text-gray-400 hover:text-rose-500 hover:bg-rose-50"}`} title={post.isPinned ? "Desfijar" : "Fijar"}>
                 {post.isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
-              </button>
-            )}
-            {onArchive && post.status !== "archived" && (
-              <button onClick={() => { onArchive(post.id); onClose(); }} className={`p-2 rounded-lg transition-all ${isDark ? "text-dark-text-secondary hover:text-gray-400 hover:bg-white/5" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`} title="Archivar">
-                <Archive className="w-4 h-4" />
               </button>
             )}
             {onDelete && (
@@ -853,14 +835,12 @@ function CommentItem({ comment, isDark, replyTo, setReplyTo, replyText, setReply
 // POST CARD
 // ============================================================
 
-function PostCard({ post, isDark, onPostClick, onLike, onSave, onEdit, onDelete, onArchive, onPin, index, user: propUser }) {
+function PostCard({ post, isDark, onPostClick, onLike, onSave, onEdit, onDelete, onPin, index }) {
   const [showOptions, setShowOptions] = useState(false);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes || 0);
   const [confirmDelete, setConfirmDelete] = useState({ isOpen: false });
-
-  const displayUser = propUser || { name: "Mi Refugio" };
 
   const handleLike = () => {
     setLiked(!liked);
@@ -890,13 +870,19 @@ function PostCard({ post, isDark, onPostClick, onLike, onSave, onEdit, onDelete,
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-lg shadow-rose-500/20">
-              {displayUser.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "RF"}
-            </div>
+            {post.avatar ? (
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-100 dark:border-dark-border bg-white shrink-0">
+                <img src={post.avatar} alt={post.author} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-lg shadow-rose-500/20">
+                {((post.author || "Refugio").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()) || "RF"}
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <span className={`font-semibold text-sm ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-                  {displayUser.name}
+                  {post.author}
                 </span>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300`}>
                   <Shield className="w-3 h-3" />
@@ -929,11 +915,6 @@ function PostCard({ post, isDark, onPostClick, onLike, onSave, onEdit, onDelete,
                     {post.isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
                     {post.isPinned ? "Desfijar" : "Fijar publicación"}
                   </button>
-                  {post.status !== "archived" && (
-                    <button onClick={() => { onArchive(post.id); setShowOptions(false); }} className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${isDark ? "text-dark-text-secondary hover:text-dark-text hover:bg-white/5" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"}`}>
-                      <Archive className="w-4 h-4" /> Archivar
-                    </button>
-                  )}
                   <div className={`border-t ${isDark ? "border-dark-border" : "border-gray-100"}`}></div>
                   <button onClick={() => { setConfirmDelete({ isOpen: true }); setShowOptions(false); }} className={`flex items-center gap-3 px-4 py-3 text-sm w-full transition-colors ${isDark ? "text-red-400 hover:text-red-300 hover:bg-red-500/10" : "text-red-600 hover:bg-red-50"}`}>
                     <Trash2 className="w-4 h-4" /> Eliminar
@@ -1152,7 +1133,7 @@ export default function ShelterForum() {
   const isDark = theme === "dark";
 
   // Data
-  const [posts, setPosts] = useState(SAMPLE_POSTS);
+  const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Search & Filters
@@ -1172,10 +1153,20 @@ export default function ShelterForum() {
   const [editingPost, setEditingPost] = useState(null);
 
 
-  // Simulate loading
+  // Carga las publicaciones reales del refugio desde la base de datos.
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1200);
-    return () => clearTimeout(timer);
+    let activo = true;
+    (async () => {
+      try {
+        const data = await misPosts();
+        if (activo) setPosts(Array.isArray(data) ? data.map(mapPost) : []);
+      } catch {
+        if (activo) setPosts([]);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
   }, []);
 
   // Stats
@@ -1195,8 +1186,8 @@ export default function ShelterForum() {
       if (statusFilter === "published" || statusFilter === "all") {
         if (post.status === "archived") return false;
       }
-      // Show only mine
-      if (showOnlyMine && post.author !== user?.name) return false;
+      // Show only mine (compara por id del autor, no por nombre visible)
+      if (showOnlyMine && post.autorId != null && user != null && post.autorId !== user?.id) return false;
       // Show pinned only
       if (showPinnedOnly && !post.isPinned) return false;
       // Category
@@ -1226,37 +1217,43 @@ export default function ShelterForum() {
     });
 
   // Handlers
-  const handleCreatePost = (data) => {
-    const newPost = {
-      id: Date.now(),
-      title: data.title,
-      content: data.content,
-      category: data.category,
-      tags: data.tags || [],
-      images: data.images || [],
-      status: data.status || "published",
-      isPinned: data.isPinned || false,
-      likes: 0,
-      comments: [],
-      shares: 0,
-      time: "justo ahora",
-      views: 0,
-      author: user?.name || "Mi Refugio",
-    };
-    setPosts([newPost, ...posts]);
+  const handleCreatePost = async (data) => {
+    try {
+      const creado = await crearPost({
+        titulo: data.title,
+        contenido: data.content,
+        categoria: data.category || "general",
+        tags: (data.tags || []).join(","),
+      });
+      setPosts((prev) => [mapPost(creado), ...prev]);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
-  const handleEditPost = (postData) => {
-    setPosts(posts.map(p => p.id === editingPost.id ? { ...p, ...postData } : p));
-    setEditingPost(null);
+  const handleEditPost = async (postData) => {
+    if (!editingPost) return false;
+    try {
+      const actualizado = await actualizarPost(editingPost.id, {
+        titulo: postData.title,
+        contenido: postData.content,
+        categoria: postData.category || "general",
+        tags: (postData.tags || []).join(","),
+      });
+      setPosts(prev => prev.map(p => p.id === editingPost.id ? mapPost(actualizado) : p));
+      setEditingPost(null);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
-  const handleDeletePost = (id) => {
-    setPosts(posts.filter(p => p.id !== id));
-  };
-
-  const handleArchivePost = (id) => {
-    setPosts(posts.map(p => p.id === id ? { ...p, status: "archived" } : p));
+  const handleDeletePost = async (id) => {
+    try {
+      await eliminarPost(id);
+      setPosts(prev => prev.filter(p => p.id !== id));
+    } catch { /* error silencioso */ }
   };
 
   const handlePinPost = (id) => {
@@ -1577,7 +1574,6 @@ export default function ShelterForum() {
                       onSave={() => {}}
                       onEdit={handleEdit}
                       onDelete={handleDeletePost}
-                      onArchive={handleArchivePost}
                       onPin={handlePinPost}
                     />
                   ))}
@@ -1596,7 +1592,6 @@ export default function ShelterForum() {
                       onSave={() => {}}
                       onEdit={handleEdit}
                       onDelete={handleDeletePost}
-                      onArchive={handleArchivePost}
                       onPin={handlePinPost}
                     />
                   ))}
@@ -1642,7 +1637,6 @@ export default function ShelterForum() {
         isDark={isDark}
         user={user}
         onDelete={handleDeletePost}
-        onArchive={handleArchivePost}
         onPin={handlePinPost}
         onEdit={handleEdit}
       />

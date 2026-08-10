@@ -6,6 +6,9 @@ import {
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
 import ImageUploader from "../../components/ImageUploader";
+import FieldError from "../../components/FieldError";
+import { claseInput, limpiarEspacios } from "../../utils/validaciones";
+import { actualizarMascota } from "../../api/mascotas";
 
 const FormSection = ({ icon: Icon, title, children, color = "text-rose-500" }) => (
   <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border p-5">
@@ -32,6 +35,8 @@ export default function ShelterEditPet() {
   const [isSaving, setIsSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
 
   if (!petData) {
     return (
@@ -51,6 +56,30 @@ export default function ShelterEditPet() {
     );
   }
 
+  // Validación por tipo de campo (mensajes específicos, sin iconos).
+  const validarCampo = (campo, valor) => {
+    switch (campo) {
+      case "name":
+        if (!limpiarEspacios(valor)) return "El nombre de la mascota es obligatorio.";
+        if (limpiarEspacios(valor).length > 60) return "El nombre no puede superar los 60 caracteres.";
+        return "";
+      case "breed":
+        if (!limpiarEspacios(valor)) return "La raza es obligatoria.";
+        if (limpiarEspacios(valor).length > 60) return "La raza no puede superar los 60 caracteres.";
+        return "";
+      case "age":
+        if (!limpiarEspacios(valor)) return "La edad es obligatoria.";
+        if (limpiarEspacios(valor).length > 20) return "La edad no puede superar los 20 caracteres.";
+        return "";
+      case "description":
+        if (!valor) return "";
+        if (limpiarEspacios(valor).length > 1000) return "La descripción no puede superar los 1000 caracteres.";
+        return "";
+      default:
+        return "";
+    }
+  };
+
   // Sube las imágenes a Cloudinary con el flujo unificado y guarda su URL.
   const handleImagesChange = (newImages) => {
     setPetData(prev => ({ ...prev, images: newImages }));
@@ -60,16 +89,49 @@ export default function ShelterEditPet() {
   const handleChange = (field, value) => {
     setPetData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
+    if (["name", "breed", "age", "description"].includes(field)) {
+      setErrors(prev => ({ ...prev, [field]: validarCampo(field, value) }));
+      setSubmitError("");
+    }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError("");
+    const nuevosErrores = {
+      name: validarCampo("name", petData.name),
+      breed: validarCampo("breed", petData.breed),
+      age: validarCampo("age", petData.age),
+      description: validarCampo("description", petData.description),
+    };
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some(Boolean)) return;
+
     setIsSaving(true);
-    // Simulate saving
-    setTimeout(() => {
+    try {
+      await actualizarMascota(petData.id, {
+        nombre: petData.name,
+        tipo: petData.type,
+        tamano: petData.size,
+        genero: petData.gender,
+        estado: petData.status,
+        raza: petData.breed,
+        edad: petData.age,
+        peso: petData.weight,
+        color: petData.color,
+        descripcion: petData.description,
+        personalidad: Array.isArray(petData.personality) ? petData.personality.join(", ") : (petData.personality || ""),
+        salud: petData.health,
+        vacunado: !!petData.vaccinated,
+        esterilizado: !!petData.sterilized,
+      });
+      navigate("/refugio/mascotas", { state: { updatedPet: true } });
+    } catch (err) {
       setIsSaving(false);
-      navigate("/refugio/mascotas", { state: { updatedPet: petData } });
-    }, 800);
+      setSubmitError(
+        err?.message || "No se pudo guardar la mascota. Revisa los datos e inténtalo de nuevo."
+      );
+    }
   };
 
   const handleCancel = () => {
@@ -109,8 +171,9 @@ export default function ShelterEditPet() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Nombre *</label>
-                <input type="text" required value={petData.name} onChange={(e) => handleChange("name", e.target.value)}
-                  className={InputClass} placeholder="Nombre de la mascota" />
+                <input type="text" value={petData.name} onChange={(e) => handleChange("name", e.target.value)}
+                  className={claseInput(InputClass, !!errors.name)} placeholder="Nombre de la mascota" />
+                <FieldError mensaje={errors.name} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Tipo</label>
@@ -124,13 +187,15 @@ export default function ShelterEditPet() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Raza *</label>
-                <input type="text" required value={petData.breed} onChange={(e) => handleChange("breed", e.target.value)}
-                  className={InputClass} placeholder="Ej: Golden Retriever" />
+                <input type="text" value={petData.breed} onChange={(e) => handleChange("breed", e.target.value)}
+                  className={claseInput(InputClass, !!errors.breed)} placeholder="Ej: Golden Retriever" />
+                <FieldError mensaje={errors.breed} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Edad *</label>
-                <input type="text" required value={petData.age} onChange={(e) => handleChange("age", e.target.value)}
-                  className={InputClass} placeholder="Ej: 2 años" />
+                <input type="text" value={petData.age} onChange={(e) => handleChange("age", e.target.value)}
+                  className={claseInput(InputClass, !!errors.age)} placeholder="Ej: 2 años" />
+                <FieldError mensaje={errors.age} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Peso</label>
@@ -214,8 +279,9 @@ export default function ShelterEditPet() {
           {/* Description */}
           <FormSection icon={Heart} title="Descripción" color="text-rose-500">
             <textarea rows={4} value={petData.description} onChange={(e) => handleChange("description", e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none"
+              className={claseInput("w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none", !!errors.description)}
               placeholder="Describe la personalidad y características de la mascota..." />
+            <FieldError mensaje={errors.description} />
           </FormSection>
 
           {/* Images (Cloudinary unificado) */}
@@ -229,6 +295,15 @@ export default function ShelterEditPet() {
               onChange={handleImagesChange}
             />
           </div>
+
+          {/* General submit error */}
+          {submitError && (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-red-500 leading-snug">
+                <span className="font-bold">*</span> {submitError}
+              </p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 dark:border-dark-border">

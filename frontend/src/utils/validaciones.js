@@ -117,6 +117,19 @@ export function validarTelefonoAdmin(valor, { obligatorio = true } = {}) {
 }
 
 /**
+ * Teléfono del rol Refugio (Colombia): SOLO números y EXACTAMENTE 10 dígitos.
+ * El input debe filtrar caracteres no numéricos y limitar la longitud a 10.
+ */
+export function validarTelefono10(valor, { obligatorio = false } = {}) {
+  const v = (valor || "").trim();
+  if (obligatorio && !v) return "El teléfono es obligatorio.";
+  if (!v) return "";
+  if (!/^\d+$/.test(v)) return "El teléfono solo puede contener números.";
+  if (v.length !== 10) return "El teléfono debe contener exactamente 10 números.";
+  return "";
+}
+
+/**
  * Contraseña: longitud mínima + política de complejidad de la aplicación
  * (mayúscula, minúscula, número y carácter especial). Opcionalmente compara
  * con la confirmación.

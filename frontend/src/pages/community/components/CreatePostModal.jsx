@@ -375,6 +375,8 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
   const [saveFeedback, setSaveFeedback] = useState(false);
   // Estado del envío de la publicación: null | "loading" | "success" | "error"
   const [publishingStatus, setPublishingStatus] = useState(null);
+  // Progreso real de la barra de carga (0-100) mientras se sube la publicación.
+  const [progress, setProgress] = useState(0);
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: "",
@@ -651,6 +653,12 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
     // El contenido debe tener mas de 10 caracteres para publicar.
     if (!title.trim() || content.trim().length < 10 || !category || publishingStatus === "loading") return;
     setPublishingStatus("loading");
+    setProgress(0);
+    // Barra de progreso: avanza de forma realista mientras el backend procesa
+    // la solicitud (nunca llega a 100% hasta que la petición termina).
+    const progressTimer = setInterval(() => {
+      setProgress((prev) => (prev >= 90 ? prev : prev + 8));
+    }, 200);
     // Calcular imágenes nuevas (sin id) y eliminaciones de imágenes existentes.
     const idsIniciales = initialImagesRef.current.map((i) => i.id);
     const idsActuales = images.map((i) => i.id).filter(Boolean);
@@ -674,11 +682,15 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
         await onCreate?.(payload);
       }
     } catch (e) {
+      clearInterval(progressTimer);
+      setProgress(0);
       // si falla la creacion, se mantiene el formulario
       setPublishingStatus("error");
       setTimeout(() => setPublishingStatus(null), 2500);
       return;
     }
+    clearInterval(progressTimer);
+    setProgress(100);
     if (currentDraftId) {
       const allDrafts = loadDraftsFromStorage(userId);
       const updated = allDrafts.filter((d) => d.id !== currentDraftId);
@@ -1541,20 +1553,28 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
               <>
                 <Loader2 className="w-12 h-12 text-rose-500 animate-spin mx-auto mb-4" />
                 <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-                  Publicando tu publicación...
+                  Subiendo publicación...
                 </h3>
                 <p className={`text-sm mb-5 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
                   Esto puede tomar unos segundos
                 </p>
-                <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-dark-border" : "bg-gray-100"}`}>
-                  <div className="h-full w-3/4 bg-gradient-to-r from-rose-500 to-amber-500 rounded-full animate-pulse" />
+                <div>
+                  <div className={`h-2.5 rounded-full overflow-hidden ${isDark ? "bg-dark-border" : "bg-gray-100"}`}>
+                    <div
+                      className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-200"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className={`mt-2 text-xs font-semibold text-right ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                    {progress}%
+                  </p>
                 </div>
               </>
             ) : publishingStatus === "success" ? (
               <>
                 <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
                 <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-                  ¡Publicación creada!
+                  ✓ Publicación creada correctamente
                 </h3>
                 <p className={`text-sm ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
                   Gracias por compartir con la comunidad

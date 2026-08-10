@@ -98,6 +98,9 @@ class MascotaResponse(BaseModel):
     id: int
     refugio_id: Optional[int] = None
     refugio_nombre: Optional[str] = None
+    refugio_telefono: Optional[str] = None
+    refugio_direccion: Optional[str] = None
+    refugio_ubicacion: Optional[str] = None
     nombre: str
     raza: Optional[str] = None
     edad: Optional[str] = None
