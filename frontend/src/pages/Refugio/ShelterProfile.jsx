@@ -402,6 +402,11 @@ export default function ShelterProfile() {
         facebook: editForm.facebook,
         instagram: editForm.instagram,
         email: normalizarEmail(editForm.email) || undefined,
+        // Galería completa en orden: {id} para ya guardadas, {url} para nuevas.
+        imagenes: (editForm.images || []).map((img) => ({
+          id: img.id ?? null,
+          url: img.url,
+        })),
       });
       // Actualiza la vista con la información guardada (sin tocar las fotos,
       // por si aún hay fotos pendientes de guardar en la galería).
@@ -869,8 +874,8 @@ export default function ShelterProfile() {
                     disabled={saving}
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:scale-105 transition-all duration-300 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Upload className="w-4 h-4" />
-                    Agregar Fotos
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {uploading ? "Subiendo..." : "Agregar Fotos"}
                   </button>
                 )}
                 <input

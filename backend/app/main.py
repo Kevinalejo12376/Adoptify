@@ -218,6 +218,13 @@ def _run_migrations():
             # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
             print(f"[migracion] No se pudieron crear tablas nuevas de tienda por SQL (SQLite las crea via modelos): {e}")
 
+        # ---- Equipo de refugio (empleados con rol 'empleado_refugio' + permisos) ----
+        try:
+            _crear_tablas_equipo_refugio(db)
+        except Exception as e:
+            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
+            print(f"[migracion] No se pudieron crear tablas de equipo de refugio por SQL (SQLite las crea via modelos): {e}")
+
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
         print("[migracion] Tabla 'movimientos_kardex' verificada correctamente.")
     except Exception as e:
