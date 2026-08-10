@@ -203,6 +203,8 @@ def _run_migrations():
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
 
+        # Tabla del módulo de Kardex de inventario (tiendas aliadas)
+        _crear_tabla_movimientos_kardex(db)
         # ---- RBAC del modulo Tienda (jerarquia + permisos) ----
         try:
             _crear_tablas_rbac_tienda(db)
