@@ -710,6 +710,27 @@ CREATE TABLE historial_estados_pedido (
 );
 CREATE INDEX idx_historial_pedido ON historial_estados_pedido(pedido_id);
 
+-- Kardex de inventario (tiendas aliadas)
+-- Registro cronologico de entradas/salidas/ajustes con saldos resultantes
+-- usando el metodo de costo promedio ponderado.
+CREATE TABLE movimientos_kardex (
+    id               BIGSERIAL PRIMARY KEY,
+    producto_id      BIGINT NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    tienda_id        BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+    tipo_movimiento  VARCHAR(30) NOT NULL, -- ENTRADA | SALIDA | AJUSTE_POSITIVO | AJUSTE_NEGATIVO
+    concepto         VARCHAR(255) NOT NULL DEFAULT '',
+    cantidad         INT NOT NULL DEFAULT 0,
+    costo_unitario   NUMERIC(12,2) NOT NULL DEFAULT 0,
+    costo_total      NUMERIC(12,2) NOT NULL DEFAULT 0,
+    saldo_cantidad   INT NOT NULL DEFAULT 0,
+    saldo_valor      NUMERIC(14,2) NOT NULL DEFAULT 0,
+    creado_en        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_kardex_producto ON movimientos_kardex(producto_id);
+CREATE INDEX idx_kardex_tienda   ON movimientos_kardex(tienda_id);
+CREATE INDEX idx_kardex_tipo     ON movimientos_kardex(tipo_movimiento);
+CREATE INDEX idx_kardex_fecha    ON movimientos_kardex(creado_en);
+
 -- ============================================================
 -- 5. FORO / COMUNIDAD
 -- ============================================================
@@ -913,6 +934,7 @@ ALTER TABLE codigos_promocion        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedidos                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_items             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE historial_estados_pedido ENABLE ROW LEVEL SECURITY;
+ALTER TABLE movimientos_kardex       ENABLE ROW LEVEL SECURITY;
 
 -- Foro / comunidad
 ALTER TABLE foro_posts               ENABLE ROW LEVEL SECURITY;
@@ -932,7 +954,7 @@ ALTER TABLE auditoria                ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- FIN DEL ESQUEMA
--- 13 catalogos + 32 tablas de datos = 45 tablas en total
+-- 13 catalogos + 33 tablas de datos = 46 tablas en total
 -- Catalogos: tipos_documento, roles, tipos_mascota, tamanos_mascota,
 --   generos_mascota, estados_mascota, estados_solicitud, estados_pedido,
 --   categorias_producto, foro_categorias, tipos_post_foro, estados_post_foro,
@@ -942,6 +964,7 @@ ALTER TABLE auditoria                ENABLE ROW LEVEL SECURITY;
 --   tiendas, tienda_imagenes, productos, producto_imagenes,
 --   producto_caracteristicas, resenas, resenas_refugio, favoritos_productos,
 --   carrito_items, codigos_promocion, pedidos, pedido_items,
+--   movimientos_kardex,
 --   foro_posts, foro_post_imagenes, foro_comentarios, foro_reacciones,
 --   eventos, campanas, actividades, notificaciones,
 --   pqrs, reportes, auditoria, (+ super-admin se inserta al arrancar el backend)

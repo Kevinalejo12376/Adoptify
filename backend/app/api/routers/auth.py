@@ -186,12 +186,12 @@ def enviar_codigo(payload: EnviarCodigoRequest, db: Session = Depends(get_db)):
     )
 
     if not ok:
-        logger.warning("Código generado pero NO se pudo enviar el correo a %s (SMTP no configurado?)", email)
+        logger.warning("Código generado pero NO se pudo enviar el correo a %s (Brevo no configurado?)", email)
         # Aún así devolvemos éxito, pero el frontend puede mostrar advertencia
         return {
-            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración SMTP.",
+            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración de Brevo.",
             "enviado": False,
-            "debug_codigo": codigo if not settings.SMTP_HOST else None,
+            "debug_codigo": codigo if not settings.BREVO_API_KEY else None,
         }
 
     return {
@@ -254,7 +254,7 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
         if ok:
             logger.info("Correo de bienvenida ENVIADO a %s", user.email)
         else:
-            logger.warning("Correo de bienvenida NO enviado a %s (SMTP no configurado?)", user.email)
+            logger.warning("Correo de bienvenida NO enviado a %s (Brevo no configurado?)", user.email)
     except Exception as exc:
         logger.error("Error al enviar correo de bienvenida a %s: %s", user.email, exc)
 
@@ -325,7 +325,7 @@ def verify_register(payload: RegistrarConCodigoRequest, db: Session = Depends(ge
         if ok:
             logger.info("Correo de bienvenida ENVIADO a %s", user.email)
         else:
-            logger.warning("Correo de bienvenida NO enviado a %s (SMTP no configurado?)", user.email)
+            logger.warning("Correo de bienvenida NO enviado a %s (Brevo no configurado?)", user.email)
     except Exception as exc:
         logger.error("Error al enviar correo de bienvenida a %s: %s", user.email, exc)
 
@@ -385,7 +385,7 @@ def forgot_password(payload: EnviarCodigoRequest, db: Session = Depends(get_db))
     if not ok:
         logger.error("Código generado pero FALLÓ el envío del correo a %s", email)
         return {
-            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración SMTP.",
+            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración de Brevo.",
             "enviado": False,
         }
 
@@ -756,7 +756,7 @@ def google_login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
                 if ok:
                     logger.info("Correo de bienvenida ENVIADO a %s (Google)", user.email)
                 else:
-                    logger.warning("Correo de bienvenida NO enviado a %s (Google - SMTP no configurado?)", user.email)
+                    logger.warning("Correo de bienvenida NO enviado a %s (Google - Brevo no configurado?)", user.email)
             except Exception as exc:
                 logger.error("Error al enviar correo de bienvenida a %s (Google): %s", user.email, exc)
 

@@ -35,6 +35,7 @@ class Producto(Base):
     tienda = relationship("Tienda", back_populates="productos")
     resenas = relationship("Resena", lazy="select", cascade="all, delete-orphan")
     imagenes = relationship("ProductoImagen", lazy="select", cascade="all, delete-orphan", back_populates="producto")
+    movimientos_kardex = relationship("MovimientoKardex", back_populates="producto", cascade="all, delete-orphan")
 
 
 class ProductoImagen(Base):

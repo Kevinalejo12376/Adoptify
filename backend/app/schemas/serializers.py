@@ -297,3 +297,25 @@ def serialize_producto(p):
         "tienda_id": p.tienda_id,
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
     }
+
+
+def serialize_movimiento_kardex(m):
+    """Serializa un movimiento de Kardex para la API del panel de tienda."""
+    return {
+        "id": m.id,
+        "producto_id": m.producto_id,
+        "tienda_id": m.tienda_id,
+        "tipo_movimiento": m.tipo_movimiento,
+        "concepto": m.concepto,
+        "cantidad": m.cantidad,
+        "costo_unitario": float(m.costo_unitario) if m.costo_unitario is not None else 0,
+        "costo_total": float(m.costo_total) if m.costo_total is not None else 0,
+        "saldo_cantidad": m.saldo_cantidad,
+        "saldo_valor": float(m.saldo_valor) if m.saldo_valor is not None else 0,
+        "saldo_costo_unitario": (
+            round(float(m.saldo_valor) / m.saldo_cantidad, 2)
+            if m.saldo_cantidad and m.saldo_valor is not None
+            else 0
+        ),
+        "creado_en": m.creado_en.isoformat() if m.creado_en else None,
+    }

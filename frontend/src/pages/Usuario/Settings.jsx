@@ -177,7 +177,7 @@ export default function Settings() {
       setCodeSent(true);
       setPassCountdown(60);
       if (result && result.enviado === false) {
-        setPassCodeError("No se pudo enviar el código. Verifica la configuración SMTP.");
+        setPassCodeError("No se pudo enviar el código. Verifica la configuración de Brevo.");
         return;
       }
       setTimeout(() => {

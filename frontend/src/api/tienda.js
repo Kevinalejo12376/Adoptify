@@ -117,6 +117,20 @@ export const cambiarEstadoPedidoTienda = (id, estado, extra = {}) =>
 export const cambiarPasswordTienda = (payload) =>
   apiFetch(`${base}/cambiar-password`, { method: "PUT", body: payload });
 
+/**
+ * Kardex de inventario de un producto de mi tienda.
+ * @param {number|string} productoId Id del producto.
+ * @param {object} params Filtros opcionales:
+ *   - fecha_inicio: 'YYYY-MM-DD' | fecha_fin: 'YYYY-MM-DD'
+ *   - tipo_movimiento: 'ENTRADA' | 'SALIDA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO'
+ *   - orden: 'asc' | 'desc' (default 'desc')
+ */
+export const obtenerKardexProducto = (productoId, params = {}) => {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== "" && v != null)
+  ).toString();
+  return apiFetch(`${base}/kardex/${productoId}${query ? `?${query}` : ""}`);
+};
 // ============================================================
 // Historial de actividad
 // ============================================================

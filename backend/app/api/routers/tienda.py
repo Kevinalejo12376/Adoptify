@@ -50,6 +50,7 @@ from app.models.tienda import (
 )
 from app.models.producto import Producto, ProductoImagen
 from app.models.pedido import Pedido, PedidoItem, HistorialEstadoPedido
+from app.models.kardex import MovimientoKardex, TIPOS_MOVIMIENTO_KARDEX
 from app.models.catalogos import CategoriaProducto, EstadoPedido, Rol, TipoDocumento
 from app.models.refugio import Refugio
 from app.models.donacion import Donacion, DonacionItem
@@ -73,7 +74,7 @@ from app.schemas.tienda_extra import (
     TiendaPqrsRespuestaCreate,
 )
 from app.schemas.pedido import EstadoPedidoUpdate
-from app.schemas.serializers import serialize_producto, serialize_pedido
+from app.schemas.serializers import serialize_producto, serialize_pedido, serialize_movimiento_kardex
 from app.services.gemini import analizar_producto
 from app.services.cloudinary_service import (
     subir_imagenes_temporales,
@@ -1338,6 +1339,110 @@ def cambiar_password(
 
 
 # ============================================================
+# ENDPOINT: Kardex de inventario de un producto
+# ============================================================
+def _parse_fecha_kardex(value: str, fin_de_dia: bool = False) -> datetime:
+    """Convierte 'YYYY-MM-DD' o ISO 8601 a datetime. Si ``fin_de_dia`` es True
+    ajusta la hora al final del día para que el filtro 'hasta' sea inclusivo."""
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            dt = datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Formato de fecha inválido. Usa YYYY-MM-DD.",
+            )
+    if fin_de_dia:
+        dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+    return dt
+
+
+def _resumen_kardex(producto: Producto, historial: List) -> dict:
+    """Calcula Stock actual, costo promedio y valor total del inventario a
+    partir del historial completo (sin filtros) del producto.
+
+    El costo promedio usa el metodo de costo promedio ponderado: el último
+    movimiento ya trae el saldo en valor, por lo que costo_promedio =
+    saldo_valor / saldo_cantidad.
+    """
+    if historial:
+        ultimo = historial[-1]  # historial viene en orden ascendente
+        stock_actual = ultimo.saldo_cantidad or 0
+        valor_total = round(float(ultimo.saldo_valor or 0), 2)
+        costo_promedio = round(valor_total / stock_actual, 2) if stock_actual else 0
+    else:
+        # Sin movimientos registrados: se usa stock y precio actuales del producto.
+        stock_actual = producto.stock or 0
+        costo_promedio = float(producto.precio) if producto.precio is not None else 0
+        valor_total = round(stock_actual * costo_promedio, 2)
+    return {
+        "stock_actual": stock_actual,
+        "costo_promedio": costo_promedio,
+        "valor_total_inventario": valor_total,
+    }
+
+
+@router.get("/kardex/{producto_id}")
+def kardex_producto(
+    producto_id: int,
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    tipo_movimiento: str = None,
+    orden: str = "desc",
+    current_user: Usuario = Depends(get_current_tienda),
+    db: Session = Depends(get_db),
+):
+    """Kardex de inventario de un producto de mi tienda (rol tienda_aliada).
+
+    - Filtros por querystring: ``fecha_inicio``, ``fecha_fin``, ``tipo_movimiento``
+      (ENTRADA | SALIDA | AJUSTE_POSITIVO | AJUSTE_NEGATIVO).
+    - ``orden``: 'asc' (cronológico) o 'desc' (más reciente primero).
+    - Retorna el historial de movimientos + resumen del producto
+      (stock actual, costo promedio y valor total del inventario).
+    """
+    producto = _mi_producto(producto_id, current_user, db)
+
+    # Historial completo (sin filtros) para el resumen real del producto.
+    historial = (
+        db.query(MovimientoKardex)
+        .filter(MovimientoKardex.producto_id == producto.id)
+        .order_by(MovimientoKardex.creado_en.asc(), MovimientoKardex.id.asc())
+        .all()
+    )
+    resumen = _resumen_kardex(producto, historial)
+
+    # Consulta con filtros.
+    query = db.query(MovimientoKardex).filter(MovimientoKardex.producto_id == producto.id)
+    if fecha_inicio:
+        query = query.filter(MovimientoKardex.creado_en >= _parse_fecha_kardex(fecha_inicio))
+    if fecha_fin:
+        query = query.filter(MovimientoKardex.creado_en <= _parse_fecha_kardex(fecha_fin, fin_de_dia=True))
+    if tipo_movimiento:
+        tipo = tipo_movimiento.strip().upper()
+        if tipo not in TIPOS_MOVIMIENTO_KARDEX:
+            raise HTTPException(
+                status_code=400,
+                detail=f"tipo_movimiento inválido. Valores permitidos: {', '.join(TIPOS_MOVIMIENTO_KARDEX)}",
+            )
+        query = query.filter(MovimientoKardex.tipo_movimiento == tipo)
+
+    if orden not in ("asc", "desc"):
+        raise HTTPException(status_code=400, detail="orden inválido. Usa 'asc' o 'desc'.")
+
+    movimientos = (
+        query.order_by(
+            MovimientoKardex.creado_en.asc() if orden == "asc" else MovimientoKardex.creado_en.desc(),
+            MovimientoKardex.id.asc() if orden == "asc" else MovimientoKardex.id.desc(),
+        ).all()
+    )
+
+    return {
+        "producto": serialize_producto(producto),
+        "resumen": resumen,
+        "movimientos": [serialize_movimiento_kardex(m) for m in movimientos],
+    }
 # HELPERS: Actividad / Donaciones / PQRS de la Tienda
 # ============================================================
 def _subir_adjuntos(adjuntos):

@@ -34,6 +34,7 @@ class Tienda(Base):
 
     usuario = relationship("Usuario", backref="tienda", uselist=False)
     productos = relationship("Producto", back_populates="tienda")
+    movimientos_kardex = relationship("MovimientoKardex", back_populates="tienda")
     # Miembros de la tienda (Super Administrador + Administradores)
     miembros = relationship(
         "TiendaUsuario",

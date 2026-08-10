@@ -34,6 +34,7 @@ from app.models.tienda import (
     TiendaActividad,
 )
 from app.models.producto import Producto, ProductoImagen
+from app.models.kardex import MovimientoKardex
 from app.models.soporte import Notificacion, Pqrs, Reporte, Auditoria
 from app.models.donacion import Donacion, DonacionItem
 from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdjunto
@@ -48,10 +49,10 @@ __all__ = [
     "TipoDocumento", "Rol", "TipoMascota", "TamanoMascota", "GeneroMascota",
     "EstadoMascota", "EstadoSolicitud", "EstadoPedido", "CategoriaProducto",
     "ForoCategoria", "TipoPostForo", "EstadoPostForo", "TipoReaccion",
-    "Usuario", "Refugio", "RefugioImagen", "RefugioPermiso", "RefugioEmpleado",
-    "RefugioEmpleadoPermiso", "Mascota", "SolicitudAdopcion",
-    "Tienda", "TiendaPermiso", "TiendaUsuario", "TiendaUsuarioPermiso", "TiendaActividad",
-    "Producto", "ProductoImagen",
+    "MovimientoKardex","Usuario", "Refugio", "RefugioImagen", 
+    "RefugioPermiso", "RefugioEmpleado","RefugioEmpleadoPermiso", "Mascota", 
+    "Tienda", "TiendaPermiso", "TiendaUsuario", "TiendaUsuarioPermiso", 
+    "TiendaActividad","Producto", "ProductoImagen","SolicitudAdopcion",
     "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",
     "Donacion", "DonacionItem",
     "TiendaPqrs", "TiendaPqrsMensaje", "TiendaPqrsAdjunto",

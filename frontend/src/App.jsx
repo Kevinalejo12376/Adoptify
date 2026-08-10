@@ -76,6 +76,7 @@ import StoreActividad from "./pages/Tienda/StoreActividad";
 import StoreDonaciones from "./pages/Tienda/StoreDonaciones";
 import StorePqrs from "./pages/Tienda/StorePqrs";
 import ProductAnalysisView from "./pages/Tienda/ProductAnalysisView";
+import KardexView from "./pages/Tienda/KardexView";
 
 // Otras importaciones existentes
 import Animals from "./pages/animals/Animals";
@@ -193,15 +194,16 @@ function AppContent() {
           {/* ================================================ */}
           <Route path="/tienda" element={<StoreRoute><StoreLayout /></StoreRoute>}>
             <Route index element={<Navigate to="/tienda/dashboard" replace />} />
-            <Route path="dashboard" element={<StorePermisoRuta permiso="dashboard.ver"><StoreDashboard /></StorePermisoRuta>} />
-            <Route path="productos" element={<StorePermisoRuta permiso="productos.ver"><StoreProducts /></StorePermisoRuta>} />
-            <Route path="productos/nuevo" element={<StorePermisoRuta permiso="productos.crear"><StoreEditProduct /></StorePermisoRuta>} />
-            <Route path="productos/:id" element={<StorePermisoRuta permiso="productos.ver"><StoreProductDetail /></StorePermisoRuta>} />
-            <Route path="productos/editar/:id" element={<StorePermisoRuta permiso="productos.editar"><StoreEditProduct /></StorePermisoRuta>} />
-            <Route path="pedidos" element={<StorePermisoRuta permiso="pedidos.ver"><StoreOrders /></StorePermisoRuta>} />
-            <Route path="pedidos/:id" element={<StorePermisoRuta permiso="pedidos.ver"><StoreOrderDetail /></StorePermisoRuta>} />
-            <Route path="perfil" element={<StorePermisoRuta permiso="tienda.ver_perfil"><StoreProfile /></StorePermisoRuta>} />
-            <Route path="estadisticas" element={<StorePermisoRuta permiso="reportes.ver_estadisticas"><StoreStatistics /></StorePermisoRuta>} />
+            <Route path="dashboard" element={<StoreDashboard />} />
+            <Route path="productos" element={<StoreProducts />} />
+            <Route path="productos/nuevo" element={<StoreEditProduct />} />
+            <Route path="productos/:id" element={<StoreProductDetail />} />
+            <Route path="productos/editar/:id" element={<StoreEditProduct />} />
+            <Route path="kardex" element={<KardexView />} />
+            <Route path="pedidos" element={<StoreOrders />} />
+            <Route path="pedidos/:id" element={<StoreOrderDetail />} />
+            <Route path="perfil" element={<StoreProfile />} />
+            <Route path="estadisticas" element={<StoreStatistics />} />
             <Route path="notificaciones" element={<StoreNotifications />} />
             <Route path="configuracion" element={<StorePermisoRuta permiso="configuracion.acceder"><StoreSettings /></StorePermisoRuta>} />
             <Route path="administradores" element={<StorePermisoRuta superAdmin><StoreAdministradores /></StorePermisoRuta>} />

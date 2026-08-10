@@ -1,11 +1,22 @@
 import { useRef, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Package, ShoppingCart, BarChart3, Pin, PinOff, LogOut,
-  History, HeartHandshake,
+  LayoutDashboard, Package, ShoppingCart, Store, BarChart3, Bell, Settings,
+  ChevronLeft, ChevronRight, LogOut, PawPrint as LogoIcon, Star, ClipboardList,
+  History, HeartHandshake, Pin, PinOff,
 } from "lucide-react";
 import { useStore } from "../../../context/StoreContext";
 
+const menuItems = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard" },
+  { icon: Package, label: "Productos", path: "/tienda/productos" },
+  { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
+  { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos" },
+  { icon: Store, label: "Perfil Tienda", path: "/tienda/perfil" },
+  { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas" },
+  { icon: Bell, label: "Notificaciones", path: "/tienda/notificaciones" },
+  { icon: Settings, label: "Configuración", path: "/tienda/configuracion" },
+];
 // El menu lateral se simplifica a las opciones principales de trabajo.
 // Las demas funcionalidades (perfil, administradores, notificaciones, PQRS,
 // configuracion y cerrar sesion) se acceden desde el menu del perfil.
