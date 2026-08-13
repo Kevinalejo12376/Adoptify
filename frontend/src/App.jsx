@@ -20,6 +20,7 @@ import Home from "./pages/public/Home";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ShelterRegistration from "./pages/public/ShelterRegistration";
+import StoreRegistration from "./pages/public/StoreRegistration";
 import CrearPassword from "./pages/auth/CrearPassword";
 
 // ========================================================
@@ -110,6 +111,7 @@ import AdminAuditoria from "./pages/Admin/Auditoria";
 import AdminConfiguracion from "./pages/Admin/Configuracion";
 import AdminTiendas from "./pages/Admin/GestionTiendas";
 import SolicitudRefugioDetalle from "./pages/Admin/SolicitudRefugioDetalle";
+import SolicitudesTiendas from "./pages/Admin/SolicitudesTiendas";
 
 function AppContent() {
   const location = useLocation();
@@ -118,6 +120,7 @@ function AppContent() {
     location.pathname === "/login" ||
     location.pathname === "/register" ||
     location.pathname === "/registrar-refugio" ||
+    location.pathname === "/registrar-tienda" ||
     location.pathname.startsWith("/crear-password");
   const isAdminPage = location.pathname.startsWith("/admin");
   const isStorePage = location.pathname.startsWith("/tienda");
@@ -133,6 +136,7 @@ function AppContent() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/registrar-refugio" element={<ShelterRegistration />} />
+          <Route path="/registrar-tienda" element={<StoreRegistration />} />
           <Route path="/crear-password/:token" element={<CrearPassword />} />
 
           {/* ================================================ */}
@@ -146,6 +150,7 @@ function AppContent() {
             <Route path="refugios/:id" element={<SolicitudRefugioDetalle />} />
             <Route path="mascotas" element={<AdminMascotas />} />
             <Route path="tiendas" element={<AdminTiendas />} />
+            <Route path="tiendas/solicitudes" element={<SolicitudesTiendas />} />
             <Route path="marketplace" element={<AdminMarketplace />} />
             <Route path="marketplace/estadisticas" element={<AdminMarketplace />} />
             <Route path="pedidos" element={<AdminPedidos />} />

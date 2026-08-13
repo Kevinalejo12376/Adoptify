@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User } from "lucide-react";
+import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Check } from "lucide-react";
 import ScrollToTop from "../../components/ScrollToTop";
 import AnimatedSection from "../../components/AnimatedSection";
 import AutoFadingImage from "../../components/AutoFadingImage";
@@ -344,18 +344,96 @@ export default function Home() {
             </div>
           )}
 
-          {/* CTA dentro de refugios */}
-          <div className="mt-12 bg-gradient-to-r from-amber-50 to-rose-50 rounded-2xl p-8 text-center border border-amber-100">
-            <h3 className="text-2xl font-bold text-gray-900 mb-3 font-display">
-              ¿Eres un refugio y quieres unirte?
-            </h3>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-              Registra tu refugio en Adoptify y llega a miles de personas que buscan adoptar y ayudar.
-            </p>
-            <Link to="/registrar-refugio" className="inline-flex items-center px-8 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg shadow-rose-200 hover:shadow-xl">
-              Registrar mi refugio
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Link>
+          {/* CTA: Haz parte de la comunidad Adoptify */}
+          <div className="mt-16 mb-4">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-full text-sm font-medium mb-5">
+                <Users className="w-4 h-4" aria-hidden="true" />
+                <span>Únete a nuestra comunidad</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 font-display mb-3">
+                Haz parte de la comunidad Adoptify
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Elige cómo quieres formar parte de nuestra comunidad.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-stretch">
+              {/* Card Refugio */}
+              <div className="group relative h-full bg-white rounded-3xl shadow-lg shadow-rose-100/60 border border-rose-50 p-8 flex flex-col transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-rose-200/60 hover:border-rose-200">
+                <div className="absolute top-0 left-8 right-8 h-1 bg-gradient-to-r from-rose-500 to-amber-500 rounded-b-full opacity-80 transition-all duration-300 group-hover:opacity-100" aria-hidden="true" />
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-100 to-amber-100 flex items-center justify-center mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                  <PawPrint className="w-8 h-8 text-rose-600" aria-hidden="true" />
+                </div>
+                <span className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-600 text-xs font-bold uppercase tracking-wide mb-4">
+                  Refugio
+                </span>
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 font-display mb-3">
+                  ¿Buscas darle más visibilidad a tu refugio?
+                </h3>
+                <p className="text-gray-600 leading-relaxed mb-5">
+                  Conecta tus mascotas con personas que buscan brindarles un hogar y haz que tu refugio llegue a más personas.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-rose-600 mb-7">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50">
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" /> Conecta
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50">
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" /> Comparte
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50">
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" /> Encuentra hogares
+                  </span>
+                </div>
+                <div className="mt-auto">
+                  <Link
+                    to="/registrar-refugio"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold hover:from-rose-600 hover:to-amber-600 transition-all duration-300 shadow-lg shadow-rose-200 hover:shadow-xl hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-300"
+                  >
+                    Registrar mi refugio
+                    <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden="true" />
+                  </Link>
+                </div>
+              </div>
+
+              {/* Card Tienda Aliada */}
+              <div className="group relative h-full bg-white rounded-3xl shadow-lg shadow-amber-100/60 border border-amber-50 p-8 flex flex-col transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-amber-200/60 hover:border-amber-200">
+                <div className="absolute top-0 left-8 right-8 h-1 bg-gradient-to-r from-amber-500 to-rose-500 rounded-b-full opacity-80 transition-all duration-300 group-hover:opacity-100" aria-hidden="true" />
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                  <ShoppingBag className="w-8 h-8 text-amber-600" aria-hidden="true" />
+                </div>
+                <span className="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-bold uppercase tracking-wide mb-4">
+                  Tienda Aliada
+                </span>
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 font-display mb-3">
+                  ¿Quieres llevar tu tienda a más personas?
+                </h3>
+                <p className="text-gray-600 leading-relaxed mb-5">
+                  Conecta tus productos con una comunidad que ama, cuida y apoya a los animales.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-600 mb-7">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50">
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" /> Conecta
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50">
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" /> Ofrece
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50">
+                    <Check className="w-3.5 h-3.5" aria-hidden="true" /> Crece
+                  </span>
+                </div>
+                <div className="mt-auto">
+                  <Link
+                    to="/registrar-tienda"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 text-white font-semibold hover:from-amber-600 hover:to-rose-600 transition-all duration-300 shadow-lg shadow-amber-200 hover:shadow-xl hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-300"
+                  >
+                    Registrar mi tienda
+                    <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden="true" />
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
