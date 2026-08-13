@@ -18,6 +18,7 @@ const menuItems = [
     submenu: [
       { icon: Package, label: "Productos", path: "/admin/marketplace" },
       { icon: ShoppingBag, label: "Tiendas Aliadas", path: "/admin/tiendas" },
+      { icon: ClipboardList, label: "Solicitudes Tiendas", path: "/admin/tiendas/solicitudes" },
       { icon: BarChart3, label: "Estadísticas", path: "/admin/marketplace/estadisticas" },
     ],
   },

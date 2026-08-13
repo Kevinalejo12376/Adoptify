@@ -156,6 +156,7 @@ function AppContent() {
             <Route path="refugios/:id" element={<SolicitudRefugioDetalle />} />
             <Route path="mascotas" element={<AdminMascotas />} />
             <Route path="tiendas" element={<AdminTiendas />} />
+            <Route path="tiendas/solicitudes" element={<SolicitudesTiendas />} />
             <Route path="marketplace" element={<AdminMarketplace />} />
             <Route path="marketplace/estadisticas" element={<AdminMarketplace />} />
             <Route path="pedidos" element={<AdminPedidos />} />
