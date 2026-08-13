@@ -17,7 +17,8 @@ from app.db.seed import seed_catalogos
 from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
-    tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin, upload,
+    tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
+    solicitudes_tienda, solicitudes_tienda_admin, upload,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,10 @@ def _run_migrations():
 
         # Tablas nuevas del módulo de solicitudes de refugio
         _crear_tabla_solicitudes_refugio(db)
+        # Tablas nuevas del módulo de solicitudes de Tiendas Aliadas
+        _crear_tabla_solicitudes_tienda(db)
+        # Índices únicos parciales para evitar solicitudes duplicadas (best-effort)
+        _indices_unicos_solicitudes(db)
         _agregar_columna_si_no_existe(
             db, "solicitudes_refugio", "representante_apellido", "VARCHAR(100)"
         )
@@ -250,6 +255,115 @@ def _crear_tabla_solicitudes_refugio(db):
     db.execute(text(
         "CREATE INDEX IF NOT EXISTS idx_enlaces_pass_user ON enlaces_creacion_password(usuario_id)"
     ))
+
+
+def _crear_tabla_solicitudes_tienda(db):
+    """Crea las tablas del módulo de solicitudes de Tiendas Aliadas si no existen (Supabase)."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS solicitudes_tienda (
+            id BIGSERIAL PRIMARY KEY,
+            nombre_tienda VARCHAR(150) NOT NULL,
+            logo_url TEXT,
+            descripcion TEXT,
+            email_contacto VARCHAR(255),
+            telefono VARCHAR(30),
+            departamento VARCHAR(150),
+            ciudad VARCHAR(150),
+            municipio VARCHAR(150),
+            direccion VARCHAR(200),
+            website VARCHAR(150),
+            horario_semana VARCHAR(120),
+            horario_fin_semana VARCHAR(120),
+            facebook VARCHAR(120),
+            instagram VARCHAR(120),
+            representante_nombre VARCHAR(100) NOT NULL,
+            representante_apellido VARCHAR(100),
+            representante_email VARCHAR(255) NOT NULL,
+            representante_telefono VARCHAR(30),
+            acepto_veracidad VARCHAR(20),
+            autorizo_verificacion VARCHAR(20),
+            estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+            motivo_rechazo TEXT,
+            mensaje_informacion TEXT,
+            fecha_revision TIMESTAMPTZ,
+            administrador_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            usuario_creado_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            tienda_creado_id BIGINT REFERENCES tiendas(id) ON DELETE SET NULL,
+            username_generado VARCHAR(50),
+            fecha_aprobacion TIMESTAMPTZ,
+            token_consulta VARCHAR(64) UNIQUE,
+            creada_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            actualizada_en TIMESTAMPTZ
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS solicitudes_tienda_documentos (
+            id BIGSERIAL PRIMARY KEY,
+            solicitud_id BIGINT NOT NULL REFERENCES solicitudes_tienda(id) ON DELETE CASCADE,
+            categoria VARCHAR(40) NOT NULL,
+            tipo VARCHAR(20) NOT NULL DEFAULT 'obligatorio',
+            nombre_archivo VARCHAR(255),
+            url TEXT NOT NULL,
+            public_id VARCHAR(255),
+            estado_verificacion VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS solicitudes_tienda_historial (
+            id BIGSERIAL PRIMARY KEY,
+            solicitud_id BIGINT NOT NULL REFERENCES solicitudes_tienda(id) ON DELETE CASCADE,
+            accion VARCHAR(40) NOT NULL,
+            descripcion TEXT,
+            administrador_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_sol_tienda_estado ON solicitudes_tienda(estado)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_sol_tienda_rep_email ON solicitudes_tienda(representante_email)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_sol_tienda_doc_sol ON solicitudes_tienda_documentos(solicitud_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_sol_tienda_hist_sol ON solicitudes_tienda_historial(solicitud_id)"
+    ))
+    db.commit()
+    print("[migracion] Tablas de solicitudes de Tiendas Aliadas verificadas.")
+
+
+def _indices_unicos_solicitudes(db):
+    """Índices únicos parciales para impedir solicitudes duplicadas en estados activos.
+
+    Impide, a nivel de base de datos, que existan dos solicitudes pendientes (o con
+    información solicitada) para el mismo correo. Se ejecuta como best-effort: si ya
+    existen duplicados previos en la BD, el índice no se crea (no bloquea el arranque)
+    y la prevención queda cubierta por las validaciones de la API.
+    """
+    from sqlalchemy import text
+    try:
+        db.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_sol_tienda_email_activa "
+            "ON solicitudes_tienda(representante_email) "
+            "WHERE estado IN ('pendiente','informacion_solicitada')"
+        ))
+        db.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_sol_refugio_email_activa "
+            "ON solicitudes_refugio(representante_email) "
+            "WHERE estado IN ('pendiente','informacion_solicitada')"
+        ))
+        db.commit()
+        print("[migracion] Indices unicos de solicitudes verificados.")
+    except Exception as e:
+        db.rollback()
+        print(
+            "[migracion] No se crearon indices unicos de solicitudes "
+            f"(posibles duplicados previos): {e}"
+        )
 
 
 def _crear_tabla_movimientos_kardex(db):
@@ -553,6 +667,16 @@ app.include_router(
     solicitudes_refugio_admin.router,
     prefix="/api/admin",
     tags=["Administracion - Refugios y Solicitudes"],
+)
+app.include_router(
+    solicitudes_tienda.router,
+    prefix="/api/solicitudes-tienda",
+    tags=["Solicitudes de Tienda Aliada (público)"],
+)
+app.include_router(
+    solicitudes_tienda_admin.router,
+    prefix="/api/admin",
+    tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
 

@@ -1,29 +1,28 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, ArrowRight, Building2, User, FileText, ClipboardCheck,
+  ArrowLeft, ArrowRight, Store, User, FileText, ClipboardCheck,
   Check, CheckCircle2, X, Upload, Mail, Phone, MapPin, Globe,
-  Music2, Calendar, Loader2, ShieldCheck,
-  AlertCircle, Image as ImageIcon, Home, LayoutGrid, PawPrint,
-  IdCard, File, Sparkles, Heart, Lock, RefreshCw,
-  Navigation,
+  Clock, Calendar, Loader2, ShieldCheck,
+  Image as ImageIcon, IdCard, File, Sparkles, Heart, Lock, RefreshCw,
+  Navigation, BadgeCheck,
 } from "lucide-react";
 import { FacebookIcon, InstagramIcon } from "../../components/SocialIcons";
 import logo from "../../assets/logo.png";
 import Footer from "../../components/Footer";
 import {
-  crearSolicitudRefugio,
-  subirDocumentosSolicitud,
+  crearSolicitudTienda,
+  subirDocumentosSolicitudTienda,
   filesToBase64,
-  consultarEstadoSolicitud,
-} from "../../api/solicitudesRefugio";
+  consultarEstadoSolicitudTienda,
+} from "../../api/solicitudesTienda";
 
 // ========================================================
 // CONFIGURACIÓN
 // ========================================================
 
 const STEPS = [
-  { id: 1, titulo: "Información del refugio", icon: Building2 },
+  { id: 1, titulo: "Información de la tienda", icon: Store },
   { id: 2, titulo: "Representante", icon: User },
   { id: 3, titulo: "Documentación", icon: FileText },
   { id: 4, titulo: "Revisión", icon: ClipboardCheck },
@@ -32,28 +31,23 @@ const STEPS = [
 // Toda la documentación es OBLIGATORIA (no existen documentos opcionales).
 const DOC_OBLIGATORIOS = [
   { categoria: "identidad", label: "Documento de identidad del representante", icon: IdCard, desc: "Cédula o documento oficial" },
-  { categoria: "fachada", label: "Fotografía de la fachada", icon: Home, desc: "Vista exterior del refugio" },
-  { categoria: "fotografias", label: "Fotografías del refugio", icon: ImageIcon, desc: "Vistas generales del lugar" },
-  { categoria: "instalaciones", label: "Fotografías de las instalaciones", icon: LayoutGrid, desc: "Espacios y áreas internas" },
-  { categoria: "animales", label: "Fotografías de algunos animales", icon: PawPrint, desc: "Evidencia de los animales a cargo" },
-  { categoria: "camara_comercio", label: "Cámara de Comercio", icon: FileText, desc: "Certificado de existencia y representación" },
+  { categoria: "camara_comercio", label: "Cámara de Comercio o RUT", icon: BadgeCheck, desc: "Certificado de existencia y representación legal" },
+  { categoria: "fachada", label: "Fotografía de la fachada del local", icon: Store, desc: "Vista exterior del establecimiento" },
+  { categoria: "instalaciones", label: "Fotografías del local", icon: ImageIcon, desc: "Vistas generales de las instalaciones" },
+  { categoria: "productos", label: "Fotografías de algunos productos", icon: ImageIcon, desc: "Evidencia de los productos que ofreces" },
   { categoria: "nit", label: "NIT", icon: FileText, desc: "Número de identificación tributaria" },
-  { categoria: "personeria_juridica", label: "Personería Jurídica", icon: FileText, desc: "Resolución o acta de constitución" },
-  { categoria: "certificado_fundacion", label: "Certificado como Fundación", icon: FileText, desc: "Si aplica" },
   { categoria: "otros", label: "Otros documentos", icon: FileText, desc: "Cualquier documento de soporte adicional" },
 ];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const URL_RE = /^https?:\/\/\S+$/;
 const MAX_MB = 8;
 
-// Validación de teléfonos: solo números y separadores comunes (espacio, +, -, paréntesis).
-const TELEFONO_RE = /^[0-9+\s()\-]{7,20}$/;
-// Elimina cualquier carácter no permitido mientras el usuario escribe (impide letras).
-const sanitizarTelefono = (v) => (v || "").replace(/[^\d+\s()\-]/g, "");
-const validarTelefono = (v) => TELEFONO_RE.test((v || "").trim());
+// Teléfono: solo números y exactamente 10 dígitos.
+const sanitizarTelefono = (v) => (v || "").replace(/[^\d]/g, "");
+const validarTelefono = (v) => /^\d{10}$/.test((v || "").trim());
 
 // Geolocalización: obtiene el departamento, ciudad, municipio y dirección aproximada
-// a partir de la ubicación del navegador (reverse geocoding con Nominatim/OSM).
 const obtenerUbicacionActual = () =>
   new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) {
@@ -200,11 +194,7 @@ function Campo({ label, obligatorio, icono: Icono, error, children, hint }) {
         {children}
       </div>
       {hint && !error && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
-      {error && (
-        <p className="text-xs text-rose-600 mt-1 flex items-center gap-1">
-          <AlertCircle size={13} /> {error}
-        </p>
-      )}
+      {error && <p className="text-xs text-rose-600 mt-1">*{error}</p>}
     </div>
   );
 }
@@ -220,7 +210,7 @@ const inputCls = (error, hasIcon) =>
 // COMPONENTE PRINCIPAL
 // ========================================================
 
-export default function ShelterRegistration() {
+export default function StoreRegistration() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tokenCompletar = searchParams.get("completar");
@@ -234,7 +224,7 @@ export default function ShelterRegistration() {
 
   // Datos del formulario
   const [form, setForm] = useState({
-    nombre_refugio: "",
+    nombre_tienda: "",
     descripcion: "",
     email_contacto: "",
     telefono: "",
@@ -242,10 +232,10 @@ export default function ShelterRegistration() {
     municipio: "",
     direccion: "",
     website: "",
-    anio_fundacion: "",
+    horario_semana: "",
+    horario_fin_semana: "",
     facebook: "",
     instagram: "",
-    tiktok: "",
     representante_nombre: "",
     representante_apellido: "",
     representante_email: "",
@@ -269,12 +259,10 @@ export default function ShelterRegistration() {
 
   useEffect(() => {
     if (tokenCompletar) {
-      consultarEstadoSolicitud(tokenCompletar)
+      consultarEstadoSolicitudTienda(tokenCompletar)
         .then((data) => {
           setInfoSolicitud(data);
-          if (data.estado === "informacion_solicitada") {
-            setModoCompletar(true);
-          } else if (data.estado === "pendiente") {
+          if (data.estado === "informacion_solicitada" || data.estado === "pendiente") {
             setModoCompletar(true);
           } else {
             setModoCompletar(false);
@@ -376,27 +364,37 @@ export default function ShelterRegistration() {
   const validarPaso = (idx) => {
     const e = {};
     if (idx === 0) {
-      if (!form.nombre_refugio.trim()) e.nombre_refugio = "Ingresa el nombre del refugio";
-      if (form.email_contacto && !EMAIL_RE.test(form.email_contacto)) e.email_contacto = "Correo inválido";
-      if (!form.email_contacto) e.email_contacto = "El correo de contacto es obligatorio";
+      if (!form.nombre_tienda.trim()) e.nombre_tienda = "Ingresa el nombre de la tienda";
+      if (!form.email_contacto.trim()) {
+        e.email_contacto = "El correo de contacto es obligatorio";
+      } else if (/\s/.test(form.email_contacto)) {
+        e.email_contacto = "El correo no debe contener espacios";
+      } else if (!EMAIL_RE.test(form.email_contacto.trim())) {
+        e.email_contacto = "Ingresa un correo válido";
+      }
       if (!form.telefono.trim()) {
         e.telefono = "Ingresa un teléfono de contacto";
       } else if (!validarTelefono(form.telefono)) {
-        e.telefono = "El teléfono solo debe contener números (7 a 20 dígitos)";
+        e.telefono = "El teléfono debe contener exactamente 10 números";
       }
       if (!form.municipio.trim()) e.municipio = "Ingresa el municipio";
       if (!form.direccion.trim()) e.direccion = "Ingresa la dirección";
-      if (form.anio_fundacion && (Number(form.anio_fundacion) < 1900 || Number(form.anio_fundacion) > 2100))
-        e.anio_fundacion = "Año de fundación inválido";
+      if (form.website && !URL_RE.test(form.website.trim()))
+        e.website = "La URL debe comenzar con http:// o https://";
+      if (form.facebook && !URL_RE.test(form.facebook.trim()))
+        e.facebook = "La URL debe comenzar con http:// o https://";
+      if (form.instagram && !URL_RE.test(form.instagram.trim()))
+        e.instagram = "La URL debe comenzar con http:// o https://";
     }
     if (idx === 1) {
       if (!form.representante_nombre.trim()) e.representante_nombre = "Ingresa el nombre del representante";
       if (!form.representante_apellido.trim()) e.representante_apellido = "Ingresa el apellido del representante";
-      if (!EMAIL_RE.test(form.representante_email)) e.representante_email = "Ingresa un correo válido";
+      if (!EMAIL_RE.test(form.representante_email.trim()))
+        e.representante_email = "Ingresa un correo válido";
       if (!form.representante_telefono.trim()) {
         e.representante_telefono = "Ingresa un teléfono";
       } else if (!validarTelefono(form.representante_telefono)) {
-        e.representante_telefono = "El teléfono solo debe contener números (7 a 20 dígitos)";
+        e.representante_telefono = "El teléfono debe contener exactamente 10 números";
       }
     }
     if (idx === 2) {
@@ -427,15 +425,7 @@ export default function ShelterRegistration() {
   };
 
   // ---- Envío ----
-  const enviar = async () => {
-    if (!validarPaso(3)) {
-      setErrorGlobal("Debes aceptar los términos para continuar.");
-      return;
-    }
-    setCargando(true);
-    setErrorGlobal("");
-
-    // Construir documentos (todos son obligatorios)
+  const construirDocumentos = () => {
     const docsPayload = [];
     for (const doc of DOC_OBLIGATORIOS) {
       const archivos = documentos[doc.categoria] || [];
@@ -448,28 +438,36 @@ export default function ShelterRegistration() {
         });
       }
     }
+    return docsPayload;
+  };
+
+  const enviar = async () => {
+    if (!validarPaso(3)) {
+      setErrorGlobal("Debes aceptar los términos para continuar.");
+      return;
+    }
+    setCargando(true);
+    setErrorGlobal("");
 
     const payload = {
       ...form,
       // Backward compatibility: la columna 'ciudad' conserva el valor del municipio.
       ciudad: form.municipio,
-      anio_fundacion: form.anio_fundacion ? Number(form.anio_fundacion) : null,
       logo_base64: logo?.base64 || null,
-      documentos: docsPayload,
+      documentos: construirDocumentos(),
     };
 
     try {
-      const data = await crearSolicitudRefugio(payload);
+      const data = await crearSolicitudTienda(payload);
       setResultado(data);
       setEnviado(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
-      // Guardar token para consulta futura
       if (data?.token_consulta) {
         try {
-          const previos = JSON.parse(localStorage.getItem("adoptify_solicitudes") || "[]");
+          const previos = JSON.parse(localStorage.getItem("adoptify_solicitudes_tienda") || "[]");
           localStorage.setItem(
-            "adoptify_solicitudes",
-            JSON.stringify([{ id: data.id, token: data.token_consulta, nombre: data.nombre_refugio }, ...previos].slice(0, 10))
+            "adoptify_solicitudes_tienda",
+            JSON.stringify([{ id: data.id, token: data.token_consulta, nombre: data.nombre_tienda }, ...previos].slice(0, 10))
           );
         } catch { /* noop */ }
       }
@@ -483,25 +481,14 @@ export default function ShelterRegistration() {
   const enviarCompletar = async () => {
     setCargando(true);
     setErrorGlobal("");
-    const docsPayload = [];
-    for (const doc of DOC_OBLIGATORIOS) {
-      const archivos = documentos[doc.categoria] || [];
-      for (const a of archivos) {
-        docsPayload.push({
-          categoria: doc.categoria,
-          tipo: "obligatorio",
-          nombre_archivo: a.nombre,
-          contenido_base64: a.base64,
-        });
-      }
-    }
+    const docsPayload = construirDocumentos();
     if (!docsPayload.length) {
       setErrorGlobal("Adjunta al menos un documento para completar la información.");
       setCargando(false);
       return;
     }
     try {
-      await subirDocumentosSolicitud(tokenCompletar, docsPayload);
+      await subirDocumentosSolicitudTienda(tokenCompletar, docsPayload);
       setEnviado(true);
       setResultado({ modoCompletar: true });
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -550,7 +537,7 @@ export default function ShelterRegistration() {
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Completar información</h2>
                     <p className="text-sm text-gray-500">
-                      {infoSolicitud?.nombre_refugio} · Solicitud #{infoSolicitud?.id}
+                      {infoSolicitud?.nombre_tienda} · Solicitud #{infoSolicitud?.id}
                     </p>
                   </div>
                 </div>
@@ -559,7 +546,7 @@ export default function ShelterRegistration() {
               <div className="p-6 sm:p-8">
                 {infoSolicitud?.mensaje_informacion && (
                   <div className="mb-6 rounded-2xl bg-amber-50 border border-amber-200 p-4 flex gap-3">
-                    <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+                    <AlertCircleIcon size={20} className="text-amber-500 shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm font-semibold text-amber-800">Nuestro equipo solicita:</p>
                       <p className="text-sm text-amber-700 mt-1">{infoSolicitud.mensaje_informacion}</p>
@@ -588,7 +575,7 @@ export default function ShelterRegistration() {
 
                 {errorGlobal && (
                   <div className="mt-4 rounded-xl bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-sm text-rose-700 flex items-start gap-2">
-                    <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-500" />
+                    <AlertCircleIcon size={15} className="shrink-0 mt-0.5 text-rose-500" />
                     <span className="leading-snug">{errorGlobal}</span>
                   </div>
                 )}
@@ -629,11 +616,11 @@ export default function ShelterRegistration() {
         {/* Encabezado */}
         <div className="text-center pt-10 pb-8">
           <h1 className="text-3xl sm:text-4xl font-display font-extrabold text-gray-900 mb-3">
-            Solicitud de Registro de Refugio
+            Solicitud de Registro de Tienda Aliada
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
             Completa la siguiente información para que el equipo de Adoptify pueda verificar
-            la autenticidad de tu refugio y evaluar tu solicitud de ingreso a la plataforma.
+            la autenticidad de tu tienda y evaluar tu solicitud de ingreso a la plataforma.
           </p>
         </div>
 
@@ -655,7 +642,7 @@ export default function ShelterRegistration() {
         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
           <div className="px-6 sm:px-10 py-8">
             {paso === 0 && (
-              <PasoRefugio
+              <PasoTienda
                 form={form}
                 set={set}
                 errores={errores}
@@ -686,7 +673,7 @@ export default function ShelterRegistration() {
 
             {errorGlobal && (
               <div className="mt-4 rounded-xl bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-sm text-rose-700 flex items-start gap-2 animate-fade-in">
-                <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-500" />
+                <AlertCircleIcon size={15} className="shrink-0 mt-0.5 text-rose-500" />
                 <span className="leading-snug">{errorGlobal}</span>
               </div>
             )}
@@ -744,6 +731,16 @@ export default function ShelterRegistration() {
 // ========================================================
 // SUBCOMPONENTES
 // ========================================================
+
+function AlertCircleIcon(props) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  );
+}
 
 function SendIcon() {
   return (
@@ -812,18 +809,18 @@ function Stepper({ paso }) {
   );
 }
 
-function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbicacion, ubicacionCargando, ubicacionError, ubicacionOk }) {
+function PasoTienda({ form, set, errores, logo, subirLogo, inputCls, usarMiUbicacion, ubicacionCargando, ubicacionError, ubicacionOk }) {
   const logoInputRef = useRef(null);
   return (
     <div className="animate-fade-in">
       <div className="flex items-center gap-2 mb-6">
-        <Building2 className="text-rose-500" size={20} />
-        <h2 className="text-lg font-bold text-gray-900">Información del refugio</h2>
+        <Store className="text-rose-500" size={20} />
+        <h2 className="text-lg font-bold text-gray-900">Información de la tienda</h2>
       </div>
 
       {/* Logo */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Logo del refugio</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Logo de la tienda</label>
         <input
           ref={logoInputRef}
           type="file"
@@ -855,29 +852,29 @@ function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbic
                 <ImageIcon size={22} />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Sube el logo de tu refugio</p>
+                <p className="text-sm font-medium text-gray-600">Sube el logo de tu tienda</p>
                 <p className="text-xs text-gray-400">PNG, JPG · máx. 8 MB</p>
               </div>
             </div>
           )}
         </div>
-        {errores.logo && <p className="text-xs text-rose-600 mt-1">{errores.logo}</p>}
+        {errores.logo && <p className="text-xs text-rose-600 mt-1">*{errores.logo}</p>}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <Campo label="Nombre del refugio" obligatorio error={errores.nombre_refugio}>
+        <Campo label="Nombre de la tienda" obligatorio error={errores.nombre_tienda}>
           <input
-            value={form.nombre_refugio}
-            onChange={(e) => set("nombre_refugio", e.target.value)}
-            placeholder="Ej: Fundación Huellas"
-            className={inputCls(errores.nombre_refugio)}
+            value={form.nombre_tienda}
+            onChange={(e) => set("nombre_tienda", e.target.value)}
+            placeholder="Ej: Tienda Patitas Felices"
+            className={inputCls(errores.nombre_tienda)}
           />
         </Campo>
-        <Campo label="Correo de contacto" obligatorio icono={Mail} error={errores.email_contacto} hint="Este será el correo de inicio de sesión del refugio">
+        <Campo label="Correo de contacto" obligatorio icono={Mail} error={errores.email_contacto} hint="Este será el correo de inicio de sesión de la tienda">
           <input
             value={form.email_contacto}
             onChange={(e) => set("email_contacto", e.target.value)}
-            placeholder="contacto@refugio.com"
+            placeholder="contacto@tienda.com"
             className={inputCls(errores.email_contacto, true)}
           />
         </Campo>
@@ -887,7 +884,7 @@ function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbic
               value={form.descripcion}
               onChange={(e) => set("descripcion", e.target.value)}
               rows={3}
-              placeholder="Cuéntanos sobre la misión del refugio, su historia y su labor..."
+              placeholder="Cuéntanos sobre tu tienda, los productos que ofreces y tu compromiso con los animales..."
               className={`${inputCls(errores.descripcion)} resize-none`}
             />
           </Campo>
@@ -896,10 +893,10 @@ function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbic
           <input
             value={form.telefono}
             onChange={(e) => set("telefono", sanitizarTelefono(e.target.value))}
-            placeholder="300 123 4567"
+            placeholder="3001234567"
             type="tel"
-            inputMode="tel"
-            maxLength={20}
+            inputMode="numeric"
+            maxLength={10}
             className={inputCls(errores.telefono, true)}
           />
         </Campo>
@@ -922,7 +919,7 @@ function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbic
         <div className="sm:col-span-2">
           {ubicacionError && (
             <p className="text-xs text-amber-600 mb-2 flex items-center gap-1">
-              <AlertCircle size={13} /> {ubicacionError} Completa los campos manualmente.
+              <AlertCircleIcon size={13} /> {ubicacionError} Completa los campos manualmente.
             </p>
           )}
           {ubicacionOk && (
@@ -944,7 +941,7 @@ function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbic
               <input
                 value={form.municipio}
                 onChange={(e) => set("municipio", e.target.value)}
-                placeholder="Ej: Medellín"
+                placeholder="Ej: Bogotá"
                 className={inputCls(errores.municipio, true)}
               />
             </Campo>
@@ -968,17 +965,6 @@ function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbic
             className={inputCls(errores.website, true)}
           />
         </Campo>
-        <Campo label="Año de fundación" icono={Calendar} error={errores.anio_fundacion}>
-          <input
-            value={form.anio_fundacion}
-            onChange={(e) => set("anio_fundacion", e.target.value)}
-            placeholder="2018"
-            type="number"
-            min="1900"
-            max="2100"
-            className={inputCls(errores.anio_fundacion, true)}
-          />
-        </Campo>
         <Campo label="Facebook" icono={FacebookIcon} error={errores.facebook}>
           <input
             value={form.facebook}
@@ -995,12 +981,20 @@ function PasoRefugio({ form, set, errores, logo, subirLogo, inputCls, usarMiUbic
             className={inputCls(errores.instagram, true)}
           />
         </Campo>
-        <Campo label="TikTok" icono={Music2} error={errores.tiktok} hint="Opcional">
+        <Campo label="Horario entre semana" icono={Clock} error={errores.horario_semana} hint="Opcional">
           <input
-            value={form.tiktok}
-            onChange={(e) => set("tiktok", e.target.value)}
-            placeholder="https://tiktok.com/@..."
-            className={inputCls(errores.tiktok, true)}
+            value={form.horario_semana}
+            onChange={(e) => set("horario_semana", e.target.value)}
+            placeholder="Lun - Vie: 9:00 a 18:00"
+            className={inputCls(errores.horario_semana, true)}
+          />
+        </Campo>
+        <Campo label="Horario fin de semana" icono={Calendar} error={errores.horario_fin_semana} hint="Opcional">
+          <input
+            value={form.horario_fin_semana}
+            onChange={(e) => set("horario_fin_semana", e.target.value)}
+            placeholder="Sáb - Dom: 10:00 a 16:00"
+            className={inputCls(errores.horario_fin_semana, true)}
           />
         </Campo>
       </div>
@@ -1016,7 +1010,7 @@ function PasoRepresentante({ form, set, errores, inputCls }) {
         <h2 className="text-lg font-bold text-gray-900">Información del representante</h2>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        La persona responsable de administrar la cuenta del refugio en Adoptify.
+        La persona responsable de administrar la cuenta de la tienda en Adoptify.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -1048,10 +1042,10 @@ function PasoRepresentante({ form, set, errores, inputCls }) {
           <input
             value={form.representante_telefono}
             onChange={(e) => set("representante_telefono", sanitizarTelefono(e.target.value))}
-            placeholder="300 123 4567"
+            placeholder="3001234567"
             type="tel"
-            inputMode="tel"
-            maxLength={20}
+            inputMode="numeric"
+            maxLength={10}
             className={inputCls(errores.representante_telefono, true)}
           />
         </Campo>
@@ -1062,7 +1056,7 @@ function PasoRepresentante({ form, set, errores, inputCls }) {
           <Sparkles size={17} />
         </div>
         <p className="text-sm text-gray-600 leading-relaxed">
-          La cuenta del refugio será creada <strong>únicamente cuando la solicitud sea aprobada</strong> por un administrador.
+          La cuenta de la tienda será creada <strong>únicamente cuando la solicitud sea aprobada</strong> por un administrador.
         </p>
       </div>
     </div>
@@ -1077,7 +1071,7 @@ function PasoDocumentos({ documentos, errores, agregarArchivos, eliminarArchivo,
         <h2 className="text-lg font-bold text-gray-900">Documentación</h2>
       </div>
       <p className="text-sm text-gray-500 mb-6">
-        Adjunta los documentos y fotografías que permitan verificar la autenticidad del refugio.
+        Adjunta los documentos y fotografías que permitan verificar la autenticidad de la tienda.
       </p>
 
       {/* Obligatorios */}
@@ -1099,9 +1093,7 @@ function PasoDocumentos({ documentos, errores, agregarArchivos, eliminarArchivo,
                 onReemplazar={reemplazarArchivo}
               />
               {errores[`doc_${doc.categoria}`] && (
-                <p className="text-xs text-rose-600 mt-1 flex items-center gap-1">
-                  <AlertCircle size={13} /> {errores[`doc_${doc.categoria}`]}
-                </p>
+                <p className="text-xs text-rose-600 mt-1">*{errores[`doc_${doc.categoria}`]}</p>
               )}
             </div>
           ))}
@@ -1140,24 +1132,24 @@ function PasoRevision({ form, set, errores, documentos, logo }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Refugio */}
+        {/* Tienda */}
         <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-5">
           <div className="flex items-center gap-2 mb-3">
-            <Building2 size={17} className="text-rose-500" />
-            <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wide">Refugio</h3>
+            <Store size={17} className="text-rose-500" />
+            <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wide">Tienda</h3>
           </div>
           {logo && <img src={logo.base64} alt="Logo" className="w-14 h-14 rounded-2xl object-cover border border-gray-200 mb-3" />}
-          <Fila label="Nombre" valor={form.nombre_refugio} />
+          <Fila label="Nombre" valor={form.nombre_tienda} />
           <Fila label="Correo" valor={form.email_contacto} />
           <Fila label="Teléfono" valor={form.telefono} />
           <Fila label="Departamento" valor={form.departamento} />
           <Fila label="Municipio" valor={form.municipio} />
           <Fila label="Dirección" valor={form.direccion} />
           <Fila label="Sitio web" valor={form.website} />
-          <Fila label="Año de fundación" valor={form.anio_fundacion} />
+          <Fila label="Horario semana" valor={form.horario_semana} />
+          <Fila label="Horario fin de semana" valor={form.horario_fin_semana} />
           <Fila label="Facebook" valor={form.facebook} />
           <Fila label="Instagram" valor={form.instagram} />
-          <Fila label="TikTok" valor={form.tiktok} />
           {form.descripcion && (
             <div className="py-2.5">
               <p className="text-sm text-gray-500 mb-1">Descripción</p>
@@ -1211,9 +1203,7 @@ function PasoRevision({ form, set, errores, documentos, logo }) {
             </span>
           </label>
           {errores.acepto_veracidad && (
-            <p className="text-xs text-rose-600 mt-1 flex items-center gap-1">
-              <AlertCircle size={13} /> {errores.acepto_veracidad}
-            </p>
+            <p className="text-xs text-rose-600 mt-1">*{errores.acepto_veracidad}</p>
           )}
         </div>
         <div>
@@ -1229,9 +1219,7 @@ function PasoRevision({ form, set, errores, documentos, logo }) {
             </span>
           </label>
           {errores.autorizo_verificacion && (
-            <p className="text-xs text-rose-600 mt-1 flex items-center gap-1">
-              <AlertCircle size={13} /> {errores.autorizo_verificacion}
-            </p>
+            <p className="text-xs text-rose-600 mt-1">*{errores.autorizo_verificacion}</p>
           )}
         </div>
       </div>
@@ -1280,10 +1268,10 @@ function SuccessScreen({ resultado, onVolver }) {
             </div>
             <div className="flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-100 p-3">
               <span className="shrink-0 w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center">
-                <AlertCircle size={17} />
+                <AlertCircleIcon size={17} />
               </span>
               <p className="text-sm text-amber-800">
-                <strong>Importante:</strong> todavía NO existe una cuenta para el refugio. Esta se
+                <strong>Importante:</strong> todavía NO existe una cuenta para la tienda. Esta se
                 creará únicamente cuando un administrador apruebe tu solicitud.
               </p>
             </div>

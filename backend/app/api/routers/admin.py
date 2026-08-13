@@ -415,9 +415,13 @@ def listar_tiendas(
     """Lista tiendas aliadas con filtros, búsqueda, ordenamiento y paginación."""
     query = db.query(Tienda).options(joinedload(Tienda.usuario))
 
-    # Filtro por estado
+    # Filtro por estado. Por defecto (sin filtro) SOLO se muestran tiendas aprobadas
+    # (activa/suspendida); las solicitudes pendientes viven en "Solicitudes de Tienda"
+    # y no deben aparecer aquí como tienda activa.
     if estado and estado in ("activa", "pendiente", "suspendida"):
         query = query.filter(Tienda.estado == estado)
+    else:
+        query = query.filter(Tienda.estado.in_(["activa", "suspendida"]))
 
     # Búsqueda por texto (solo columnas existentes)
     if busqueda:

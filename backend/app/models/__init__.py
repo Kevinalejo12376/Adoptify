@@ -26,6 +26,11 @@ from app.models.solicitud_refugio import (
     SolicitudRefugioHistorial,
     EnlaceCreacionPassword,
 )
+from app.models.solicitud_tienda import (
+    SolicitudTienda,
+    SolicitudTiendaDocumento,
+    SolicitudTiendaHistorial,
+)
 from app.models.tienda import (
     Tienda,
     TiendaPermiso,
@@ -58,5 +63,6 @@ __all__ = [
     "TiendaPqrs", "TiendaPqrsMensaje", "TiendaPqrsAdjunto",
     "CodigoVerificacion",
     "SolicitudRefugio", "SolicitudRefugioDocumento", "SolicitudRefugioHistorial",
+    "SolicitudTienda", "SolicitudTiendaDocumento", "SolicitudTiendaHistorial",
     "EnlaceCreacionPassword",
 ]

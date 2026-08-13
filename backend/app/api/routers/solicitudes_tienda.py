@@ -1,8 +1,9 @@
 # pyrefly: ignore [missing-import]
-"""Endpoints públicos para el formulario de solicitud de registro de refugio.
+"""Endpoints públicos para el formulario de solicitud de registro de Tienda Aliada.
 
 No requieren autenticación: cualquier visitante puede enviar una solicitud,
 consultar su estado mediante su token y completar información solicitada.
+Reutiliza la infraestructura del flujo de solicitudes de Refugios.
 """
 import logging
 import secrets
@@ -20,19 +21,18 @@ from app.db.database import get_db
 from app.core.security import get_password_hash
 from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.models.usuario import Usuario
-from app.models.refugio import Refugio
-from app.models.solicitud_refugio import (
-    SolicitudRefugio,
-    EnlaceCreacionPassword,
+from app.models.tienda import Tienda
+from app.models.solicitud_refugio import EnlaceCreacionPassword
+from app.models.solicitud_tienda import SolicitudTienda
+from app.schemas.solicitud_tienda import (
+    SolicitudTiendaCreate,
+    SolicitudTiendaResponse,
+    SolicitudTiendaEstadoPublico,
+    SolicitudTiendaDocumentoUpload,
+    CrearPasswordTiendaRequest,
+    validar_password_fuerte,
 )
-from app.schemas.solicitud_refugio import (
-    SolicitudRefugioCreate,
-    SolicitudRefugioResponse,
-    SolicitudRefugioEstadoPublico,
-    SolicitudRefugioDocumentoUpload,
-    CrearPasswordRequest,
-)
-from app.services import solicitudes_refugio as svc
+from app.services import solicitudes_tienda as svc
 
 logger = logging.getLogger(__name__)
 
@@ -40,25 +40,25 @@ router = APIRouter()
 
 
 def _subir_logo(contenido_base64: str) -> dict:
-    """Sube el logo del refugio a Cloudinary y devuelve {url, public_id}."""
+    """Sube el logo de la tienda a Cloudinary y devuelve {url, public_id}."""
     from app.services.cloudinary_service import _subir_a_cloudinary
     contenido = contenido_base64 or ""
     if "," in contenido and contenido.lstrip().startswith("data:"):
         contenido = contenido.split(",", 1)[1]
-    return _subir_a_cloudinary(contenido, "solicitudes-refugio/logos", "logo")
+    return _subir_a_cloudinary(contenido, "solicitudes-tienda/logos", "logo")
 
 
-@router.post("/", response_model=SolicitudRefugioResponse, status_code=status.HTTP_201_CREATED)
-def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_db)):
-    """Crea una solicitud de registro de refugio (formulario público)."""
+@router.post("/", response_model=SolicitudTiendaResponse, status_code=status.HTTP_201_CREATED)
+def crear_solicitud(payload: SolicitudTiendaCreate, db: Session = Depends(get_db)):
+    """Crea una solicitud de registro de Tienda Aliada (formulario público)."""
     email_norm = payload.representante_email.strip().lower()
-
     email_contacto = (payload.email_contacto or "").strip().lower()
 
     # --- Validación de documentación obligatoria (backend como autoridad final) ---
+    # Toda la documentación es obligatoria; no se puede enviar una solicitud incompleta.
     CATEGORIAS_REQUERIDAS = {
-        "identidad", "fachada", "fotografias", "instalaciones", "animales",
-        "camara_comercio", "nit", "personeria_juridica", "certificado_fundacion", "otros",
+        "identidad", "camara_comercio", "fachada", "instalaciones",
+        "productos", "nit", "otros",
     }
     categorias_recibidas = {d.categoria for d in payload.documentos}
     faltantes = CATEGORIAS_REQUERIDAS - categorias_recibidas
@@ -71,10 +71,10 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
     # --- Prevención de solicitudes duplicadas ---
     # 1. Si ya existe una solicitud pendiente/informacion con el correo del representante.
     duplicada = (
-        db.query(SolicitudRefugio)
+        db.query(SolicitudTienda)
         .filter(
-            SolicitudRefugio.representante_email == email_norm,
-            SolicitudRefugio.estado.in_(["pendiente", "informacion_solicitada"]),
+            SolicitudTienda.representante_email == email_norm,
+            SolicitudTienda.estado.in_(["pendiente", "informacion_solicitada"]),
         )
         .first()
     )
@@ -87,15 +87,16 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
             ),
         )
 
-    # 2. Si ya existe una solicitud APROBADA con el mismo correo, el refugio ya fue creado.
+    # 2. Si ya existe una solicitud APROBADA con el mismo correo, la tienda ya fue creada:
+    #    no se permite volver a registrarla.
     aprobada = (
-        db.query(SolicitudRefugio)
+        db.query(SolicitudTienda)
         .filter(
-            SolicitudRefugio.estado == "aprobada",
-            (SolicitudRefugio.representante_email == email_norm)
+            SolicitudTienda.estado == "aprobada",
+            (SolicitudTienda.representante_email == email_norm)
             | (
-                (SolicitudRefugio.email_contacto.isnot(None))
-                & (SolicitudRefugio.email_contacto == email_contacto)
+                (SolicitudTienda.email_contacto.isnot(None))
+                & (SolicitudTienda.email_contacto == email_contacto)
             ),
         )
         .first()
@@ -103,7 +104,7 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
     if aprobada:
         raise HTTPException(
             status_code=400,
-            detail="Ya existe una cuenta registrada para este usuario. Este refugio ya fue aprobado en Adoptify.",
+            detail="Ya existe una cuenta registrada para este usuario. Esta tienda ya fue aprobada en Adoptify.",
         )
 
     # 3. Unicidad del correo de contacto: no debe estar registrado como cuenta activa.
@@ -115,20 +116,20 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
                 detail="El correo de contacto ya está registrado en Adoptify. Usa otro correo.",
             )
 
-    # 4. No debe existir otro refugio con el mismo nombre (slug base).
-    base_slug = svc._slugify(payload.nombre_refugio or "")
+    # 4. No debe existir otra tienda con el mismo nombre (slug base).
+    base_slug = svc._slugify(payload.nombre_tienda or "")
     if base_slug:
-        refugio_existente = (
-            db.query(Refugio)
+        tienda_existente = (
+            db.query(Tienda)
             .filter(
-                (Refugio.slug == base_slug) | (Refugio.slug.like(f"{base_slug}-%"))
+                (Tienda.slug == base_slug) | (Tienda.slug.like(f"{base_slug}-%"))
             )
             .first()
         )
-        if refugio_existente:
+        if tienda_existente:
             raise HTTPException(
                 status_code=400,
-                detail="Ya existe un refugio registrado con este nombre.",
+                detail="Ya existe una tienda registrada con este nombre.",
             )
 
     # Subir logo si viene
@@ -139,21 +140,21 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
         except Exception:
             logo_url = None
 
-    solicitud = SolicitudRefugio(
-        nombre_refugio=payload.nombre_refugio,
+    solicitud = SolicitudTienda(
+        nombre_tienda=payload.nombre_tienda,
         logo_url=logo_url,
         descripcion=payload.descripcion,
-        email_contacto=(payload.email_contacto or "").strip(),
+        email_contacto=email_contacto,
         telefono=payload.telefono,
         departamento=payload.departamento,
         ciudad=payload.ciudad or payload.municipio,
         municipio=payload.municipio,
         direccion=payload.direccion,
         website=payload.website,
-        anio_fundacion=payload.anio_fundacion,
+        horario_semana=payload.horario_semana,
+        horario_fin_semana=payload.horario_fin_semana,
         facebook=payload.facebook,
         instagram=payload.instagram,
-        tiktok=payload.tiktok,
         representante_nombre=payload.representante_nombre,
         representante_apellido=payload.representante_apellido,
         representante_email=email_norm,
@@ -177,24 +178,26 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
 
     svc._agregar_historial(
         db, solicitud, "creada",
-        f"Solicitud de registro enviada para '{solicitud.nombre_refugio}'.",
+        f"Solicitud de registro enviada para '{solicitud.nombre_tienda}'.",
     )
 
     # Notificar a los administradores
     notificar_admins(
         db,
         tipo="nueva_solicitud",
-        mensaje=f"📬 Nueva solicitud de refugio: {solicitud.nombre_refugio} ({solicitud.ciudad or '—'})",
-        enlace="/admin/refugios",
+        mensaje=f"📬 Nueva solicitud de tienda aliada: {solicitud.nombre_tienda} ({solicitud.ciudad or '—'})",
+        enlace="/admin/tiendas/solicitudes",
     )
     registrar_auditoria(
-        db, None, "crear_solicitud_refugio", "solicitudes_refugio",
-        solicitud.id, f"Solicitud de {solicitud.nombre_refugio}",
+        db, None, "crear_solicitud_tienda", "solicitudes_tienda",
+        solicitud.id, f"Solicitud de {solicitud.nombre_tienda}",
     )
 
     try:
         db.commit()
     except IntegrityError:
+        # Dos peticiones simultáneas pudieron pasar el chequeo; la restricción única
+        # de la BD bloquea el segundo registro.
         db.rollback()
         raise HTTPException(
             status_code=400,
@@ -210,11 +213,11 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
     return data
 
 
-@router.get("/estado/{token}", response_model=SolicitudRefugioEstadoPublico)
+@router.get("/estado/{token}", response_model=SolicitudTiendaEstadoPublico)
 def estado_solicitud(token: str, db: Session = Depends(get_db)):
     """Consulta pública del estado de una solicitud mediante su token."""
     solicitud = (
-        db.query(SolicitudRefugio).filter(SolicitudRefugio.token_consulta == token).first()
+        db.query(SolicitudTienda).filter(SolicitudTienda.token_consulta == token).first()
     )
     if not solicitud:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
@@ -229,9 +232,9 @@ def estado_solicitud(token: str, db: Session = Depends(get_db)):
     elif solicitud.estado == "rechazada":
         mensaje = "Tu solicitud fue rechazada. Revisa el motivo indicado."
 
-    return SolicitudRefugioEstadoPublico(
+    return SolicitudTiendaEstadoPublico(
         id=solicitud.id,
-        nombre_refugio=solicitud.nombre_refugio,
+        nombre_tienda=solicitud.nombre_tienda,
         estado=solicitud.estado,
         mensaje_informacion=solicitud.mensaje_informacion,
         motivo_rechazo=solicitud.motivo_rechazo,
@@ -244,16 +247,16 @@ def estado_solicitud(token: str, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/{token}/documentos", response_model=SolicitudRefugioResponse)
+@router.post("/{token}/documentos", response_model=SolicitudTiendaResponse)
 def subir_documentos_adicionales(
     token: str,
-    payload: SolicitudRefugioDocumentoUpload,
+    payload: SolicitudTiendaDocumentoUpload,
     db: Session = Depends(get_db),
 ):
-    """Permite al refugio completar únicamente la información solicitada
+    """Permite a la tienda completar únicamente la información solicitada
     (subir documentos) sin volver a diligenciar toda la solicitud."""
     solicitud = (
-        db.query(SolicitudRefugio).filter(SolicitudRefugio.token_consulta == token).first()
+        db.query(SolicitudTienda).filter(SolicitudTienda.token_consulta == token).first()
     )
     if not solicitud:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
@@ -278,7 +281,7 @@ def subir_documentos_adicionales(
         solicitud.actualizada_en = datetime.now(timezone.utc)
         svc._agregar_historial(
             db, solicitud, "informacion_completada",
-            "El refugio completó la información solicitada. Solicitud de nuevo en revisión.",
+            "La tienda completó la información solicitada. Solicitud de nuevo en revisión.",
         )
 
     if not agregados:
@@ -292,8 +295,12 @@ def subir_documentos_adicionales(
 
 
 @router.post("/crear-password", status_code=status.HTTP_200_OK)
-def crear_password(payload: CrearPasswordRequest, db: Session = Depends(get_db)):
-    """Crea la contraseña de la cuenta del refugio aprobado usando el enlace seguro."""
+def crear_password(payload: CrearPasswordTiendaRequest, db: Session = Depends(get_db)):
+    """Crea la contraseña de la cuenta de la Tienda Aliada aprobada usando el enlace seguro.
+
+    Valida en backend la fortaleza de la contraseña (mínimo 8 caracteres, mayúscula,
+    minúscula, número y carácter especial) y registra la creación en el historial.
+    """
     now = datetime.now(timezone.utc)
     enlace = (
         db.query(EnlaceCreacionPassword)
@@ -317,24 +324,37 @@ def crear_password(payload: CrearPasswordRequest, db: Session = Depends(get_db))
     if not user:
         raise HTTPException(status_code=404, detail="La cuenta asociada no existe")
 
+    # Este endpoint es exclusivo de Tiendas Aliadas. Si el enlace pertenece a otro
+    # tipo de cuenta (p. ej. refugio), se responde 404 para que el frontend use el
+    # endpoint correspondiente del módulo de refugios.
+    solicitud = (
+        db.query(SolicitudTienda)
+        .filter(SolicitudTienda.usuario_creado_id == user.id)
+        .first()
+    )
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="El enlace no es válido")
+
+    # Validar la fortaleza de la contraseña SOLO cuando el enlace es de una tienda.
+    # Se ejecuta aquí (y no en el schema de Pydantic) para que los enlaces de
+    # Refugio reciban el 404 anterior y el flujo actual de Refugio no se vea afectado.
+    try:
+        validar_password_fuerte(payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     user.hashed_password = get_password_hash(payload.password)
     user.activo = True
     enlace.usado = "usado"
 
-    # Registrar en el historial de la solicitud si existe
-    solicitud = (
-        db.query(SolicitudRefugio)
-        .filter(SolicitudRefugio.usuario_creado_id == user.id)
-        .first()
+    # Registrar en el historial de la solicitud de tienda
+    svc._agregar_historial(
+        db, solicitud, "password_creada",
+        "El representante creó la contraseña de acceso mediante el enlace seguro.",
     )
-    if solicitud:
-        svc._agregar_historial(
-            db, solicitud, "password_creada",
-            "El representante creó la contraseña de acceso mediante el enlace seguro.",
-        )
 
     registrar_auditoria(
-        db, user.id, "crear_password_refugio", "usuarios",
+        db, user.id, "crear_password_tienda", "usuarios",
         user.id, f"Contraseña creada por enlace seguro para {user.email}",
     )
     db.commit()

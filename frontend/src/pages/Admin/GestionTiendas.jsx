@@ -5,7 +5,7 @@ import {
   Building2, CheckCircle, Clock, AlertTriangle, ShoppingBag, TrendingUp,
   ChevronLeft, ChevronRight, Image as ImageIcon, ExternalLink, MapPin,
   Globe, Phone, Mail as MailIcon, User, Calendar, Shield,
-  Filter,
+  Filter, ClipboardList,
 } from "lucide-react";
 import {
   getResumenTiendas, listarTiendas, obtenerTienda,
@@ -13,6 +13,7 @@ import {
   restablecerPasswordTienda, eliminarTienda,
   listarProductosTienda, ocultarProductoTienda, eliminarProductoTienda,
 } from "../../api/tiendas";
+import SolicitudesTiendas from "./SolicitudesTiendas";
 
 // ========================================================
 // COLORES PASTEL PARA TARJETAS DE RESUMEN
@@ -1189,6 +1190,8 @@ export default function GestionTiendas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalRegistros, setTotalRegistros] = useState(0);
+  // Pestaña activa: 'tiendas' (registradas) o 'solicitudes' (por aprobar)
+  const [tab, setTab] = useState("tiendas");
 
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState("");
@@ -1475,6 +1478,30 @@ export default function GestionTiendas() {
         </div>
       </div>
 
+      {/* ========== PESTAÑAS: Tiendas | Solicitudes ========== */}
+      <div className="flex flex-wrap gap-2 animate-fade-in">
+        <button
+          onClick={() => setTab("tiendas")}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+            ${tab === "tiendas"
+              ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
+              : "bg-white dark:bg-dark-card text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 hover:text-rose-600"}`}
+        >
+          <Store size={16} /> Tiendas Aliadas
+        </button>
+        <button
+          onClick={() => setTab("solicitudes")}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+            ${tab === "solicitudes"
+              ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
+              : "bg-white dark:bg-dark-card text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 hover:text-rose-600"}`}
+        >
+          <ClipboardList size={16} /> Solicitudes de Tienda
+        </button>
+      </div>
+
+      {tab === "tiendas" ? (
+        <>
       {/* ========== TARJETAS DE RESUMEN ========== */}
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1687,6 +1714,10 @@ export default function GestionTiendas() {
             onPageChange={setPagina}
           />
         </>
+      )}
+        </>
+      ) : (
+        <SolicitudesTiendas />
       )}
 
       {/* ========== MODALES ========== */}
