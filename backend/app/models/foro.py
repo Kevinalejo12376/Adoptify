@@ -19,6 +19,10 @@ class ForoPost(Base):
     fijado = Column(Boolean, nullable=False, default=False)
     vistas = Column(Integer, nullable=False, default=0)
     compartidos = Column(Integer, nullable=False, default=0)
+    # Soft delete: activo=False oculta la publicación conservando comentarios,
+    # reacciones y guardados (a diferencia del borrado físico en cascada).
+    activo = Column(Boolean, nullable=False, default=True)
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     autor = relationship("Usuario", lazy="joined")

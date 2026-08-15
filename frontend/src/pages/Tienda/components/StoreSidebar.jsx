@@ -26,6 +26,7 @@ function useMenuItems() {
   const items = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard", permiso: "dashboard.ver" },
     { icon: Package, label: "Productos", path: "/tienda/productos", permiso: "productos.ver" },
+    { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
     { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos", permiso: "pedidos.ver" },
     { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas", permiso: "reportes.ver_estadisticas" },
     { icon: History, label: "Historial de actividad", path: "/tienda/actividad", permiso: "historial.ver" },
