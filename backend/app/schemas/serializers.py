@@ -15,6 +15,19 @@ def _personalidad_a_lista(v):
     return None
 
 
+def _personalidad_a_lista(v):
+    """Normaliza la personalidad a una lista de textos.
+
+    Nuevo formato: columna text[] (ya es una lista). Por compatibilidad, si
+    llega una cadena separada por comas (formato anterior), la convierte.
+    """
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        return [p.strip() for p in v.split(",") if p.strip()]
+    return None
+
+
 def serialize_usuario(u):
     return {
         "id": u.id,

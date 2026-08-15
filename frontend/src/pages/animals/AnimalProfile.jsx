@@ -37,6 +37,24 @@ const TEST_QUESTIONS = [
   { id: "compromiso", pregunta: "¿Estás listo para un compromiso de largo plazo?", opciones: ["Sí, totalmente", "Probablemente", "Aún no estoy seguro"] },
 ];
 
+const getStatusBadge = (status) => {
+  const config = {
+    "disponible": { label: "Disponible", cls: "bg-emerald-100 text-emerald-700" },
+    "en_proceso": { label: "En proceso", cls: "bg-amber-100 text-amber-700" },
+    "adoptado": { label: "Adoptado", cls: "bg-blue-100 text-blue-700" },
+  };
+  const c = config[status] || config["disponible"];
+  return (
+    <span className={`px-4 py-2 rounded-full text-sm font-medium ${c.cls}`}>{c.label}</span>
+  );
+};
+
+// Convierte un valor vacío (null/undefined/"") en un texto amigable.
+const mostrarValor = (v) => {
+  const s = v === null || v === undefined ? "" : String(v).trim();
+  return s === "" ? "No especificado" : s;
+};
+
 export default function AnimalProfile() {
   const { id } = useParams();
   const { addFavorite, removeFavorite, isFavorite, user } = useAuth();

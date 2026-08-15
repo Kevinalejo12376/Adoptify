@@ -227,6 +227,14 @@ def _run_migrations():
             # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
             print(f"[migracion] No se pudieron crear tablas de equipo de refugio por SQL (SQLite las crea via modelos): {e}")
 
+        # --- Resumen final ---
+        ok = sum(1 for _, s in resultados if s)
+        fallos = [n for n, s in resultados if not s]
+        print(f"[migracion] Resumen: {ok}/{len(resultados)} migraciones aplicadas/verificadas.")
+        if fallos:
+            print(f"[migracion] Con aviso (no críticas): {', '.join(fallos)}")
+        else:
+            print("[migracion] Todas las migraciones aplicadas/verificadas correctamente.")
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
 

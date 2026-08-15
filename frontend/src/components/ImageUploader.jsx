@@ -61,6 +61,11 @@ export default function ImageUploader({
     onUploadingChange?.(uploading || pending.length > 0);
   }, [uploading, pending.length, onUploadingChange]);
 
+  // Notifica al padre si hay una subida en curso (para bloquear "Guardar").
+  useEffect(() => {
+    onUploadingChange?.(uploading || pending.length > 0);
+  }, [uploading, pending.length, onUploadingChange]);
+
   // Normaliza `value` a un arreglo de objetos.
   const images = Array.isArray(value) ? value : value ? [value] : [];
 
