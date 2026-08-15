@@ -9,7 +9,7 @@ import {
   Navigation,
 } from "lucide-react";
 import { FacebookIcon, InstagramIcon } from "../../components/SocialIcons";
-import logo from "../../assets/logo.png";
+import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
 import Footer from "../../components/Footer";
 import {
   crearSolicitudRefugio,

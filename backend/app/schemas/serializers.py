@@ -16,6 +16,18 @@ def serialize_usuario(u):
     }
 
 
+def _a_texto(valor):
+    """Normaliza un valor a texto plano.
+
+    Si el valor es una lista/tupla (por ejemplo, la personalidad se guardo como
+    array en la BD), la une con ", " para cumplir el contrato de los schemas y
+    del frontend, que esperan un string.
+    """
+    if isinstance(valor, (list, tuple)):
+        return ", ".join(str(v) for v in valor)
+    return valor
+
+
 def serialize_mascota(m):
     return {
         "id": m.id,
@@ -26,9 +38,9 @@ def serialize_mascota(m):
         "peso": m.peso,
         "color": m.color,
         "descripcion": m.descripcion,
-        "personalidad": m.personalidad,
-        "salud": m.salud,
-        "requisitos": m.requisitos,
+        "personalidad": _a_texto(m.personalidad),
+        "salud": _a_texto(m.salud),
+        "requisitos": _a_texto(m.requisitos),
         "vacunado": m.vacunado,
         "esterilizado": m.esterilizado,
         "desparasitado": m.desparasitado,

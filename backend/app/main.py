@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
 # pyrefly: ignore [missing-import]
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.core.config import settings
 from app.db.database import Base, engine
 # Importa todos los modelos para registrarlos en Base.metadata
@@ -18,6 +18,7 @@ from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin, upload,
+    reportes_descarga, adopciones,
 )
 
 logger = logging.getLogger(__name__)
@@ -502,20 +503,27 @@ def _backfill_super_admin_tiendas(db):
 app = FastAPI(title="Adoptify API", lifespan=lifespan)
 
 
-# Maneja errores de base de datos (conexion caida, DNS no resuelve, timeout)
-# devolviendo un JSON 503 limpio en lugar de un stack trace gigante en consola.
+# Maneja errores de base de datos devolviendo un JSON 503 limpio en lugar de un
+# stack trace gigante en consola. Distingue entre errores de CONEXION
+# (red/DNS/timeout) y errores de consulta/esquema para no dar mensajes
+# enganosos: el mensaje de red solo aparece cuando realmente hubo un fallo de
+# conectividad.
 @app.exception_handler(SQLAlchemyError)
 async def _db_error_handler(request: Request, exc: SQLAlchemyError):
     logger.error("Error de base de datos en %s: %s", request.url.path, exc)
-    return JSONResponse(
-        status_code=503,
-        content={
-            "detail": (
-                "La base de datos no esta disponible en este momento. "
-                "Revisa tu conexion de red/DNS hacia Supabase e intentalo de nuevo."
-            )
-        },
-    )
+
+    if isinstance(exc, OperationalError):
+        detail = (
+            "No se pudo conectar con la base de datos en este momento. "
+            "Revisa tu conexion de red/DNS hacia Supabase e intentalo de nuevo."
+        )
+    else:
+        detail = (
+            "Ocurrio un error al consultar la base de datos. "
+            "Si el problema persiste, contacta al administrador del sistema."
+        )
+
+    return JSONResponse(status_code=503, content={"detail": detail})
 
 
 # CORS para permitir que el frontend de React se comunique con la API.
@@ -555,6 +563,16 @@ app.include_router(
     tags=["Administracion - Refugios y Solicitudes"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descarga",
+    tags=["Reportes descargables (PDF/Excel)"],
+)
+app.include_router(
+    adopciones.router,
+    prefix="/api/adopciones",
+    tags=["Adopciones"],
+)
 
 
 @app.get("/")

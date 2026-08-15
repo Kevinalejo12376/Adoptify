@@ -1,6 +1,8 @@
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
+from sqlalchemy import and_, func, or_
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from typing import List
@@ -81,10 +83,26 @@ def crear_solicitud(
 
 @router.get("/mias", response_model=List[SolicitudResponse])
 def mis_solicitudes(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Historial de adopciones del usuario autenticado."""
+    """Historial de adopciones del usuario autenticado.
+
+    Encuentra las solicitudes por ``usuario_id`` o, si el registro no quedo
+    asociado al usuario (``usuario_id`` NULL), por el correo de contacto, de
+    modo que la UI muestre exactamente lo mismo que el reporte descargable.
+    """
+    condiciones = [SolicitudAdopcion.usuario_id == current_user.id]
+    if current_user.email:
+        # Comparacion insensible a mayusculas para no perder solicitudes cuyo
+        # correo de contacto se guardo con otra capitalizacion.
+        condiciones.append(
+            and_(
+                SolicitudAdopcion.usuario_id.is_(None),
+                func.lower(SolicitudAdopcion.email_contacto)
+                == func.lower(current_user.email),
+            )
+        )
     solicitudes = (
         db.query(SolicitudAdopcion)
-        .filter(SolicitudAdopcion.usuario_id == current_user.id)
+        .filter(or_(*condiciones))
         .order_by(SolicitudAdopcion.creada_en.desc())
         .all()
     )

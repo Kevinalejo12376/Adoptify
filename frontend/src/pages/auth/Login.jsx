@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import AutoFadingImage from "../../components/AutoFadingImage";
-import logo from "../../assets/logo.png";
+import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
 // Imágenes estáticas servidas desde Cloudinary
 const loginDog = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347014/frontend-assets/login-dog/loginDog.jpg";
 const mascotasImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";

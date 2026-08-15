@@ -35,6 +35,11 @@ FRONTEND_ASSETS = BASE_DIR / "frontend" / "src" / "assets"
 
 IMAGENES = [
     {
+        "ruta": FRONTEND_ASSETS / "logo.png",
+        "carpeta": "frontend-assets/logo",
+        "nombre": "logo",
+    },
+    {
         "ruta": FRONTEND_ASSETS / "daycare.png",
         "carpeta": "frontend-assets/daycare",
         "nombre": "daycare",
