@@ -4,7 +4,20 @@ import {
 } from "lucide-react";
 import { estadisticasTienda, misProductosTienda } from "../../api/tienda";
 
+// Paleta de colores para que cada barra tenga un color diferente.
+const BAR_COLORS = [
+  "from-rose-500 to-rose-400 dark:from-rose-600 dark:to-rose-500",
+  "from-amber-500 to-amber-400 dark:from-amber-600 dark:to-amber-500",
+  "from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500",
+  "from-blue-500 to-blue-400 dark:from-blue-600 dark:to-blue-500",
+  "from-violet-500 to-violet-400 dark:from-violet-600 dark:to-violet-500",
+  "from-cyan-500 to-cyan-400 dark:from-cyan-600 dark:to-cyan-500",
+  "from-orange-500 to-orange-400 dark:from-orange-600 dark:to-orange-500",
+];
+
 // Grafica de barras simple con datos reales.
+// Cada barra usa su propio color: si el item trae `color` lo usa,
+// si no, usa el color por defecto del componente.
 function BarChart({ items, height = 200, color = "from-rose-500 to-amber-500" }) {
   const max = Math.max(...items.map((i) => i.value), 1);
   if (items.length === 0) {
@@ -15,7 +28,7 @@ function BarChart({ items, height = 200, color = "from-rose-500 to-amber-500" })
       {items.map((it, index) => (
         <div key={index} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
           <span className="text-[10px] font-medium text-gray-400">{it.value}</span>
-          <div className={`w-full rounded-lg bg-gradient-to-t ${color} transition-all duration-500 min-h-[4px]`}
+          <div className={`w-full rounded-lg bg-gradient-to-t ${it.color || color} transition-all duration-500 min-h-[4px]`}
             style={{ height: `${(it.value / max) * 100}%` }} />
           <span className="text-[10px] font-medium text-gray-400 truncate w-full text-center" title={it.label}>{it.label}</span>
         </div>
@@ -92,12 +105,12 @@ export default function StoreStatistics() {
       {/* Charts Row (reales) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top productos por ventas</h3>
-          <BarChart items={top.map((p) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.ventas || 0 }))} />
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top 7 productos por ventas</h3>
+          <BarChart items={top.slice(0, 7).map((p, i) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.ventas || 0, color: BAR_COLORS[i % BAR_COLORS.length] }))} />
         </div>
         <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top productos por stock</h3>
-          <BarChart items={[...products].sort((a, b) => (b.stock || 0) - (a.stock || 0)).slice(0, 6).map((p) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.stock || 0 }))} color="from-blue-500 to-indigo-500" />
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top 7 productos por stock</h3>
+          <BarChart items={[...products].sort((a, b) => (b.stock || 0) - (a.stock || 0)).slice(0, 7).map((p, i) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.stock || 0, color: BAR_COLORS[i % BAR_COLORS.length] }))} />
         </div>
       </div>
 

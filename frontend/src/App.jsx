@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "r
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
-import ProtectedRoute from "./components/ProtectedRoute";
+import HomeRoute from "./components/HomeRoute";
 import UserRoute from "./components/UserRoute";
 import AdminRoute from "./components/AdminRoute";
 import StoreRoute from "./components/StoreRoute";
@@ -132,7 +132,7 @@ function AppContent() {
       <main className="flex-grow">
         <Routes>
           {/* Rutas públicas */}
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<HomeRoute><Home /></HomeRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/registrar-refugio" element={<ShelterRegistration />} />
@@ -246,17 +246,17 @@ function AppContent() {
           />
 
           {/* Rutas existentes */}
-          <Route path="/animals" element={<ProtectedRoute><Animals /></ProtectedRoute>} />
-          <Route path="/animal/:id" element={<ProtectedRoute><AnimalProfile /></ProtectedRoute>} />
-          <Route path="/shelters" element={<ProtectedRoute><Shelters /></ProtectedRoute>} />
-          <Route path="/shelter/:id" element={<ShelterDetails />} />
-          <Route path="/shelter/:id/animals" element={<ProtectedRoute><ShelterAnimals /></ProtectedRoute>} />
-          <Route path="/store" element={<ProtectedRoute><Store /></ProtectedRoute>} />
-          <Route path="/shelter-store/:shelterId" element={<ProtectedRoute><Store /></ProtectedRoute>} />
-          <Route path="/store-profile/:storeId" element={<ProtectedRoute><MarketplaceStoreProfile /></ProtectedRoute>} />
-          <Route path="/product/:id" element={<ProtectedRoute><ProductProfile /></ProtectedRoute>} />
-          <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
-          <Route path="/forum" element={<ProtectedRoute><Forum /></ProtectedRoute>} />
+          <Route path="/animals" element={<UserRoute><Animals /></UserRoute>} />
+          <Route path="/animal/:id" element={<UserRoute><AnimalProfile /></UserRoute>} />
+          <Route path="/shelters" element={<UserRoute><Shelters /></UserRoute>} />
+          <Route path="/shelter/:id" element={<UserRoute><ShelterDetails /></UserRoute>} />
+          <Route path="/shelter/:id/animals" element={<UserRoute><ShelterAnimals /></UserRoute>} />
+          <Route path="/store" element={<UserRoute><Store /></UserRoute>} />
+          <Route path="/shelter-store/:shelterId" element={<UserRoute><Store /></UserRoute>} />
+          <Route path="/store-profile/:storeId" element={<UserRoute><MarketplaceStoreProfile /></UserRoute>} />
+          <Route path="/product/:id" element={<UserRoute><ProductProfile /></UserRoute>} />
+          <Route path="/cart" element={<UserRoute><Cart /></UserRoute>} />
+          <Route path="/forum" element={<UserRoute><Forum /></UserRoute>} />
 
           {/* Fallback route */}
           <Route path="*" element={<Home />} />

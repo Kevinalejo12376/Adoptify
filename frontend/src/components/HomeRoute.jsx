@@ -2,17 +2,13 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 /**
- * Guard para las rutas del PANEL DE USUARIO (comprador) y de las páginas
- * de consumo del usuario normal (animales, refugios, tienda, foro, carrito...).
+ * Guard para la HOME pública.
  *
- * Solo el rol "usuario" autenticado puede acceder:
- * - Sin sesión          -> redirige a /login
- * - Refugio (repr/empl) -> redirige a /refugio/dashboard
- * - Tienda aliada       -> redirige a /tienda/dashboard
- * - Administrador       -> redirige a /admin/dashboard
- * - Cualquier otro rol  -> redirige a /login
+ * - Visitantes anónimos y usuarios con rol "usuario" pueden ver la home.
+ * - Roles privilegiados autenticados son redirigidos a su propio panel,
+ *   para que no vean la home de usuario normal.
  */
-export default function UserRoute({ children }) {
+export default function HomeRoute({ children }) {
   const { user, loading, isShelter, isStore, isAdmin } = useAuth();
 
   if (loading) {
@@ -23,8 +19,9 @@ export default function UserRoute({ children }) {
     );
   }
 
+  // Sin sesión: la home es pública.
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return children;
   }
 
   if (isShelter()) {
@@ -39,5 +36,6 @@ export default function UserRoute({ children }) {
     return <Navigate to="/admin/dashboard" replace />;
   }
 
+  // Usuario normal (rol "usuario"): ve la home.
   return children;
 }

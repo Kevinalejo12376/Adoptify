@@ -486,6 +486,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail="Correo o contrasena incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if not user.activo:
+        # Cuenta desactivada (soft delete): no puede iniciar sesión.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu cuenta está desactivada",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     access_token = create_access_token(
         data={"sub": user.email},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),

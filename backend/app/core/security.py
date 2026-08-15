@@ -73,7 +73,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
 
     user = db.query(Usuario).filter(Usuario.email == email).first()
-    if user is None:
+    if user is None or not user.activo:
+        # Cuenta inexistente o desactivada (soft delete): no puede usar el token.
         raise credentials_exception
     return user
 
@@ -94,7 +95,11 @@ def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optio
             return None
     except JWTError:
         return None
-    return db.query(Usuario).filter(Usuario.email == email).first()
+    user = db.query(Usuario).filter(Usuario.email == email).first()
+    # Usuario desactivado (soft delete) se trata como anónimo.
+    if user is None or not user.activo:
+        return None
+    return user
 
 
 def get_current_refugio(

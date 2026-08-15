@@ -15,6 +15,7 @@ from app.models.mascota import Mascota
 from app.models.catalogos import TipoMascota, TamanoMascota, GeneroMascota, EstadoMascota
 from app.schemas.mascota import MascotaCreate, MascotaUpdate, MascotaResponse
 from app.schemas.serializers import serialize_mascota
+from app.core.softdelete import soft_delete
 
 router = APIRouter()
 
@@ -32,7 +33,7 @@ def listar_mascotas(
     tipo: Optional[str] = Query(None, description="Filtrar por tipo: perro, gato, otro"),
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
 ):
-    query = db.query(Mascota)
+    query = db.query(Mascota).filter(Mascota.activo == True)  # noqa: E712
     if tipo:
         tipo_id = id_por_codigo(db, TipoMascota, tipo)
         if tipo_id:
@@ -54,7 +55,9 @@ def mis_mascotas(current_user: Usuario = Depends(require_permiso_refugio("mascot
 
 @router.get("/{mascota_id}", response_model=MascotaResponse)
 def obtener_mascota(mascota_id: int, db: Session = Depends(get_db)):
-    mascota = db.query(Mascota).filter(Mascota.id == mascota_id).first()
+    mascota = db.query(Mascota).filter(
+        Mascota.id == mascota_id, Mascota.activo == True  # noqa: E712
+    ).first()
     if not mascota:
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
     return serialize_mascota(mascota)
@@ -145,6 +148,6 @@ def eliminar_mascota(
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
     if mascota.refugio_id != refugio.id:
         raise HTTPException(status_code=403, detail="No puedes eliminar mascotas de otro refugio")
-    db.delete(mascota)
-    db.commit()
+    # Soft delete: desactiva la mascota conservando su historial de adopción.
+    soft_delete(db, mascota)
     return None

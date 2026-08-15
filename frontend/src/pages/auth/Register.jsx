@@ -8,15 +8,14 @@ import {
 import AutoFadingImage from "../../components/AutoFadingImage";
 import GoogleIcon from "../../components/GoogleIcon";
 import logo from "../../assets/logo.png";
-// Imágenes estáticas servidas desde Cloudinary
-const loginDog = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347014/frontend-assets/login-dog/loginDog.jpg";
-const mascotasImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
-const daycareImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347013/frontend-assets/daycare/daycare.jpg";
+import { CAROUSEL_IMAGES } from "../../assets/images";
 import { useAuth } from "../../context/AuthContext";
 import { getTiposDocumento } from "../../api/catalogos";
 import { sendVerificationCode, verifyCode, registerWithCodeRequest } from "../../api/auth";
 
-const authCarouselImages = [loginDog, mascotasImg, daycareImg];
+// Carrusel de fotos: imágenes servidas desde Cloudinary (carpeta
+// "frontend-assets/assets-extras"). Centralizadas en src/assets/images.js.
+const authCarouselImages = CAROUSEL_IMAGES;
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
