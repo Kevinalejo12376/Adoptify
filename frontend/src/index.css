@@ -1187,6 +1187,18 @@ body {
   animation: auth-loading-bar 2s ease-in-out;
 }
 
+/* --- Barra de carga indeterminada (formularios, ej. "Agregar mascota") --- */
+@keyframes progress-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+.animate-progress {
+  position: relative;
+  width: 40%;
+  animation: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
 /* --- Main Card Container --- */
 /* Altura automática (sin valor rígido) para que ningún contenido se corte.
    `margin: auto` centra la tarjeta y permite scroll sin recortar el inicio.

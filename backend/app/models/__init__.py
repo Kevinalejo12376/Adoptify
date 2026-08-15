@@ -6,6 +6,7 @@ from app.models.catalogos import (
     TamanoMascota,
     GeneroMascota,
     EstadoMascota,
+    RazaMascota,
     EstadoSolicitud,
     EstadoPedido,
     CategoriaProducto,
@@ -18,7 +19,7 @@ from app.models.usuario import Usuario
 from app.models.refugio import (
     Refugio, RefugioImagen, RefugioPermiso, RefugioEmpleado, RefugioEmpleadoPermiso,
 )
-from app.models.mascota import Mascota
+from app.models.mascota import Mascota, MascotaImagen
 from app.models.solicitud import SolicitudAdopcion
 from app.models.solicitud_refugio import (
     SolicitudRefugio,
@@ -52,10 +53,10 @@ from app.models.verificacion import CodigoVerificacion
 
 __all__ = [
     "TipoDocumento", "Rol", "TipoMascota", "TamanoMascota", "GeneroMascota",
-    "EstadoMascota", "EstadoSolicitud", "EstadoPedido", "CategoriaProducto",
+    "RazaMascota", "EstadoMascota", "EstadoSolicitud", "EstadoPedido", "CategoriaProducto",
     "ForoCategoria", "TipoPostForo", "EstadoPostForo", "TipoReaccion",
-    "MovimientoKardex","Usuario", "Refugio", "RefugioImagen", 
-    "RefugioPermiso", "RefugioEmpleado","RefugioEmpleadoPermiso", "Mascota", 
+    "MovimientoKardex","Usuario", "Refugio", "RefugioImagen",
+    "RefugioPermiso", "RefugioEmpleado","RefugioEmpleadoPermiso", "Mascota", "MascotaImagen",
     "Tienda", "TiendaPermiso", "TiendaUsuario", "TiendaUsuarioPermiso", 
     "TiendaActividad","Producto", "ProductoImagen","SolicitudAdopcion",
     "Notificacion", "Pqrs", "Reporte", "Auditoria", "Pedido", "PedidoItem", "ForoPost",

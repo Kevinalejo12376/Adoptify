@@ -10,6 +10,10 @@ export const getTiposMascota     = () => apiFetch(`${base}/tipos-mascota`, { aut
 export const getTamanosMascota   = () => apiFetch(`${base}/tamanos-mascota`, { auth: false });
 export const getGenerosMascota   = () => apiFetch(`${base}/generos-mascota`, { auth: false });
 export const getEstadosMascota   = () => apiFetch(`${base}/estados-mascota`, { auth: false });
+export const getRazasMascota = (tipo) => {
+  const q = tipo ? `?tipo=${encodeURIComponent(tipo)}` : "";
+  return apiFetch(`${base}/razas-mascota${q}`, { auth: false });
+};
 export const getEstadosSolicitud = () => apiFetch(`${base}/estados-solicitud`, { auth: false });
 export const getCategoriasProducto = () => apiFetch(`${base}/categorias-producto`, { auth: false });
 export const getForoCategorias   = () => apiFetch(`${base}/foro-categorias`, { auth: false });
