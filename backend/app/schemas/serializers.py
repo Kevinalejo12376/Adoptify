@@ -56,6 +56,7 @@ def serialize_mascota(m):
         "tamano": m.tamano.nombre if m.tamano else None,
         "genero": m.genero.nombre if m.genero else None,
         "estado": m.estado.codigo if m.estado else None,
+        "activo": m.activo,
         "tipo_id": m.tipo_id,
         "tamano_id": m.tamano_id,
         "genero_id": m.genero_id,

@@ -50,6 +50,10 @@ class ForoComentario(Base):
     comentario_padre_id = Column(Integer, ForeignKey("foro_comentarios.id", ondelete="CASCADE"))
     contenido = Column(Text, nullable=False)
     likes = Column(Integer, nullable=False, default=0)
+    # Soft delete: activo=False oculta el comentario y sus respuestas
+    # conservando los likes en lugar de borrarlos en cascada.
+    activo = Column(Boolean, nullable=False, default=True)
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     autor = relationship("Usuario", lazy="joined")

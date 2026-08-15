@@ -145,6 +145,11 @@ def _run_migrations():
             print(f"[migracion] Con aviso (no críticas): {', '.join(fallos)}")
         else:
             print("[migracion] Todas las migraciones aplicadas/verificadas correctamente.")
+        # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
+        _soft_delete_migrations(db)
+
+        print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
+        print("[migracion] Tabla 'movimientos_kardex' verificada correctamente.")
     except Exception as e:
         print(f"[migracion] Error general ejecutando migraciones: {e}")
     finally:
@@ -164,6 +169,48 @@ def _agregar_columna_si_no_existe(db, tabla: str, columna: str, tipo: str):
             f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {columna} {tipo}"
         ))
         print(f"[migracion] Columna '{columna}' agregada correctamente.")
+
+
+def _soft_delete_migrations(db):
+    """Agrega las columnas de borrado lógico (activo / eliminado_en) a las
+    tablas principales si no existen (Supabase/PostgreSQL).
+
+    En SQLite local las columnas ya las crea Base.metadata.create_all
+    a partir de los modelos.
+    """
+    columnas_por_tabla = {
+        "mascotas": [
+            ("activo", "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("eliminado_en", "TIMESTAMPTZ"),
+        ],
+        "refugios": [
+            ("activo", "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("eliminado_en", "TIMESTAMPTZ"),
+        ],
+        "tiendas": [
+            ("activo", "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("eliminado_en", "TIMESTAMPTZ"),
+        ],
+        "productos": [
+            ("eliminado_en", "TIMESTAMPTZ"),
+        ],
+        "usuarios": [
+            ("eliminado_en", "TIMESTAMPTZ"),
+        ],
+        "foro_posts": [
+            ("activo", "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("eliminado_en", "TIMESTAMPTZ"),
+        ],
+        "foro_comentarios": [
+            ("activo", "BOOLEAN NOT NULL DEFAULT TRUE"),
+            ("eliminado_en", "TIMESTAMPTZ"),
+        ],
+    }
+    for tabla, columnas in columnas_por_tabla.items():
+        for columna, tipo in columnas:
+            _agregar_columna_si_no_existe(db, tabla, columna, tipo)
+    db.commit()
+    print("[migracion] Columnas de soft delete verificadas.")
 
 
 def _crear_tabla_foro_imagenes(db):

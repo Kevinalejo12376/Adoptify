@@ -29,6 +29,9 @@ class Usuario(Base):
     instagram = Column(String(120))
     verificado = Column(Boolean, nullable=False, default=False)
     perfil_completo = Column(Boolean, nullable=False, default=False)
+    # Soft delete: 'activo' ya existía para desactivar cuentas; 'eliminado_en'
+    # registra cuándo se desactiva la cuenta de forma definitiva.
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     rol = relationship("Rol", lazy="joined")

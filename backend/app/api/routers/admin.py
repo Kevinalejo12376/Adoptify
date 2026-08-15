@@ -15,6 +15,7 @@ from typing import Optional, List
 from app.db.database import get_db
 from app.core.security import get_current_admin, get_password_hash
 from app.core.lookups import id_por_codigo
+from app.core.softdelete import soft_delete, soft_delete_no_commit, liberar_slug, liberar_email
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.mascota import Mascota
@@ -157,8 +158,8 @@ def eliminar_producto_admin(
     p = db.query(Producto).filter(Producto.id == producto_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    db.delete(p)
-    db.commit()
+    # Soft delete: desactiva el producto conservando reseñas, favoritos y kardex.
+    soft_delete(db, p)
     return None
 
 
@@ -202,8 +203,8 @@ def eliminar_mascota_admin(
     m = db.query(Mascota).filter(Mascota.id == mascota_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
-    db.delete(m)
-    db.commit()
+    # Soft delete: desactiva la mascota conservando su historial de adopción.
+    soft_delete(db, m)
     return None
 
 
@@ -330,8 +331,9 @@ def eliminar_usuario(
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if user.rol_codigo == "administrador_principal":
         raise HTTPException(status_code=400, detail="No se puede eliminar al administrador principal")
-    db.delete(user)
-    db.commit()
+    # Soft delete: libera el email (unicidad) y desactiva la cuenta.
+    liberar_email(db, user)
+    soft_delete(db, user)
     return None
 
 
@@ -617,19 +619,21 @@ def eliminar_tienda(
     _admin: Usuario = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Elimina una tienda aliada y su usuario de acceso."""
+    """Elimina (soft delete) una tienda aliada y desactiva su usuario de acceso."""
     tienda = db.query(Tienda).filter(Tienda.id == tienda_id).first()
     if not tienda:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
 
-    # Eliminar usuario asociado si existe
+    # Soft delete del usuario asociado si existe (libera el email para unicidad)
     if tienda.usuario_id:
         user = db.query(Usuario).filter(Usuario.id == tienda.usuario_id).first()
         if user:
-            db.delete(user)
+            liberar_email(db, user)
+            soft_delete_no_commit(db, user)
 
-    db.delete(tienda)
-    db.commit()
+    # Soft delete de la tienda (libera el slug y desactiva la tienda)
+    liberar_slug(db, tienda)
+    soft_delete(db, tienda)
     return None
 
 
@@ -700,8 +704,8 @@ def eliminar_producto_tienda(
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado en esta tienda")
 
-    db.delete(producto)
-    db.commit()
+    # Soft delete: desactiva el producto conservando pedidos, donaciones y kardex.
+    soft_delete(db, producto)
     return None
 
 

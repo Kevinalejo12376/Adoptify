@@ -77,7 +77,9 @@ def crear_pedido(
     subtotal = Decimal("0")
     vendedores = {}  # (tipo, entidad_id) -> lista de "cantidad x nombre"
     for item in payload.items:
-        producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
+        producto = db.query(Producto).filter(
+            Producto.id == item.producto_id, Producto.activo == True  # noqa: E712
+        ).first()
         if not producto:
             raise HTTPException(status_code=404, detail=f"Producto {item.producto_id} no encontrado")
         cantidad = max(1, int(item.cantidad or 1))

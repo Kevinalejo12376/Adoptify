@@ -40,6 +40,7 @@ from app.core.permisos import (
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import crear_notificacion, notificar_admins
 from app.core.actividad import registrar_actividad
+from app.core.softdelete import soft_delete, soft_delete_no_commit, liberar_email
 from app.models.usuario import Usuario
 from app.models.tienda import (
     Tienda,
@@ -792,10 +793,12 @@ def eliminar_administrador(
         f"{tu.usuario.nombre} {tu.usuario.apellido or ''}".strip()
         if tu.usuario else "Administrador"
     )
-    db.delete(tu)
+    db.delete(tu)  # vínculo de pertenencia (fila N:M): se elimina físicamente
     db.flush()
     if user:
-        db.delete(user)
+        # Soft delete: libera el email (unicidad) y desactiva la cuenta.
+        liberar_email(db, user)
+        soft_delete_no_commit(db, user)
     db.commit()
     registrar_actividad(
         db, tienda.id, current_user,
@@ -1115,7 +1118,8 @@ def eliminar_producto(
     tienda = _mi_tienda(current_user, db)
     producto = _mi_producto(producto_id, current_user, db)
     nombre_producto = producto.nombre
-    db.delete(producto)
+    # Soft delete: desactiva el producto conservando kardex, pedidos y donaciones.
+    soft_delete_no_commit(db, producto)
     db.commit()
     registrar_actividad(
         db, tienda.id, current_user,
@@ -1140,7 +1144,7 @@ def estadisticas(
     total_ventas = sum((p.ventas or 0) for p in productos)
     ratings = [float(p.rating) for p in productos if p.rating]
     rating_promedio = round(sum(ratings) / len(ratings), 1) if ratings else 0
-    top = sorted(productos, key=lambda p: (p.ventas or 0), reverse=True)[:5]
+    top = sorted(productos, key=lambda p: (p.ventas or 0), reverse=True)[:7]
 
     ids_pedidos = _ids_pedidos_de_tienda(tienda.id, db)
     total_pedidos = len(ids_pedidos)

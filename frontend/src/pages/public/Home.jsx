@@ -5,20 +5,14 @@ import ScrollToTop from "../../components/ScrollToTop";
 import AnimatedSection from "../../components/AnimatedSection";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import { useAuth } from "../../context/AuthContext";
+import { CAROUSEL_IMAGES } from "../../assets/images";
 import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
-// Imágenes estáticas servidas desde Cloudinary
-const mascotaImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
-const daycareImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347013/frontend-assets/daycare/daycare.jpg";
-
-// Imágenes del carrusel automático (Cloudinary)
-const carrusel1 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347016/frontend-assets/carrusel/carrusel1.jpg";
-const carrusel2 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347017/frontend-assets/carrusel/carrusel2.jpg";
-const carrusel3 = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347018/frontend-assets/carrusel/carrusel3.jpg";
-
-const carruselImages = [carrusel1, carrusel2, carrusel3];
+// Carrusel automático: imágenes servidas desde Cloudinary (carpeta
+// "frontend-assets/assets-extras"). Centralizadas en src/assets/images.js.
+const carruselImages = CAROUSEL_IMAGES;
 
 function tiempoRelativo(iso) {
   if (!iso) return "";

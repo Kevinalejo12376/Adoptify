@@ -14,6 +14,7 @@ from app.db.database import get_db
 from app.core.security import get_current_user, get_current_user_optional
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import registrar_auditoria, crear_notificacion
+from app.core.softdelete import soft_delete
 from app.models.usuario import Usuario
 from app.models.foro import ForoPost, ForoPostImagen
 from app.models.interaccion import ForoComentario, ForoReaccion, ForoComentarioLike, ForoGuardado
@@ -194,7 +195,7 @@ def _serialize_post(p: ForoPost, db: Session, incluir_comentarios: bool = False,
     if incluir_comentarios:
         comentarios = (
             db.query(ForoComentario)
-            .filter(ForoComentario.post_id == p.id)
+            .filter(ForoComentario.post_id == p.id, ForoComentario.activo == True)  # noqa: E712
             .order_by(ForoComentario.creado_en.asc())
             .all()
         )
@@ -220,7 +221,7 @@ def listar_posts(
     db: Session = Depends(get_db),
     categoria: Optional[str] = None,
 ):
-    query = db.query(ForoPost)
+    query = db.query(ForoPost).filter(ForoPost.activo == True)  # noqa: E712
     if categoria and categoria != "all":
         cat_id = id_por_codigo(db, ForoCategoria, categoria)
         if cat_id:
@@ -235,7 +236,10 @@ def listar_posts_guardados(current_user: Usuario = Depends(get_current_user), db
     posts = (
         db.query(ForoPost)
         .join(ForoGuardado, ForoGuardado.post_id == ForoPost.id)
-        .filter(ForoGuardado.usuario_id == current_user.id)
+        .filter(
+            ForoGuardado.usuario_id == current_user.id,
+            ForoPost.activo == True,  # noqa: E712
+        )
         .order_by(ForoGuardado.creado_en.desc())
         .all()
     )
@@ -260,7 +264,9 @@ def obtener_post(
     current_user: Optional[Usuario] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
-    p = db.query(ForoPost).filter(ForoPost.id == post_id).first()
+    p = db.query(ForoPost).filter(
+        ForoPost.id == post_id, ForoPost.activo == True  # noqa: E712
+    ).first()
     if not p:
         raise HTTPException(status_code=404, detail="Publicacion no encontrada")
     p.vistas = (p.vistas or 0) + 1
@@ -276,12 +282,14 @@ def listar_comentarios(post_id: int, db: Session = Depends(get_db)):
     No incrementa el contador de vistas (a diferencia de obtener_post), por lo
     que es seguro usarlo para mostrar los comentarios en el feed.
     """
-    post = db.query(ForoPost).filter(ForoPost.id == post_id).first()
+    post = db.query(ForoPost).filter(
+        ForoPost.id == post_id, ForoPost.activo == True  # noqa: E712
+    ).first()
     if not post:
         raise HTTPException(status_code=404, detail="Publicacion no encontrada")
     comentarios = (
         db.query(ForoComentario)
-        .filter(ForoComentario.post_id == post_id)
+        .filter(ForoComentario.post_id == post_id, ForoComentario.activo == True)  # noqa: E712
         .order_by(ForoComentario.creado_en.asc())
         .all()
     )
@@ -463,16 +471,17 @@ def eliminar_comentario(comentario_id: int, current_user: Usuario = Depends(get_
     if com.autor_id != current_user.id and not es_admin:
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar este comentario")
 
-    def _eliminar_descendientes(pid: int):
+    def _desactivar_descendientes(pid: int):
+        """Soft delete: oculta el comentario y sus respuestas conservando likes."""
         hijos = db.query(ForoComentario).filter(ForoComentario.comentario_padre_id == pid).all()
         for h in hijos:
-            _eliminar_descendientes(h.id)
-            db.query(ForoComentarioLike).filter(ForoComentarioLike.comentario_id == h.id).delete(synchronize_session=False)
-            db.delete(h)
+            _desactivar_descendientes(h.id)
+            h.activo = False
+            db.add(h)
 
-    _eliminar_descendientes(com.id)
-    db.query(ForoComentarioLike).filter(ForoComentarioLike.comentario_id == com.id).delete(synchronize_session=False)
-    db.delete(com)
+    _desactivar_descendientes(com.id)
+    com.activo = False
+    db.add(com)
     db.commit()
     return {"ok": True}
 
@@ -522,25 +531,19 @@ def eliminar_post(post_id: int, current_user: Usuario = Depends(get_current_user
     es_admin = rol in ("administrador", "administrador_principal")
     if post.autor_id != current_user.id and not es_admin:
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar esta publicacion")
-    # Elimina las dependencias (comentarios, likes de comentarios y reacciones).
+    # Soft delete: oculta la publicación y sus comentarios conservando
+    # reacciones, likes, guardados e imágenes (permite restaurar después).
     ids_comentarios = [
         r[0]
         for r in db.query(ForoComentario.id).filter(ForoComentario.post_id == post_id).all()
     ]
     if ids_comentarios:
-        db.query(ForoComentarioLike).filter(
-            ForoComentarioLike.comentario_id.in_(ids_comentarios)
-        ).delete(synchronize_session=False)
-    db.query(ForoComentario).filter(ForoComentario.post_id == post_id).delete(synchronize_session=False)
-    db.query(ForoReaccion).filter(ForoReaccion.post_id == post_id).delete(synchronize_session=False)
+        db.query(ForoComentario).filter(
+            ForoComentario.id.in_(ids_comentarios)
+        ).update({ForoComentario.activo: False}, synchronize_session=False)
 
-    # Elimina las imágenes de Cloudinary antes de borrar el post.
-    imgs = db.query(ForoPostImagen).filter(ForoPostImagen.post_id == post_id).all()
-    for img in imgs:
-        eliminar_imagen_temporal(img.public_id)
-    db.query(ForoPostImagen).filter(ForoPostImagen.post_id == post_id).delete(synchronize_session=False)
-
-    db.delete(post)
+    post.activo = False
+    db.add(post)
     db.commit()
     return {"ok": True}
 

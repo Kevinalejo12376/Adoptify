@@ -260,6 +260,8 @@ CREATE TABLE usuarios (
     instagram          VARCHAR(120),
     verificado         BOOLEAN NOT NULL DEFAULT false,
     perfil_completo    BOOLEAN NOT NULL DEFAULT false,
+    -- Soft delete
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_usuarios_rol ON usuarios(rol_id);
@@ -297,6 +299,9 @@ CREATE TABLE refugios (
     total_voluntarios  INT NOT NULL DEFAULT 0,
     verificado         BOOLEAN NOT NULL DEFAULT false,
     tienda_habilitada  BOOLEAN NOT NULL DEFAULT false,
+    -- Soft delete
+    activo             BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -423,6 +428,9 @@ CREATE TABLE mascotas (
     esterilizado   BOOLEAN NOT NULL DEFAULT false,
     desparasitado  BOOLEAN NOT NULL DEFAULT false,
     fecha_ingreso  DATE,
+    -- Soft delete
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en   TIMESTAMPTZ,
     creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_mascotas_refugio ON mascotas(refugio_id);
@@ -486,6 +494,9 @@ CREATE TABLE tiendas (
     horario_semana     VARCHAR(120),
     horario_fin_semana VARCHAR(120),
     rating             NUMERIC(2,1) NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo             BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -647,6 +658,8 @@ CREATE TABLE productos (
     rating                 NUMERIC(2,1) NOT NULL DEFAULT 0,
     refugio_id             BIGINT REFERENCES refugios(id) ON DELETE SET NULL,
     tienda_id              BIGINT REFERENCES tiendas(id) ON DELETE SET NULL,
+    -- Soft delete (activo ya existía para publicar/ocultar)
+    eliminado_en           TIMESTAMPTZ,
     creado_en              TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_producto_vendedor CHECK (refugio_id IS NOT NULL OR tienda_id IS NOT NULL)
 );
@@ -785,6 +798,9 @@ CREATE TABLE foro_posts (
     fijado       BOOLEAN NOT NULL DEFAULT false,
     vistas       INT NOT NULL DEFAULT 0,
     compartidos  INT NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo       BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en TIMESTAMPTZ,
     creado_en    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_foro_posts_categoria ON foro_posts(categoria_id);
@@ -803,6 +819,9 @@ CREATE TABLE foro_comentarios (
     comentario_padre_id   BIGINT REFERENCES foro_comentarios(id) ON DELETE CASCADE,
     contenido             TEXT NOT NULL,
     likes                 INT NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo                BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en          TIMESTAMPTZ,
     creado_en             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_foro_comentarios_post ON foro_comentarios(post_id);

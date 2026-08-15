@@ -30,6 +30,10 @@ class Mascota(Base):
     esterilizado = Column(Boolean, nullable=False, default=False)
     desparasitado = Column(Boolean, nullable=False, default=False)
     fecha_ingreso = Column(Date)
+    # Soft delete: activo=False oculta la mascota del público conservando
+    # su historial (solicitudes de adopción, favoritos, etc.).
+    activo = Column(Boolean, nullable=False, default=True)
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     refugio = relationship("Refugio", back_populates="mascotas")

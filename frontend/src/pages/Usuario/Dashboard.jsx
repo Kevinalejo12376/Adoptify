@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2 } from "lucide-react";
-// Imagen estática servida desde Cloudinary
-const mascotaImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
+import AutoFadingImage from "../../components/AutoFadingImage";
+import { CAROUSEL_IMAGES } from "../../assets/images";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
@@ -141,10 +141,13 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="relative">
-              <img
-                src={mascotaImg}
-                alt="Perro y gato juntos"
+              <AutoFadingImage
+                images={CAROUSEL_IMAGES}
+                alt="Perros y gatos - Adoptify"
                 className="rounded-3xl shadow-2xl w-full object-cover"
+                wrapperClassName="rounded-3xl"
+                interval={5000}
+                fadeDuration={1000}
               />
             </div>
           </div>
