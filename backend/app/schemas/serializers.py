@@ -1,6 +1,19 @@
 """Convierte objetos ORM (con FKs a catalogos) en diccionarios legibles para la API."""
 
 
+def _personalidad_a_lista(v):
+    """Normaliza la personalidad a una lista de textos.
+
+    Nuevo formato: columna text[] (ya es una lista). Por compatibilidad, si
+    llega una cadena separada por comas (formato anterior), la convierte.
+    """
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        return [p.strip() for p in v.split(",") if p.strip()]
+    return None
+
+
 def serialize_usuario(u):
     return {
         "id": u.id,
@@ -26,12 +39,14 @@ def serialize_mascota(m):
         "peso": m.peso,
         "color": m.color,
         "descripcion": m.descripcion,
-        "personalidad": m.personalidad,
+        "personalidad": _personalidad_a_lista(m.personalidad),
         "salud": m.salud,
         "requisitos": m.requisitos,
         "vacunado": m.vacunado,
         "esterilizado": m.esterilizado,
         "desparasitado": m.desparasitado,
+        "fecha_ingreso": m.fecha_ingreso.isoformat() if m.fecha_ingreso else None,
+        "creado_en": m.creado_en.isoformat() if m.creado_en else None,
         "refugio_nombre": m.refugio.nombre if m.refugio else None,
         "refugio_telefono": m.refugio.telefono if m.refugio else None,
         "refugio_direccion": m.refugio.direccion if m.refugio else None,
@@ -46,6 +61,11 @@ def serialize_mascota(m):
         "tamano_id": m.tamano_id,
         "genero_id": m.genero_id,
         "estado_id": m.estado_id,
+        # Imágenes de Cloudinary (secure_url) almacenadas en mascota_imagenes.
+        "imagenes": [
+            {"id": img.id, "url": img.url, "public_id": img.public_id}
+            for img in (m.imagenes or [])
+        ],
     }
 
 

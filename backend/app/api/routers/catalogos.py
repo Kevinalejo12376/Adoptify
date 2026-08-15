@@ -3,9 +3,11 @@ poblar selects: tipos de documento, estados, categorias, etc."""
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends
 # pyrefly: ignore [missing-import]
+from sqlalchemy.exc import ProgrammingError
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
-from typing import List
+from typing import List, Optional
 
 from app.db.database import get_db
 from app.models import catalogos as cat
@@ -46,6 +48,27 @@ def generos_mascota(db: Session = Depends(get_db)):
 @router.get("/estados-mascota", response_model=List[CatalogoItem])
 def estados_mascota(db: Session = Depends(get_db)):
     return _listar(db, cat.EstadoMascota)
+
+
+@router.get("/razas-mascota", response_model=List[CatalogoItem])
+def razas_mascota(db: Session = Depends(get_db), tipo: Optional[str] = None):
+    """Razas de mascotas. Si se envía `tipo` (codigo: perro|gato), filtra con
+    un JOIN sobre tipos_mascota para devolver solo las razas de ese tipo.
+
+    Si la columna tipo_mascota_id aún no existe (migración pendiente), se
+    devuelven todas las razas como respaldo para no romper el selector."""
+    try:
+        query = db.query(cat.RazaMascota)
+        if tipo:
+            query = (
+                query
+                .join(cat.TipoMascota, cat.RazaMascota.tipo_mascota_id == cat.TipoMascota.id)
+                .filter(cat.TipoMascota.codigo == tipo)
+            )
+        return query.order_by(cat.RazaMascota.nombre.asc()).all()
+    except ProgrammingError:
+        db.rollback()
+        return _listar(db, cat.RazaMascota)
 
 
 @router.get("/estados-solicitud", response_model=List[CatalogoItem])

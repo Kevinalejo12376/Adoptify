@@ -1,5 +1,7 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, ForeignKey
+# pyrefly: ignore [missing-import]
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 # ============================================================
@@ -48,6 +50,18 @@ class EstadoMascota(Base):
     id = Column(Integer, primary_key=True, index=True)
     codigo = Column(String(20), unique=True, nullable=False)
     nombre = Column(String(40), nullable=False)
+
+
+class RazaMascota(Base):
+    __tablename__ = "razas_mascota"
+    id = Column(Integer, primary_key=True, index=True)
+    # Cada raza pertenece a un tipo de mascota (perro/gato) para poder filtrar
+    # el selector de razas según el tipo seleccionado.
+    tipo_mascota_id = Column(Integer, ForeignKey("tipos_mascota.id"))
+    codigo = Column(String(60), unique=True, nullable=False)
+    nombre = Column(String(80), nullable=False)
+
+    tipo_mascota = relationship("TipoMascota")
 
 
 class EstadoSolicitud(Base):
