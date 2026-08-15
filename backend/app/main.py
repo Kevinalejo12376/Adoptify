@@ -227,6 +227,9 @@ def _run_migrations():
             # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
             print(f"[migracion] No se pudieron crear tablas de equipo de refugio por SQL (SQLite las crea via modelos): {e}")
 
+        # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
+        _soft_delete_migrations(db)
+
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
         print("[migracion] Tabla 'movimientos_kardex' verificada correctamente.")
     except Exception as e:
