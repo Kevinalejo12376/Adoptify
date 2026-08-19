@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Heart, Menu, X, Sparkles, User, ChevronDown, LogOut, PawPrint, ShoppingBag, MessageSquare, Home as HomeIcon, Settings, Bell, ShoppingCart, Sun, Moon, Building2, ClipboardList, Store, LayoutDashboard, PackageSearch, Users } from "lucide-react";
-import logo from "../assets/logo.png";
+import { ADOPTIFY_LOGO as logo } from "../constants/assets";
 import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../context/I18nContext";
 import { useTheme } from "../context/ThemeContext";

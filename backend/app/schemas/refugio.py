@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 # pyrefly: ignore [missing-import]
 from typing import List, Optional
 
-from app.core.validadores import validar_nombre_comercial, validar_email, validar_telefono_empleado
+from app.core.validadores import validar_nombre_comercial, validar_email, validar_telefono
 
 
 class RefugioImagenResponse(BaseModel):
@@ -24,8 +24,6 @@ class RefugioImagenIn(BaseModel):
     """
     id: Optional[int] = None
     url: Optional[str] = None
-
-from app.core.validadores import validar_nombre_comercial, validar_email, validar_telefono
 
 
 class RefugioBase(BaseModel):

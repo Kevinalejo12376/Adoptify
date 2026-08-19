@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Building2, PawPrint, Store,
   ClipboardList, ChevronLeft, ShoppingBag, Package,
-  BarChart3, ChevronDown, LogOut, Pin, PinOff,
+  BarChart3, ChevronDown, LogOut, Pin, PinOff, FileDown,
 } from "lucide-react";
 
 const menuItems = [
@@ -23,6 +23,7 @@ const menuItems = [
     ],
   },
   { icon: ClipboardList, label: "Reportes", path: "/admin/reportes" },
+  { icon: FileDown, label: "Descargar Reportes", path: "/admin/reportes-descargables" },
 ];
 
 export default function AdminSidebar({ mobileOpen, onMobileClose, onLogout }) {
