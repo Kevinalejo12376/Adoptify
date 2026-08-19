@@ -13,11 +13,14 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
+from sqlalchemy.exc import IntegrityError
 
 from app.db.database import get_db
 from app.core.security import get_password_hash
 from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.models.usuario import Usuario
+from app.models.refugio import Refugio
 from app.models.solicitud_refugio import (
     SolicitudRefugio,
     EnlaceCreacionPassword,
@@ -50,7 +53,23 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
     """Crea una solicitud de registro de refugio (formulario público)."""
     email_norm = payload.representante_email.strip().lower()
 
-    # Evitar duplicados de la misma solicitud con el mismo correo pendiente
+    email_contacto = (payload.email_contacto or "").strip().lower()
+
+    # --- Validación de documentación obligatoria (backend como autoridad final) ---
+    CATEGORIAS_REQUERIDAS = {
+        "identidad", "fachada", "fotografias", "instalaciones", "animales",
+        "camara_comercio", "nit", "personeria_juridica", "certificado_fundacion", "otros",
+    }
+    categorias_recibidas = {d.categoria for d in payload.documentos}
+    faltantes = CATEGORIAS_REQUERIDAS - categorias_recibidas
+    if faltantes:
+        raise HTTPException(
+            status_code=400,
+            detail="Debes adjuntar toda la documentación solicitada para continuar con tu solicitud.",
+        )
+
+    # --- Prevención de solicitudes duplicadas ---
+    # 1. Si ya existe una solicitud pendiente/informacion con el correo del representante.
     duplicada = (
         db.query(SolicitudRefugio)
         .filter(
@@ -67,6 +86,50 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
                 "Si te pidieron información adicional, regresa al enlace que recibiste por correo."
             ),
         )
+
+    # 2. Si ya existe una solicitud APROBADA con el mismo correo, el refugio ya fue creado.
+    aprobada = (
+        db.query(SolicitudRefugio)
+        .filter(
+            SolicitudRefugio.estado == "aprobada",
+            (SolicitudRefugio.representante_email == email_norm)
+            | (
+                (SolicitudRefugio.email_contacto.isnot(None))
+                & (SolicitudRefugio.email_contacto == email_contacto)
+            ),
+        )
+        .first()
+    )
+    if aprobada:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una cuenta registrada para este usuario. Este refugio ya fue aprobado en Adoptify.",
+        )
+
+    # 3. Unicidad del correo de contacto: no debe estar registrado como cuenta activa.
+    if email_contacto:
+        usuario_existente = db.query(Usuario).filter(Usuario.email == email_contacto).first()
+        if usuario_existente:
+            raise HTTPException(
+                status_code=400,
+                detail="El correo de contacto ya está registrado en Adoptify. Usa otro correo.",
+            )
+
+    # 4. No debe existir otro refugio con el mismo nombre (slug base).
+    base_slug = svc._slugify(payload.nombre_refugio or "")
+    if base_slug:
+        refugio_existente = (
+            db.query(Refugio)
+            .filter(
+                (Refugio.slug == base_slug) | (Refugio.slug.like(f"{base_slug}-%"))
+            )
+            .first()
+        )
+        if refugio_existente:
+            raise HTTPException(
+                status_code=400,
+                detail="Ya existe un refugio registrado con este nombre.",
+            )
 
     # Subir logo si viene
     logo_url = None
@@ -129,7 +192,14 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
         solicitud.id, f"Solicitud de {solicitud.nombre_refugio}",
     )
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una solicitud pendiente con este correo. Verifica tu bandeja de correo o el enlace que recibiste.",
+        )
     db.refresh(solicitud)
     data = svc.serialize_solicitud(solicitud, db)
     if errores_subida:

@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Eye, EyeOff, Lock, KeyRound, CheckCircle2,
-  Loader2, AlertCircle, ShieldCheck, Sparkles,
+  Loader2, AlertCircle, Sparkles,
 } from "lucide-react";
 import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
 import { crearPasswordRefugio } from "../../api/solicitudesRefugio";
+import { crearPasswordTienda } from "../../api/solicitudesTienda";
 
 export default function CrearPassword() {
   const { token } = useParams();
@@ -34,7 +35,18 @@ export default function CrearPassword() {
     setCargando(true);
     setError("");
     try {
-      await crearPasswordRefugio(token, password);
+      // Primero se intenta el endpoint de Tienda Aliada (valida contraseña fuerte
+      // y registra el historial de la tienda). Si el enlace es de un refugio, el
+      // backend responde 404 y se usa el endpoint de refugio.
+      try {
+        await crearPasswordTienda(token, password);
+      } catch (eTienda) {
+        if (eTienda?.status === 404) {
+          await crearPasswordRefugio(token, password);
+        } else {
+          throw eTienda;
+        }
+      }
       setExito(true);
     } catch (e2) {
       setError(e2.message || "No se pudo crear la contraseña. Verifica el enlace.");
@@ -57,7 +69,7 @@ export default function CrearPassword() {
             ¡Contraseña creada!
           </h2>
           <p className="text-gray-600 leading-relaxed mb-8">
-            Tu cuenta de refugio ya está lista. Ya puedes iniciar sesión en Adoptify
+            Tu cuenta ya está lista. Ya puedes iniciar sesión en Adoptify
             con tu correo y la nueva contraseña.
           </p>
           <button
@@ -73,20 +85,22 @@ export default function CrearPassword() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 via-rose-50 to-white flex flex-col items-center justify-center px-4 py-12">
-      {/* Logo */}
-      <Link to="/" className="flex items-center gap-2 mb-8 group">
-        <img src={logo} alt="Adoptify Logo" className="h-11 w-auto transition-transform duration-300 group-hover:scale-105" />
-      </Link>
-
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
         <div className="px-8 py-6 bg-gradient-to-r from-rose-500 to-amber-500">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white/20 text-white flex items-center justify-center">
-              <ShieldCheck size={22} />
+            <div className="w-11 h-11 shrink-0 rounded-xl bg-white/20 flex items-center justify-center overflow-hidden">
+              <img
+                src="/FaviconNav.png"
+                alt="Adoptify"
+                width={36}
+                height={36}
+                className="w-9 h-9 object-contain"
+                loading="eager"
+              />
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">Crear mi contraseña</h2>
-              <p className="text-sm text-white/80">Bienvenido a Adoptify 🐾</p>
+              <p className="text-sm text-white/80">Bienvenido a Adoptify</p>
             </div>
           </div>
         </div>
@@ -95,7 +109,7 @@ export default function CrearPassword() {
           <div className="mb-6 rounded-2xl bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-100 p-4 flex gap-3">
             <Sparkles size={18} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-sm text-gray-600 leading-relaxed">
-              Tu solicitud fue aprobada. Define la contraseña de acceso para tu cuenta de refugio.
+              Tu solicitud fue aprobada. Define la contraseña de acceso para tu cuenta.
             </p>
           </div>
 

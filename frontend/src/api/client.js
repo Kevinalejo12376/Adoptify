@@ -20,8 +20,8 @@ export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
  * @param {string} path  ruta relativa, ej: "/api/mascotas/"
  * @param {object} options { method, body (objeto JSON), auth (bool), form (bool) }
  */
-export async function apiFetch(path, { method = "GET", body, auth = true, form = false } = {}) {
-  const headers = {};
+export async function apiFetch(path, { method = "GET", body, auth = true, form = false, headers: extraHeaders = {} } = {}) {
+  const headers = { ...extraHeaders };
   const token = getToken();
   if (auth && token) headers["Authorization"] = `Bearer ${token}`;
 

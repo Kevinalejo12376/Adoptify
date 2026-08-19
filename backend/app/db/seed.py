@@ -104,6 +104,42 @@ FORO_CATEGORIAS = [
     ("general", "General", "MessageSquare"),
 ]
 
+# Razas de mascotas con su tipo asociado (perro/gato) para poder filtrar el
+# selector de razas según el tipo de mascota seleccionado.
+# Formato: (codigo, nombre, tipo_codigo)
+RAZAS_MASCOTA = [
+    # --- Perros ---
+    ("labrador", "Labrador Retriever", "perro"),
+    ("pastor_aleman", "Pastor Alemán", "perro"),
+    ("golden", "Golden Retriever", "perro"),
+    ("bulldog", "Bulldog", "perro"),
+    ("poodle", "Poodle", "perro"),
+    ("chihuahua", "Chihuahua", "perro"),
+    ("beagle", "Beagle", "perro"),
+    ("rottweiler", "Rottweiler", "perro"),
+    ("criollo", "Criollo", "perro"),
+    ("pug", "Pug", "perro"),
+    ("shih_tzu", "Shih Tzu", "perro"),
+    ("doberman", "Doberman", "perro"),
+    ("boxer", "Boxer", "perro"),
+    ("cocker", "Cocker Spaniel", "perro"),
+    ("siberiano", "Husky Siberiano", "perro"),
+    ("schnauzer", "Schnauzer", "perro"),
+    ("maltes", "Maltés", "perro"),
+    ("yorkshire", "Yorkshire Terrier", "perro"),
+    # --- Gatos ---
+    ("persa", "Persa", "gato"),
+    ("siames", "Siamés", "gato"),
+    ("maine_coon", "Maine Coon", "gato"),
+    ("bengali", "Bengalí", "gato"),
+    ("sphynx", "Sphynx", "gato"),
+    ("angora", "Angora", "gato"),
+    ("ragdoll", "Ragdoll", "gato"),
+    ("britanico", "British Shorthair", "gato"),
+    ("comun_europeo", "Común Europeo", "gato"),
+    ("fold_escoces", "Scottish Fold", "gato"),
+]
+
 # ============================================================
 # Catalogo de permisos del modulo Tienda (RBAC)
 # Formato: (codigo, nombre, modulo, descripcion)
@@ -200,6 +236,18 @@ def seed_catalogos():
         for codigo, nombre, icono in FORO_CATEGORIAS:
             if codigo not in existentes_fc:
                 db.add(cat.ForoCategoria(codigo=codigo, nombre=nombre, icono=icono))
+
+        # Razas de mascotas con su tipo asociado (perro/gato) para filtrar el
+        # selector de razas según el tipo de mascota seleccionado.
+        existentes_rz = {c for (c,) in db.query(cat.RazaMascota.codigo).all()}
+        tipos_id = {t.codigo: t.id for t in db.query(cat.TipoMascota).all()}
+        for codigo, nombre, tipo_codigo in RAZAS_MASCOTA:
+            if codigo not in existentes_rz:
+                db.add(cat.RazaMascota(
+                    codigo=codigo,
+                    nombre=nombre,
+                    tipo_mascota_id=tipos_id.get(tipo_codigo),
+                ))
 
         # Catalogo de permisos del modulo Tienda (idempotente)
         existentes_tp = {c for (c,) in db.query(TiendaPermiso.codigo).all()}

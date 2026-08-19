@@ -29,7 +29,10 @@ router = APIRouter()
 
 @router.get("/", response_model=List[RefugioResponse])
 def listar_refugios(db: Session = Depends(get_db)):
-    return db.query(Refugio).order_by(Refugio.nombre.asc()).all()
+    # Solo refugios activos (soft delete) en el directorio público.
+    return db.query(Refugio).filter(
+        Refugio.activo == True  # noqa: E712
+    ).order_by(Refugio.nombre.asc()).all()
 
 
 @router.get("/mi-perfil", response_model=RefugioResponse)
@@ -426,7 +429,9 @@ def desvincular_empleado(
 
 @router.get("/{refugio_id}", response_model=RefugioResponse)
 def obtener_refugio(refugio_id: int, db: Session = Depends(get_db)):
-    refugio = db.query(Refugio).filter(Refugio.id == refugio_id).first()
+    refugio = db.query(Refugio).filter(
+        Refugio.id == refugio_id, Refugio.activo == True  # noqa: E712
+    ).first()
     if not refugio:
         raise HTTPException(status_code=404, detail="Refugio no encontrado")
     return refugio

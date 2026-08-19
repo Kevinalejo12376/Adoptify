@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "r
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
-import ProtectedRoute from "./components/ProtectedRoute";
+import HomeRoute from "./components/HomeRoute";
 import UserRoute from "./components/UserRoute";
 import AdminRoute from "./components/AdminRoute";
 import StoreRoute from "./components/StoreRoute";
@@ -20,6 +20,7 @@ import Home from "./pages/public/Home";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ShelterRegistration from "./pages/public/ShelterRegistration";
+import StoreRegistration from "./pages/public/StoreRegistration";
 import CrearPassword from "./pages/auth/CrearPassword";
 
 // ========================================================
@@ -111,6 +112,7 @@ import AdminAuditoria from "./pages/Admin/Auditoria";
 import AdminConfiguracion from "./pages/Admin/Configuracion";
 import AdminTiendas from "./pages/Admin/GestionTiendas";
 import SolicitudRefugioDetalle from "./pages/Admin/SolicitudRefugioDetalle";
+import SolicitudesTiendas from "./pages/Admin/SolicitudesTiendas";
 
 function AppContent() {
   const location = useLocation();
@@ -119,6 +121,7 @@ function AppContent() {
     location.pathname === "/login" ||
     location.pathname === "/register" ||
     location.pathname === "/registrar-refugio" ||
+    location.pathname === "/registrar-tienda" ||
     location.pathname.startsWith("/crear-password");
   const isAdminPage = location.pathname.startsWith("/admin");
   const isStorePage = location.pathname.startsWith("/tienda");
@@ -130,10 +133,11 @@ function AppContent() {
       <main className="flex-grow">
         <Routes>
           {/* Rutas públicas */}
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<HomeRoute><Home /></HomeRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/registrar-refugio" element={<ShelterRegistration />} />
+          <Route path="/registrar-tienda" element={<StoreRegistration />} />
           <Route path="/crear-password/:token" element={<CrearPassword />} />
 
           {/* ================================================ */}
@@ -147,6 +151,7 @@ function AppContent() {
             <Route path="refugios/:id" element={<SolicitudRefugioDetalle />} />
             <Route path="mascotas" element={<AdminMascotas />} />
             <Route path="tiendas" element={<AdminTiendas />} />
+            <Route path="tiendas/solicitudes" element={<SolicitudesTiendas />} />
             <Route path="marketplace" element={<AdminMarketplace />} />
             <Route path="marketplace/estadisticas" element={<AdminMarketplace />} />
             <Route path="pedidos" element={<AdminPedidos />} />
@@ -243,17 +248,17 @@ function AppContent() {
           />
 
           {/* Rutas existentes */}
-          <Route path="/animals" element={<ProtectedRoute><Animals /></ProtectedRoute>} />
-          <Route path="/animal/:id" element={<ProtectedRoute><AnimalProfile /></ProtectedRoute>} />
-          <Route path="/shelters" element={<ProtectedRoute><Shelters /></ProtectedRoute>} />
-          <Route path="/shelter/:id" element={<ShelterDetails />} />
-          <Route path="/shelter/:id/animals" element={<ProtectedRoute><ShelterAnimals /></ProtectedRoute>} />
-          <Route path="/store" element={<ProtectedRoute><Store /></ProtectedRoute>} />
-          <Route path="/shelter-store/:shelterId" element={<ProtectedRoute><Store /></ProtectedRoute>} />
-          <Route path="/store-profile/:storeId" element={<ProtectedRoute><MarketplaceStoreProfile /></ProtectedRoute>} />
-          <Route path="/product/:id" element={<ProtectedRoute><ProductProfile /></ProtectedRoute>} />
-          <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
-          <Route path="/forum" element={<ProtectedRoute><Forum /></ProtectedRoute>} />
+          <Route path="/animals" element={<UserRoute><Animals /></UserRoute>} />
+          <Route path="/animal/:id" element={<UserRoute><AnimalProfile /></UserRoute>} />
+          <Route path="/shelters" element={<UserRoute><Shelters /></UserRoute>} />
+          <Route path="/shelter/:id" element={<UserRoute><ShelterDetails /></UserRoute>} />
+          <Route path="/shelter/:id/animals" element={<UserRoute><ShelterAnimals /></UserRoute>} />
+          <Route path="/store" element={<UserRoute><Store /></UserRoute>} />
+          <Route path="/shelter-store/:shelterId" element={<UserRoute><Store /></UserRoute>} />
+          <Route path="/store-profile/:storeId" element={<UserRoute><MarketplaceStoreProfile /></UserRoute>} />
+          <Route path="/product/:id" element={<UserRoute><ProductProfile /></UserRoute>} />
+          <Route path="/cart" element={<UserRoute><Cart /></UserRoute>} />
+          <Route path="/forum" element={<UserRoute><Forum /></UserRoute>} />
 
           {/* Fallback route */}
           <Route path="*" element={<Home />} />

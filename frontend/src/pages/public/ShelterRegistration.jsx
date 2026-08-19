@@ -5,7 +5,7 @@ import {
   Check, CheckCircle2, X, Upload, Mail, Phone, MapPin, Globe,
   Music2, Calendar, Loader2, ShieldCheck,
   AlertCircle, Image as ImageIcon, Home, LayoutGrid, PawPrint,
-  IdCard, File, Sparkles, Heart, Lock, ExternalLink, RefreshCw,
+  IdCard, File, Sparkles, Heart, Lock, RefreshCw,
   Navigation,
 } from "lucide-react";
 import { FacebookIcon, InstagramIcon } from "../../components/SocialIcons";
@@ -29,15 +29,13 @@ const STEPS = [
   { id: 4, titulo: "Revisión", icon: ClipboardCheck },
 ];
 
+// Toda la documentación es OBLIGATORIA (no existen documentos opcionales).
 const DOC_OBLIGATORIOS = [
   { categoria: "identidad", label: "Documento de identidad del representante", icon: IdCard, desc: "Cédula o documento oficial" },
   { categoria: "fachada", label: "Fotografía de la fachada", icon: Home, desc: "Vista exterior del refugio" },
   { categoria: "fotografias", label: "Fotografías del refugio", icon: ImageIcon, desc: "Vistas generales del lugar" },
   { categoria: "instalaciones", label: "Fotografías de las instalaciones", icon: LayoutGrid, desc: "Espacios y áreas internas" },
   { categoria: "animales", label: "Fotografías de algunos animales", icon: PawPrint, desc: "Evidencia de los animales a cargo" },
-];
-
-const DOC_OPCIONALES = [
   { categoria: "camara_comercio", label: "Cámara de Comercio", icon: FileText, desc: "Certificado de existencia y representación" },
   { categoria: "nit", label: "NIT", icon: FileText, desc: "Número de identificación tributaria" },
   { categoria: "personeria_juridica", label: "Personería Jurídica", icon: FileText, desc: "Resolución o acta de constitución" },
@@ -437,15 +435,14 @@ export default function ShelterRegistration() {
     setCargando(true);
     setErrorGlobal("");
 
-    // Construir documentos (todos: obligatorios + opcionales)
+    // Construir documentos (todos son obligatorios)
     const docsPayload = [];
-    const todas = [...DOC_OBLIGATORIOS, ...DOC_OPCIONALES];
-    for (const doc of todas) {
+    for (const doc of DOC_OBLIGATORIOS) {
       const archivos = documentos[doc.categoria] || [];
       for (const a of archivos) {
         docsPayload.push({
           categoria: doc.categoria,
-          tipo: DOC_OBLIGATORIOS.some((d) => d.categoria === doc.categoria) ? "obligatorio" : "opcional",
+          tipo: "obligatorio",
           nombre_archivo: a.nombre,
           contenido_base64: a.base64,
         });
@@ -487,13 +484,12 @@ export default function ShelterRegistration() {
     setCargando(true);
     setErrorGlobal("");
     const docsPayload = [];
-    const todas = [...DOC_OBLIGATORIOS, ...DOC_OPCIONALES];
-    for (const doc of todas) {
+    for (const doc of DOC_OBLIGATORIOS) {
       const archivos = documentos[doc.categoria] || [];
       for (const a of archivos) {
         docsPayload.push({
           categoria: doc.categoria,
-          tipo: DOC_OBLIGATORIOS.some((d) => d.categoria === doc.categoria) ? "obligatorio" : "opcional",
+          tipo: "obligatorio",
           nombre_archivo: a.nombre,
           contenido_base64: a.base64,
         });
@@ -588,24 +584,12 @@ export default function ShelterRegistration() {
                       onReemplazar={reemplazarArchivo}
                     />
                   ))}
-                  {DOC_OPCIONALES.map((doc) => (
-                    <Dropzone
-                      key={doc.categoria}
-                      categoria={doc.categoria}
-                      label={doc.label}
-                      desc={doc.desc}
-                      Icon={doc.icon}
-                      archivos={documentos[doc.categoria] || []}
-                      onAgregar={agregarArchivos}
-                      onEliminar={eliminarArchivo}
-                      onReemplazar={reemplazarArchivo}
-                    />
-                  ))}
                 </div>
 
                 {errorGlobal && (
-                  <div className="mt-5 flex items-center gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
-                    <AlertCircle size={16} /> {errorGlobal}
+                  <div className="mt-4 rounded-xl bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-sm text-rose-700 flex items-start gap-2">
+                    <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-500" />
+                    <span className="leading-snug">{errorGlobal}</span>
                   </div>
                 )}
 
@@ -701,8 +685,9 @@ export default function ShelterRegistration() {
             )}
 
             {errorGlobal && (
-              <div className="mt-6 flex items-center gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 animate-fade-in">
-                <AlertCircle size={16} /> {errorGlobal}
+              <div className="mt-4 rounded-xl bg-rose-50 border border-rose-200 px-3.5 py-2.5 text-sm text-rose-700 flex items-start gap-2 animate-fade-in">
+                <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-500" />
+                <span className="leading-snug">{errorGlobal}</span>
               </div>
             )}
 
@@ -774,7 +759,7 @@ function RegHeader() {
     <header className="bg-white/80 backdrop-blur-md border-b border-rose-100 sticky top-0 z-30">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group">
-          <img src={logo} alt="Adoptify Logo" className="h-9 w-auto transition-transform duration-300 group-hover:scale-105" />
+          <img src={logo} alt="Adoptify Logo" className="h-14 w-auto transition-transform duration-300 group-hover:scale-105" />
         </Link>
         <Link
           to="/"
@@ -1123,36 +1108,14 @@ function PasoDocumentos({ documentos, errores, agregarArchivos, eliminarArchivo,
         </div>
       </div>
 
-      {/* Opcionales */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-600 text-xs font-bold uppercase tracking-wide">Opcionales</span>
-        </div>
-        <div className="space-y-3">
-          {DOC_OPCIONALES.map((doc) => (
-            <Dropzone
-              key={doc.categoria}
-              categoria={doc.categoria}
-              label={doc.label}
-              desc={doc.desc}
-              Icon={doc.icon}
-              archivos={documentos[doc.categoria] || []}
-              onAgregar={agregarArchivos}
-              onEliminar={eliminarArchivo}
-              onReemplazar={reemplazarArchivo}
-            />
-          ))}
-        </div>
-      </div>
-
       {/* Tarjeta informativa */}
       <div className="mt-6 rounded-2xl bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-100 p-4 flex gap-3">
         <div className="shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 text-white flex items-center justify-center">
           <Heart size={17} />
         </div>
         <p className="text-sm text-gray-600 leading-relaxed">
-          No te preocupes si aún no cuentas con todos estos documentos. Nuestro equipo evaluará
-          tu solicitud teniendo en cuenta la información y las evidencias proporcionadas.
+          Adjunta toda la documentación solicitada para que nuestro equipo pueda verificar
+          la información y evaluar tu solicitud de forma completa.
         </p>
       </div>
     </div>
@@ -1223,7 +1186,7 @@ function PasoRevision({ form, set, errores, documentos, logo }) {
             </div>
             <Fila label="Archivos adjuntos" valor={`${totalDocs} documento${totalDocs === 1 ? "" : "s"}`} />
             <div className="pt-2 flex flex-wrap gap-1.5">
-              {[...DOC_OBLIGATORIOS, ...DOC_OPCIONALES].filter((d) => (documentos[d.categoria] || []).length).map((d) => (
+              {DOC_OBLIGATORIOS.filter((d) => (documentos[d.categoria] || []).length).map((d) => (
                 <span key={d.categoria} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white border border-emerald-200 text-emerald-700 text-[11px] font-medium">
                   <Check size={11} /> {d.label}
                 </span>

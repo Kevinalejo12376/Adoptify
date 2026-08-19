@@ -7,10 +7,12 @@ export default function AutoFadingImage({
   wrapperClassName = "",
   interval = 5000,
   fadeDuration = 1000,
+  objectFit = "cover",
 }) {
   const idxRef = useRef(0);
   const containerRef = useRef(null);
   const [ready, setReady] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState(null);
 
   useEffect(() => {
     if (images.length <= 1) return;
@@ -48,13 +50,17 @@ export default function AutoFadingImage({
     if (ready) return;
     const img = e.currentTarget;
     if (img.naturalWidth && img.naturalHeight && containerRef.current) {
-      containerRef.current.style.aspectRatio = `${img.naturalWidth / img.naturalHeight}`;
+      setAspectRatio(img.naturalWidth / img.naturalHeight);
       setReady(true);
     }
   };
 
   return (
-    <div ref={containerRef} className={`relative overflow-hidden ${wrapperClassName}`}>
+    <div
+      ref={containerRef}
+      className={`relative overflow-hidden ${wrapperClassName}`}
+      style={aspectRatio ? { aspectRatio: `${aspectRatio}` } : undefined}
+    >
       {/* Spacer: invisible, keeps container height stable */}
       <img
         src={images[0]}
@@ -75,6 +81,7 @@ export default function AutoFadingImage({
           style={{
             opacity: index === 0 ? 1 : 0,
             zIndex: index === 0 ? 2 : 0,
+            objectFit,
           }}
         />
       ))}

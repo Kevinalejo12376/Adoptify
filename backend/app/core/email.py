@@ -622,3 +622,105 @@ def enviar_correo_rechazo_refugio(
         asunto,
         _build_base_html("Estado de tu solicitud", contenido),
     )
+
+
+# ============================================================
+# Plantillas de correo para el flujo de Solicitudes de Tiendas Aliadas
+# ============================================================
+
+def enviar_correo_aprobacion_tienda(
+    email_destino: str,
+    nombre_tienda: str,
+    username: str,
+    enlace_crear_password: str,
+) -> bool:
+    """Correo de aprobación de Tienda Aliada: bienvenida + usuario + enlace seguro."""
+    asunto = f"🎉 ¡Bienvenido a Adoptify, {nombre_tienda}! Tu solicitud fue aprobada"
+    contenido = f"""
+        <p>¡Hola, <strong>{nombre_tienda}</strong>! 🎉</p>
+        <p>¡Excelentes noticias! Tu solicitud de registro ha sido <strong>aprobada</strong>
+        y tu tienda ya forma parte de la comunidad Adoptify.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;">Tu cuenta fue creada con el siguiente <strong>usuario</strong>:</p>
+            <p style="margin:0; font-size:22px; font-weight:800; color:#ea580c; letter-spacing:1px;">{username}</p>
+        </div>
+
+        <p>Para terminar de activar tu cuenta, crea tu contraseña con el siguiente botón.
+        El enlace es <strong>seguro y expira en 24 horas</strong>.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_crear_password}" class="btn" target="_blank">Crear mi contraseña</a>
+        </p>
+
+        <p class="footnote">
+            Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+            {enlace_crear_password}
+        </p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(email_destino, asunto, _build_base_html("¡Solicitud aprobada!", contenido))
+
+
+def enviar_correo_solicitud_informacion_tienda(
+    email_destino: str,
+    nombre_tienda: str,
+    mensaje: str,
+    enlace_completar: str,
+) -> bool:
+    """Correo pidiendo información adicional para la solicitud de la Tienda Aliada."""
+    asunto = f"📋 Información adicional para tu solicitud — {nombre_tienda}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre_tienda}</strong> 👋</p>
+        <p>Para continuar con la revisión de tu solicitud, nuestro equipo necesita
+        <strong>información adicional</strong>:</p>
+
+        <div class="caja">
+            <p style="margin:0;">{mensaje}</p>
+        </div>
+
+        <p>Puedes completar la información solicitada ingresando al siguiente enlace.
+        Solo necesitas adjuntar lo que se pide; no es necesario volver a diligenciar toda la solicitud.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_completar}" class="btn" target="_blank">Completar información</a>
+        </p>
+
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Necesitamos más información", contenido),
+    )
+
+
+def enviar_correo_rechazo_tienda(
+    email_destino: str,
+    nombre_tienda: str,
+    motivo: str,
+) -> bool:
+    """Correo informando que la solicitud de la Tienda Aliada fue rechazada y el motivo."""
+    asunto = f"💔 Actualización de tu solicitud — {nombre_tienda}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre_tienda}</strong></p>
+        <p>Lamentablemente, después de revisar cuidadosamente tu solicitud, hemos tomado la
+        decisión de <strong>no aprobarla</strong> en esta ocasión.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;"><strong>Motivo del rechazo:</strong></p>
+            <p style="margin:0;">{motivo}</p>
+        </div>
+
+        <p>
+            Si consideras que esta decisión fue un error o deseas aclarar algún punto,
+            no dudes en contactarnos. Estamos aquí para ayudarte a construir una comunidad
+            segura y confiable para las mascotas.
+        </p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Estado de tu solicitud", contenido),
+    )

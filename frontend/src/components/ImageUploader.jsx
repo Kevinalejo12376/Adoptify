@@ -2,7 +2,7 @@
 // Se usa en TODA la aplicación (perfil, refugios, mascotas, productos, foro...).
 // Flujo: seleccionar → EDITAR (recortar/rotar/voltear/zoom) → subir a Cloudinary.
 // Incluye validación, indicador de carga, errores, preview y botón "Quitar".
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useImageUpload } from "../hooks/useImageUpload";
 import { readAndValidateImage, MAX_IMAGE_SIZE_MB } from "../utils/imageUtils";
 import ImageEditorModal from "./ImageEditorModal";
@@ -34,6 +34,7 @@ export default function ImageUploader({
   value = [],
   onChange,
   onError,
+  onUploadingChange,
   aspectRatio = 1,
   accept = "image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml",
   previewClassName = "",
@@ -49,6 +50,11 @@ export default function ImageUploader({
   const editQueueRef = useRef([]);
 
   const { uploadDataUrl, uploading, progress, removeFromCloudinary } = useImageUpload({ tipo, temporal, carpetaTemp });
+
+  // Notifica al padre si hay una subida en curso (para bloquear "Guardar").
+  useEffect(() => {
+    onUploadingChange?.(uploading || pending.length > 0);
+  }, [uploading, pending.length, onUploadingChange]);
 
   // Normaliza `value` a un arreglo de objetos.
   const images = Array.isArray(value) ? value : value ? [value] : [];

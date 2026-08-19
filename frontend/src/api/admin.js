@@ -194,3 +194,61 @@ export async function verificarDocumentoSolicitud(documentoId, estadoVerificacio
     body: { estado_verificacion: estadoVerificacion },
   });
 }
+
+// ==================================================================
+// MÓDULO SOLICITUDES DE TIENDAS ALIADAS
+// ==================================================================
+
+/** Estadísticas de solicitudes de tiendas (contadores por estado). */
+export async function estadisticasSolicitudesTienda() {
+  return apiFetch(`${base}/solicitudes-tienda/estadisticas`);
+}
+
+/** Lista solicitudes de Tiendas Aliadas (opcionalmente filtradas). */
+export async function listarSolicitudesTienda({ estado, busqueda, ciudad } = {}) {
+  const params = new URLSearchParams();
+  if (estado) params.set("estado", estado);
+  if (busqueda) params.set("busqueda", busqueda);
+  if (ciudad) params.set("ciudad", ciudad);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch(`${base}/solicitudes-tienda${qs}`);
+}
+
+/** Detalle completo de una solicitud de tienda (expediente). */
+export async function obtenerSolicitudTienda(id) {
+  return apiFetch(`${base}/solicitudes-tienda/${id}`);
+}
+
+/** Elimina una solicitud de tienda (p. ej. una ya aprobada o rechazada). */
+export async function eliminarSolicitudTienda(id) {
+  return apiFetch(`${base}/solicitudes-tienda/${id}`, { method: "DELETE" });
+}
+
+/** Aprueba una solicitud de tienda. */
+export async function aprobarSolicitudTienda(id) {
+  return apiFetch(`${base}/solicitudes-tienda/${id}/aprobar`, { method: "POST" });
+}
+
+/** Rechaza una solicitud de tienda (motivo obligatorio). */
+export async function rechazarSolicitudTienda(id, motivo) {
+  return apiFetch(`${base}/solicitudes-tienda/${id}/rechazar`, {
+    method: "POST",
+    body: { motivo },
+  });
+}
+
+/** Solicita información adicional para una solicitud de tienda. */
+export async function solicitarInformacionSolicitudTienda(id, mensaje) {
+  return apiFetch(`${base}/solicitudes-tienda/${id}/solicitar-informacion`, {
+    method: "POST",
+    body: { mensaje },
+  });
+}
+
+/** Marca el estado de verificación de un documento de una solicitud de tienda. */
+export async function verificarDocumentoSolicitudTienda(documentoId, estadoVerificacion) {
+  return apiFetch(`${base}/solicitudes-tienda/documentos/${documentoId}/verificacion`, {
+    method: "PATCH",
+    body: { estado_verificacion: estadoVerificacion },
+  });
+}

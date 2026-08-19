@@ -2,14 +2,18 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 /**
- * Guard para las rutas del PANEL DE USUARIO (comprador).
+ * Guard para las rutas del PANEL DE USUARIO (comprador) y de las páginas
+ * de consumo del usuario normal (animales, refugios, tienda, foro, carrito...).
  *
- * - Si el usuario es de un refugio (representante o empleado), lo redirige
- *   al dashboard del refugio, pues su rol corresponde a ese panel.
- * - Si no hay sesión, redirige a la home.
+ * Solo el rol "usuario" autenticado puede acceder:
+ * - Sin sesión          -> redirige a /login
+ * - Refugio (repr/empl) -> redirige a /refugio/dashboard
+ * - Tienda aliada       -> redirige a /tienda/dashboard
+ * - Administrador       -> redirige a /admin/dashboard
+ * - Cualquier otro rol  -> redirige a /login
  */
 export default function UserRoute({ children }) {
-  const { user, loading, isShelter } = useAuth();
+  const { user, loading, isShelter, isStore, isAdmin } = useAuth();
 
   if (loading) {
     return (
@@ -20,11 +24,19 @@ export default function UserRoute({ children }) {
   }
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (isShelter()) {
     return <Navigate to="/refugio/dashboard" replace />;
+  }
+
+  if (isStore()) {
+    return <Navigate to="/tienda/dashboard" replace />;
+  }
+
+  if (isAdmin()) {
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   return children;

@@ -102,6 +102,43 @@ INSERT INTO estados_mascota (codigo, nombre) VALUES
     ('en_proceso', 'En proceso'),
     ('adoptado',   'Adoptado');
 
+CREATE TABLE razas_mascota (
+    id              BIGSERIAL PRIMARY KEY,
+    tipo_mascota_id BIGINT REFERENCES tipos_mascota(id),
+    codigo          VARCHAR(60) NOT NULL UNIQUE,
+    nombre          VARCHAR(80) NOT NULL
+);
+CREATE INDEX idx_razas_mascota_tipo ON razas_mascota(tipo_mascota_id);
+INSERT INTO razas_mascota (codigo, nombre, tipo_mascota_id) VALUES
+    ('labrador',      'Labrador Retriever', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('pastor_aleman', 'Pastor Alemán', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('golden',        'Golden Retriever', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('bulldog',       'Bulldog', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('poodle',        'Poodle', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('chihuahua',     'Chihuahua', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('beagle',        'Beagle', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('rottweiler',    'Rottweiler', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('criollo',       'Criollo', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('pug',           'Pug', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('shih_tzu',      'Shih Tzu', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('doberman',      'Doberman', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('boxer',         'Boxer', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('cocker',        'Cocker Spaniel', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('siberiano',     'Husky Siberiano', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('schnauzer',     'Schnauzer', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('maltes',        'Maltés', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('yorkshire',     'Yorkshire Terrier', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('persa',         'Persa', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('siames',        'Siamés', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('maine_coon',    'Maine Coon', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('bengali',       'Bengalí', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('sphynx',        'Sphynx', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('angora',        'Angora', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('ragdoll',       'Ragdoll', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('britanico',     'British Shorthair', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('comun_europeo', 'Común Europeo', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('fold_escoces',  'Scottish Fold', (SELECT id FROM tipos_mascota WHERE codigo='gato'));
+
 CREATE TABLE estados_solicitud (
     id     BIGSERIAL PRIMARY KEY,
     codigo VARCHAR(20) NOT NULL UNIQUE,
@@ -223,6 +260,8 @@ CREATE TABLE usuarios (
     instagram          VARCHAR(120),
     verificado         BOOLEAN NOT NULL DEFAULT false,
     perfil_completo    BOOLEAN NOT NULL DEFAULT false,
+    -- Soft delete
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_usuarios_rol ON usuarios(rol_id);
@@ -260,6 +299,9 @@ CREATE TABLE refugios (
     total_voluntarios  INT NOT NULL DEFAULT 0,
     verificado         BOOLEAN NOT NULL DEFAULT false,
     tienda_habilitada  BOOLEAN NOT NULL DEFAULT false,
+    -- Soft delete
+    activo             BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -379,13 +421,16 @@ CREATE TABLE mascotas (
     peso           VARCHAR(30),
     color          VARCHAR(60),
     descripcion    TEXT,
-    personalidad   TEXT,
+    personalidad   TEXT[],
     salud          TEXT,
     requisitos     TEXT,
     vacunado       BOOLEAN NOT NULL DEFAULT false,
     esterilizado   BOOLEAN NOT NULL DEFAULT false,
     desparasitado  BOOLEAN NOT NULL DEFAULT false,
     fecha_ingreso  DATE,
+    -- Soft delete
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en   TIMESTAMPTZ,
     creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_mascotas_refugio ON mascotas(refugio_id);
@@ -396,6 +441,7 @@ CREATE TABLE mascota_imagenes (
     id          BIGSERIAL PRIMARY KEY,
     mascota_id  BIGINT NOT NULL REFERENCES mascotas(id) ON DELETE CASCADE,
     url         TEXT NOT NULL,
+    public_id   VARCHAR(255),
     orden       INT NOT NULL DEFAULT 0
 );
 
@@ -448,6 +494,9 @@ CREATE TABLE tiendas (
     horario_semana     VARCHAR(120),
     horario_fin_semana VARCHAR(120),
     rating             NUMERIC(2,1) NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo             BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -609,6 +658,8 @@ CREATE TABLE productos (
     rating                 NUMERIC(2,1) NOT NULL DEFAULT 0,
     refugio_id             BIGINT REFERENCES refugios(id) ON DELETE SET NULL,
     tienda_id              BIGINT REFERENCES tiendas(id) ON DELETE SET NULL,
+    -- Soft delete (activo ya existía para publicar/ocultar)
+    eliminado_en           TIMESTAMPTZ,
     creado_en              TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_producto_vendedor CHECK (refugio_id IS NOT NULL OR tienda_id IS NOT NULL)
 );
@@ -747,6 +798,9 @@ CREATE TABLE foro_posts (
     fijado       BOOLEAN NOT NULL DEFAULT false,
     vistas       INT NOT NULL DEFAULT 0,
     compartidos  INT NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo       BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en TIMESTAMPTZ,
     creado_en    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_foro_posts_categoria ON foro_posts(categoria_id);
@@ -765,6 +819,9 @@ CREATE TABLE foro_comentarios (
     comentario_padre_id   BIGINT REFERENCES foro_comentarios(id) ON DELETE CASCADE,
     contenido             TEXT NOT NULL,
     likes                 INT NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo                BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en          TIMESTAMPTZ,
     creado_en             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_foro_comentarios_post ON foro_comentarios(post_id);

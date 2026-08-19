@@ -30,6 +30,10 @@ class Tienda(Base):
     horario_semana = Column(String(120))
     horario_fin_semana = Column(String(120))
     rating = Column(Numeric(2, 1), nullable=False, default=0)
+    # Soft delete: activo=False desactiva la tienda conservando su historial
+    # (productos, pedidos, donaciones, actividades, PQRS).
+    activo = Column(Boolean, nullable=False, default=True)
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     usuario = relationship("Usuario", backref="tienda", uselist=False)

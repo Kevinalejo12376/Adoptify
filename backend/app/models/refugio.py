@@ -30,6 +30,10 @@ class Refugio(Base):
     total_voluntarios = Column(Integer, nullable=False, default=0)
     verificado = Column(Boolean, nullable=False, default=False)
     tienda_habilitada = Column(Boolean, nullable=False, default=False)
+    # Soft delete: activo=False oculta el refugio del público conservando
+    # sus mascotas, empleados, productos y donaciones.
+    activo = Column(Boolean, nullable=False, default=True)
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     usuario = relationship("Usuario", back_populates="refugio")

@@ -45,7 +45,9 @@ def crear_solicitud(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    mascota = db.query(Mascota).filter(Mascota.id == payload.mascota_id).first()
+    mascota = db.query(Mascota).filter(
+        Mascota.id == payload.mascota_id, Mascota.activo == True  # noqa: E712
+    ).first()
     if not mascota:
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
 

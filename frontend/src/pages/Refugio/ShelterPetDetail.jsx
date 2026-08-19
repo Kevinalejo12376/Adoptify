@@ -1,12 +1,25 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft, PawPrint, Dog, Cat, Calendar, Heart, Edit3, Trash2,
   CheckCircle, Clock, Ruler, Tag, Syringe, Weight, Star, Info,
-  AlertCircle, Camera, MapPin, Phone, Shield, ChevronRight,
-  Sparkles, Scissors, Droplets
+  ChevronRight, Scissors, Droplets, Loader2, Venus, Mars, XCircle
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
+import { obtenerMascota } from "../../api/mascotas";
+
+// Convierte un valor vacío (null/undefined/"") en un texto amigable.
+const mostrarValor = (v) => {
+  const s = v === null || v === undefined ? "" : String(v).trim();
+  return s === "" ? "No especificado" : s;
+};
+
+const formatearFecha = (fecha) => {
+  if (!fecha) return "";
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return String(fecha);
+  return d.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+};
 
 const getStatusBadge = (status) => {
   const config = {
@@ -24,15 +37,97 @@ const getStatusBadge = (status) => {
   );
 };
 
+// Convierte la respuesta del backend (m.nombre, m.peso, ...) a la forma que usa
+// el detalle, garantizando que TODOS los datos estén disponibles.
+const mapearMascota = (m) => ({
+  id: m.id,
+  name: m.nombre,
+  type: m.tipo || "Perro",
+  breed: m.raza || "",
+  age: m.edad || "",
+  size: m.tamano || "",
+  gender: m.genero || "",
+  status: (m.estado || "disponible").replace("_", " "),
+  description: m.descripcion || "",
+  weight: m.peso || "",
+  color: m.color || "",
+  health: m.salud || "",
+  personality: Array.isArray(m.personalidad)
+    ? m.personalidad
+    : (m.personalidad ? m.personalidad.split(",").map((t) => t.trim()).filter(Boolean) : []),
+  vaccinated: !!m.vacunado,
+  sterilized: !!m.esterilizado,
+  fecha_ingreso: m.fecha_ingreso || null,
+  creado_en: m.creado_en || null,
+  imagenes: m.imagenes || [],
+  images: (m.imagenes || []).map((img) => ({ id: img.id, url: img.url, publicId: img.public_id })),
+});
+
+// Tarjeta de detalle individual (ícono + etiqueta + valor).
+const DetailTile = ({ Icon: IconComp, iconCls, label, value }) => {
+  const texto = mostrarValor(value);
+  const esVacio = texto === "No especificado";
+  return (
+    <div className="p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50 border border-gray-100 dark:border-dark-border">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconCls.bg}`}>
+          <IconComp className={`w-4 h-4 ${iconCls.text}`} />
+        </span>
+        <span className="text-[11px] font-semibold text-gray-500 dark:text-dark-text-secondary uppercase tracking-wide truncate">{label}</span>
+      </div>
+      <p className={`text-sm font-semibold truncate ${esVacio ? "text-gray-400 dark:text-dark-text-secondary italic" : "text-gray-900 dark:text-white"}`}>{texto}</p>
+    </div>
+  );
+};
+
+// Fila de estado de salud (sí/no con indicador visual).
+const HealthRow = ({ Icon: IconComp, label, valor, ok, iconCls = "text-emerald-500" }) => (
+  <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50 border border-gray-100 dark:border-dark-border">
+    <span className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-dark-text-secondary min-w-0">
+      <IconComp className={`w-4 h-4 ${iconCls} shrink-0`} />
+      <span className="truncate">{label}</span>
+    </span>
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold shrink-0 ${ok ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+      {ok ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+      {valor}
+    </span>
+  </div>
+);
+
 export default function ShelterPetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const pet = location.state?.pet;
 
+  const [pet, setPet] = useState(location.state?.pet ? { ...location.state.pet } : null);
+  const [loading, setLoading] = useState(!location.state?.pet);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [deleted, setDeleted] = useState(false);
+
+  // Consulta siempre a la BD para garantizar que se muestren TODOS los datos de
+  // la mascota (peso, color, personalidad, salud, etc.), aunque se llegue
+  // directo por URL o el estado de navegación no los incluya.
+  useEffect(() => {
+    let activo = true;
+    obtenerMascota(id)
+      .then((m) => { if (activo) setPet(mapearMascota(m)); })
+      .catch(() => { if (activo && !location.state?.pet) setPet(null); })
+      .finally(() => { if (activo) setLoading(false); });
+    return () => { activo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-24 pb-16 flex items-center justify-center">
+        <div className="flex flex-col items-center text-gray-500 animate-fade-in-up">
+          <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+          <p>Cargando información de la mascota...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!pet) {
     return (
@@ -63,6 +158,14 @@ export default function ShelterPetDetail() {
   };
 
   const images = pet.images || [];
+  const GenderIcon = pet.gender === "Hembra" ? Venus : pet.gender === "Macho" ? Mars : Tag;
+  const statusLabel = pet.status === "en proceso" ? "En proceso" : pet.status === "adoptado" ? "Adoptado" : "Disponible";
+  const statusColor = pet.status === "disponible"
+    ? "text-emerald-600 dark:text-emerald-400"
+    : pet.status === "adoptado"
+      ? "text-blue-600 dark:text-blue-400"
+      : "text-amber-600 dark:text-amber-400";
+  const fechaIngreso = formatearFecha(pet.fecha_ingreso || pet.creado_en);
 
   return (
     <div className="min-h-screen pt-24 pb-16">
@@ -99,14 +202,14 @@ export default function ShelterPetDetail() {
           </div>
         ) : (
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Left Column - Images & Basic Info */}
+            {/* Left Column - Images, Descripción y Personalidad */}
             <div className="lg:col-span-2 space-y-6">
               {/* Image Gallery */}
               <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border overflow-hidden animate-fade-in-up">
                 {images.length > 0 ? (
                   <>
                     <div className="relative h-72 sm:h-96 bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/20 dark:to-amber-500/20">
-                      <img src={images[currentImageIndex]?.src} alt={pet.name}
+                      <img src={images[currentImageIndex]?.url || images[currentImageIndex]?.src} alt={pet.name}
                         className="w-full h-full object-cover" />
                       {images.length > 1 && (
                         <>
@@ -132,7 +235,7 @@ export default function ShelterPetDetail() {
                               ? "border-rose-500 ring-2 ring-rose-200 dark:ring-rose-500/30"
                               : "border-gray-200 dark:border-dark-border opacity-70 hover:opacity-100"
                           }`}>
-                          <img src={img.src} alt={`${pet.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                          <img src={img.url || img.src} alt={`${pet.name} ${idx + 1}`} className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -148,88 +251,41 @@ export default function ShelterPetDetail() {
                 )}
               </div>
 
-              {/* About Section */}
+              {/* Descripción */}
               <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white font-display mb-4 flex items-center gap-2">
                   <Heart className="w-5 h-5 text-rose-500" />
-                  Acerca de {pet.name}
+                  Sobre {pet.name}
                 </h3>
-                <p className="text-gray-600 dark:text-dark-text-secondary leading-relaxed">{pet.description}</p>
-
-                {pet.personality && pet.personality.length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                      <Star className="w-4 h-4 text-amber-500" />
-                      Personalidad
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {pet.personality.map((trait, i) => (
-                        <span key={i}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/20">
-                          <Star className="w-3 h-3" /> {trait}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                {pet.description ? (
+                  <p className="text-gray-600 dark:text-dark-text-secondary leading-relaxed whitespace-pre-line">{pet.description}</p>
+                ) : (
+                  <p className="text-gray-400 dark:text-dark-text-secondary italic">No se ha registrado una descripción.</p>
                 )}
               </div>
 
-              {/* Health Section */}
+              {/* Personalidad */}
               <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white font-display mb-4 flex items-center gap-2">
-                  <Syringe className="w-5 h-5 text-emerald-500" />
-                  Estado de Salud
+                  <Star className="w-5 h-5 text-amber-500" />
+                  Personalidad
                 </h3>
-                <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                  <div className={`p-4 rounded-xl border ${
-                    pet.vaccinated
-                      ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20"
-                      : "bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20"
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        pet.vaccinated ? "bg-emerald-100 dark:bg-emerald-500/20" : "bg-amber-100 dark:bg-amber-500/20"
-                      }`}>
-                        <Syringe className={`w-5 h-5 ${pet.vaccinated ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Vacunación</p>
-                        <p className={`text-xs font-medium ${pet.vaccinated ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                          {pet.vaccinated ? "Completa" : "Pendiente"}
-                        </p>
-                      </div>
-                    </div>
+                {pet.personality && pet.personality.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {pet.personality.map((trait, i) => (
+                      <span key={i}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/20">
+                        <Star className="w-3 h-3" /> {trait}
+                      </span>
+                    ))}
                   </div>
-                  <div className={`p-4 rounded-xl border ${
-                    pet.sterilized
-                      ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20"
-                      : "bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20"
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        pet.sterilized ? "bg-emerald-100 dark:bg-emerald-500/20" : "bg-amber-100 dark:bg-amber-500/20"
-                      }`}>
-                        <Scissors className={`w-5 h-5 ${pet.sterilized ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Esterilización</p>
-                        <p className={`text-xs font-medium ${pet.sterilized ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                          {pet.sterilized ? "Realizada" : "Pendiente"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {pet.health && (
-                  <p className="text-sm text-gray-500 dark:text-dark-text-secondary bg-gray-50 dark:bg-dark-bg/50 rounded-xl p-3">
-                    <Info className="w-4 h-4 inline mr-1.5 text-rose-500" />
-                    {pet.health}
-                  </p>
+                ) : (
+                  <p className="text-gray-400 dark:text-dark-text-secondary italic">No se registraron rasgos de personalidad.</p>
                 )}
               </div>
             </div>
 
-            {/* Right Column - Info Cards */}
+            {/* Right Column - Resumen, Detalles, Estado y salud, Acciones */}
             <div className="space-y-6">
               {/* Hero Info */}
               <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
@@ -241,60 +297,93 @@ export default function ShelterPetDetail() {
                       <Cat className="w-8 h-8 text-amber-500/60 dark:text-amber-400/50" />
                     )}
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-display">{pet.name}</h2>
-                    <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{pet.breed}</p>
+                  <div className="min-w-0">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white font-display truncate">{pet.name}</h2>
+                    <p className="text-sm text-gray-500 dark:text-dark-text-secondary truncate">{mostrarValor(pet.breed)}</p>
                   </div>
                 </div>
                 {getStatusBadge(pet.status)}
               </div>
 
-              {/* Details Card */}
+              {/* Detalles de la mascota */}
               <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white font-display mb-4 flex items-center gap-2">
                   <Info className="w-4 h-4 text-rose-500" />
-                  Detalles
+                  Detalles de la mascota
                 </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50">
-                    <span className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-rose-500" /> Edad
-                    </span>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{pet.age}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50">
-                    <span className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary flex items-center gap-1.5">
-                      <Ruler className="w-3.5 h-3.5 text-amber-500" /> Tamaño
-                    </span>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{pet.size}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50">
-                    <span className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-rose-500" /> Sexo
-                    </span>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{pet.gender}</span>
-                  </div>
-                  {pet.weight && (
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50">
-                      <span className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary flex items-center gap-1.5">
-                        <Weight className="w-3.5 h-3.5 text-amber-500" /> Peso
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{pet.weight}</span>
-                    </div>
-                  )}
-                  {pet.color && (
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50">
-                      <span className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary flex items-center gap-1.5">
-                        <Droplets className="w-3.5 h-3.5 text-rose-500" /> Color
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{pet.color}</span>
-                    </div>
-                  )}
+                <div className="grid grid-cols-2 gap-3">
+                  <DetailTile
+                    Icon={pet.type === "Perro" ? Dog : Cat}
+                    iconCls={{ bg: "bg-rose-50 dark:bg-rose-500/10", text: "text-rose-500" }}
+                    label="Tipo" value={pet.type} />
+                  <DetailTile
+                    Icon={Tag}
+                    iconCls={{ bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-500" }}
+                    label="Raza" value={pet.breed} />
+                  <DetailTile
+                    Icon={Calendar}
+                    iconCls={{ bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-500" }}
+                    label="Edad" value={pet.age} />
+                  <DetailTile
+                    Icon={Weight}
+                    iconCls={{ bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-500" }}
+                    label="Peso" value={pet.weight} />
+                  <DetailTile
+                    Icon={Droplets}
+                    iconCls={{ bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-500" }}
+                    label="Color" value={pet.color} />
+                  <DetailTile
+                    Icon={GenderIcon}
+                    iconCls={{ bg: "bg-pink-50 dark:bg-pink-500/10", text: "text-pink-500" }}
+                    label="Sexo" value={pet.gender} />
+                  <DetailTile
+                    Icon={Ruler}
+                    iconCls={{ bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-500" }}
+                    label="Tamaño" value={pet.size} />
                 </div>
               </div>
 
-              {/* Entry Date */}
-              {pet.entryDate && (
+              {/* Estado y salud */}
+              <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white font-display mb-4 flex items-center gap-2">
+                  <Syringe className="w-4 h-4 text-emerald-500" />
+                  Estado y salud
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50 border border-gray-100 dark:border-dark-border">
+                    <span className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-dark-text-secondary min-w-0">
+                      <Heart className="w-4 h-4 text-rose-500 shrink-0" />
+                      <span className="truncate">Estado de adopción</span>
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-xs font-semibold shrink-0 ${statusColor}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <HealthRow
+                    Icon={Syringe}
+                    label="Vacunado"
+                    valor={pet.vaccinated ? "Sí" : "No"}
+                    ok={!!pet.vaccinated} />
+                  <HealthRow
+                    Icon={Scissors}
+                    label="Esterilizado"
+                    valor={pet.sterilized ? "Sí" : "No"}
+                    ok={!!pet.sterilized} />
+                </div>
+                {pet.health ? (
+                  <div className="mt-3 flex items-start gap-2 text-sm text-gray-600 dark:text-dark-text-secondary bg-rose-50 dark:bg-rose-500/10 rounded-xl p-3">
+                    <Info className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+                    <span className="leading-snug">{pet.health}</span>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-gray-400 dark:text-dark-text-secondary italic">
+                    No se registró información adicional de salud.
+                  </p>
+                )}
+              </div>
+
+              {/* Fecha de ingreso */}
+              {fechaIngreso && (
                 <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center">
@@ -302,7 +391,7 @@ export default function ShelterPetDetail() {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 dark:text-dark-text-secondary">Ingresó el</p>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{pet.entryDate}</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white capitalize">{fechaIngreso}</p>
                     </div>
                   </div>
                 </div>

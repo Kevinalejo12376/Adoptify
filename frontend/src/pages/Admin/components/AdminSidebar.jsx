@@ -18,6 +18,7 @@ const menuItems = [
     submenu: [
       { icon: Package, label: "Productos", path: "/admin/marketplace" },
       { icon: ShoppingBag, label: "Tiendas Aliadas", path: "/admin/tiendas" },
+      { icon: ClipboardList, label: "Solicitudes Tiendas", path: "/admin/tiendas/solicitudes" },
       { icon: BarChart3, label: "Estadísticas", path: "/admin/marketplace/estadisticas" },
     ],
   },
@@ -36,7 +37,7 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, onLogout }) {
   const hoverTimeoutRef = useRef(null);
 
   const isExpanded = isHovered || fijado;
-  const isMarketplaceActive = location.pathname.startsWith("/admin/marketplace") || location.pathname === "/admin/tiendas";
+  const isMarketplaceActive = location.pathname.startsWith("/admin/marketplace") || location.pathname.startsWith("/admin/tiendas");
 
   // Auto-open marketplace submenu if we're on a marketplace page
   useEffect(() => {

@@ -1,14 +1,17 @@
-import React, { useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft, Save, X, Info, Tag, Heart, Syringe,
-  Edit3, ChevronDown, AlertCircle, Sparkles
+  Edit3, ChevronDown, AlertCircle, Sparkles, Loader2
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
 import ImageUploader from "../../components/ImageUploader";
 import FieldError from "../../components/FieldError";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
 import { actualizarMascota } from "../../api/mascotas";
+import { getRazasMascota } from "../../api/catalogos";
+import BreedSelector from "../../components/BreedSelector";
+import PersonalitySelector from "../../components/PersonalitySelector";
 
 const FormSection = ({ icon: Icon, title, children, color = "text-rose-500" }) => (
   <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border p-5">
@@ -25,18 +28,64 @@ const FormSection = ({ icon: Icon, title, children, color = "text-rose-500" }) =
 const InputClass = "w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white transition-all";
 const SelectClass = "w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white appearance-none cursor-pointer";
 
+// Mapea las etiquetas del formulario a los codigos de catalogo del backend
+// (mismo comportamiento que en la creación de mascotas).
+const TIPO_MAP = { Perro: "perro", Gato: "gato" };
+const TAMANO_MAP = { "Pequeño": "pequeno", Mediano: "mediano", Grande: "grande" };
+const GENERO_MAP = { Macho: "macho", Hembra: "hembra" };
+const ESTADO_MAP = { disponible: "disponible", "en proceso": "en_proceso", adoptado: "adoptado" };
+
 export default function ShelterEditPet() {
-  const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const initialPet = location.state?.pet;
 
   const [petData, setPetData] = useState(initialPet ? { ...initialPet, images: initialPet.images || [] } : null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false); // subida de imágenes en curso
+  const savingRef = useRef(false); // bloqueo síncrono contra doble envío
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+  const [razas, setRazas] = useState([]);
+  const [breedValue, setBreedValue] = useState(petData?.breed ? String(petData.breed) : "");
+  const [breedCustom, setBreedCustom] = useState(false);
+
+  // Carga las razas según el tipo de mascota (perro/gato) y detecta si la raza
+  // guardada es personalizada ("Otro"). Se recarga al cambiar el tipo; la
+  // detección de la raza inicial solo ocurre en la primera carga.
+  const primeraCargaRazasRef = useRef(true);
+  useEffect(() => {
+    let activo = true;
+    const tipo = petData?.type === "Gato" ? "gato" : "perro";
+    getRazasMascota(tipo)
+      .then((data) => {
+        if (!activo) return;
+        setRazas(data);
+        if (primeraCargaRazasRef.current) {
+          primeraCargaRazasRef.current = false;
+          const inicial = petData?.breed ? String(petData.breed) : "";
+          if (inicial) {
+            const enLista = data.some((r) => r.nombre.toLowerCase() === inicial.toLowerCase());
+            setBreedCustom(!enLista);
+          }
+        }
+      })
+      .catch(() => { if (activo) setRazas([]); });
+    return () => { activo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [petData?.type]);
+
+  // Edad: valor numérico + unidad (meses/años) — mismo formato que en la creación.
+  const inicializarEdad = () => {
+    const actual = petData?.age || "";
+    const m = String(actual).match(/^(\d+)\s+(meses|años|mes|año)$/i);
+    return m ? { val: m[1], unit: /mes/i.test(m[2]) ? "meses" : "años" } : { val: "", unit: "meses" };
+  };
+  const [edadInit] = useState(inicializarEdad);
+  const [edadValor, setEdadValor] = useState(edadInit.val);
+  const [edadUnidad, setEdadUnidad] = useState(edadInit.unit);
 
   if (!petData) {
     return (
@@ -63,14 +112,6 @@ export default function ShelterEditPet() {
         if (!limpiarEspacios(valor)) return "El nombre de la mascota es obligatorio.";
         if (limpiarEspacios(valor).length > 60) return "El nombre no puede superar los 60 caracteres.";
         return "";
-      case "breed":
-        if (!limpiarEspacios(valor)) return "La raza es obligatoria.";
-        if (limpiarEspacios(valor).length > 60) return "La raza no puede superar los 60 caracteres.";
-        return "";
-      case "age":
-        if (!limpiarEspacios(valor)) return "La edad es obligatoria.";
-        if (limpiarEspacios(valor).length > 20) return "La edad no puede superar los 20 caracteres.";
-        return "";
       case "description":
         if (!valor) return "";
         if (limpiarEspacios(valor).length > 1000) return "La descripción no puede superar los 1000 caracteres.";
@@ -78,6 +119,22 @@ export default function ShelterEditPet() {
       default:
         return "";
     }
+  };
+
+  const validarRaza = (valor) => {
+    if (!limpiarEspacios(valor)) return "La raza es obligatoria.";
+    if (limpiarEspacios(valor).length > 60) return "La raza no puede superar los 60 caracteres.";
+    return "";
+  };
+
+  const validarEdadCon = (valor, unidad) => {
+    const v = (valor || "").toString().trim();
+    if (!v) return "La edad es obligatoria.";
+    if (!/^\d+$/.test(v)) return "La edad debe ser un número entero.";
+    if (Number(v) <= 0) return "La edad debe ser mayor que 0.";
+    if (Number(v) > 999) return "La edad no puede superar 999.";
+    if (!unidad) return "La unidad de edad es obligatoria.";
+    return "";
   };
 
   // Sube las imágenes a Cloudinary con el flujo unificado y guarda su URL.
@@ -89,44 +146,112 @@ export default function ShelterEditPet() {
   const handleChange = (field, value) => {
     setPetData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
-    if (["name", "breed", "age", "description"].includes(field)) {
+    if (["name", "description"].includes(field)) {
       setErrors(prev => ({ ...prev, [field]: validarCampo(field, value) }));
       setSubmitError("");
     }
   };
 
+  // Al cambiar el tipo (perro/gato) se limpia la raza seleccionada, porque la
+  // lista de razas cambia (el useEffect de razas recarga según petData.type).
+  const handleTypeChange = (valor) => {
+    setBreedValue("");
+    setBreedCustom(false);
+    setErrors(prev => ({ ...prev, breed: "" }));
+    handleChange("type", valor);
+  };
+
+  // Raza (selector de la BD + opción "Otro").
+  const handleBreedSelect = (nombre) => {
+    setBreedValue(nombre);
+    setBreedCustom(false);
+    setErrors(prev => ({ ...prev, breed: validarRaza(nombre) }));
+    setHasChanges(true);
+    setSubmitError("");
+  };
+
+  const handleBreedOtro = () => {
+    setBreedValue("");
+    setBreedCustom(true);
+    setErrors(prev => ({ ...prev, breed: validarRaza("") }));
+    setHasChanges(true);
+    setSubmitError("");
+  };
+
+  const handleBreedTyped = (valor) => {
+    setBreedValue(valor);
+    setErrors(prev => ({ ...prev, breed: validarRaza(valor) }));
+    setHasChanges(true);
+    setSubmitError("");
+  };
+
+  // Input de edad: solo números enteros (filtra letras y caracteres especiales).
+  const handleEdadValorChange = (valor) => {
+    const limpio = (valor || "").replace(/[^\d]/g, "").slice(0, 3);
+    setEdadValor(limpio);
+    setErrors(prev => ({ ...prev, age: validarEdadCon(limpio, edadUnidad) }));
+    setHasChanges(true);
+    setSubmitError("");
+  };
+
+  const handleEdadUnidadChange = (valor) => {
+    setEdadUnidad(valor);
+    setErrors(prev => ({ ...prev, age: validarEdadCon(edadValor, valor) }));
+    setHasChanges(true);
+    setSubmitError("");
+  };
+
+  // Personalidad (chips seleccionables).
+  const handlePersonalityChange = (rasgos) => {
+    setPetData(prev => ({ ...prev, personality: rasgos }));
+    setHasChanges(true);
+    setSubmitError("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Bloqueo síncrono: ignora doble clic / Enter repetido mientras se guarda.
+    if (savingRef.current) return;
     setSubmitError("");
+
+    const razaFinal = limpiarEspacios(breedValue);
     const nuevosErrores = {
       name: validarCampo("name", petData.name),
-      breed: validarCampo("breed", petData.breed),
-      age: validarCampo("age", petData.age),
+      breed: validarRaza(breedValue),
+      age: validarEdadCon(edadValor, edadUnidad),
       description: validarCampo("description", petData.description),
     };
     setErrors(nuevosErrores);
     if (Object.values(nuevosErrores).some(Boolean)) return;
 
+    savingRef.current = true;
     setIsSaving(true);
     try {
       await actualizarMascota(petData.id, {
         nombre: petData.name,
-        tipo: petData.type,
-        tamano: petData.size,
-        genero: petData.gender,
-        estado: petData.status,
-        raza: petData.breed,
-        edad: petData.age,
-        peso: petData.weight,
-        color: petData.color,
+        tipo: TIPO_MAP[petData.type] || petData.type,
+        tamano: TAMANO_MAP[petData.size] || null,
+        genero: GENERO_MAP[petData.gender] || null,
+        estado: ESTADO_MAP[petData.status] || petData.status,
+        raza: razaFinal,
+        edad_valor: edadValor ? Number(edadValor) : null,
+        edad_unidad: edadUnidad,
+        peso: petData.weight || null,
+        color: petData.color || "",
         descripcion: petData.description,
-        personalidad: Array.isArray(petData.personality) ? petData.personality.join(", ") : (petData.personality || ""),
-        salud: petData.health,
+        personalidad: Array.isArray(petData.personality) ? petData.personality : [],
+        salud: petData.health || "",
         vacunado: !!petData.vaccinated,
         esterilizado: !!petData.sterilized,
+        // Imágenes desde Cloudinary (secure_url) guardadas en mascota_imagenes.
+        imagenes: (petData.images || []).map((img) => ({
+          url: img.url,
+          public_id: img.publicId || img.public_id,
+        })),
       });
-      navigate("/refugio/mascotas", { state: { updatedPet: true } });
+      navigate("/refugio/mascotas", { state: { updatedPet: true, successToast: "Mascota actualizada exitosamente" } });
     } catch (err) {
+      savingRef.current = false;
       setIsSaving(false);
       setSubmitError(
         err?.message || "No se pudo guardar la mascota. Revisa los datos e inténtalo de nuevo."
@@ -178,7 +303,7 @@ export default function ShelterEditPet() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Tipo</label>
                 <div className="relative">
-                  <select value={petData.type} onChange={(e) => handleChange("type", e.target.value)} className={SelectClass}>
+                  <select value={petData.type} onChange={(e) => handleTypeChange(e.target.value)} className={SelectClass}>
                     <option>Perro</option>
                     <option>Gato</option>
                   </select>
@@ -187,14 +312,33 @@ export default function ShelterEditPet() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Raza *</label>
-                <input type="text" value={petData.breed} onChange={(e) => handleChange("breed", e.target.value)}
-                  className={claseInput(InputClass, !!errors.breed)} placeholder="Ej: Golden Retriever" />
+                <BreedSelector
+                  razas={razas}
+                  value={breedValue}
+                  isCustom={breedCustom}
+                  error={errors.breed}
+                  onSelect={handleBreedSelect}
+                  onOtro={handleBreedOtro}
+                  onTyped={handleBreedTyped}
+                />
                 <FieldError mensaje={errors.breed} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Edad *</label>
-                <input type="text" value={petData.age} onChange={(e) => handleChange("age", e.target.value)}
-                  className={claseInput(InputClass, !!errors.age)} placeholder="Ej: 2 años" />
+                <div className="flex gap-2">
+                  <div className="flex-1 min-w-[3.5rem]">
+                    <input type="text" inputMode="numeric" autoComplete="off" value={edadValor}
+                      onChange={(e) => handleEdadValorChange(e.target.value)} placeholder="Ej: 2"
+                      className={claseInput(InputClass, !!errors.age)} />
+                  </div>
+                  <div className="relative w-28 flex-shrink-0">
+                    <select value={edadUnidad} onChange={(e) => handleEdadUnidadChange(e.target.value)} className={SelectClass}>
+                      <option value="meses">Meses</option>
+                      <option value="años">Años</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
                 <FieldError mensaje={errors.age} />
               </div>
               <div>
@@ -269,10 +413,11 @@ export default function ShelterEditPet() {
           {/* Personality */}
           <FormSection icon={Sparkles} title="Personalidad" color="text-amber-500">
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Rasgos de personalidad (separados por coma)</label>
-              <input type="text" value={(petData.personality || []).join(", ")}
-                onChange={(e) => handleChange("personality", e.target.value.split(",").map(t => t.trim()).filter(Boolean))}
-                className={InputClass} placeholder="Ej: Juguetón, Amigable, Energético" />
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Rasgos de personalidad (puedes elegir varios)</label>
+              <PersonalitySelector
+                value={petData.personality || []}
+                onChange={handlePersonalityChange}
+              />
             </div>
           </FormSection>
 
@@ -293,6 +438,7 @@ export default function ShelterEditPet() {
               label="Fotos de la Mascota (Máx. 3)"
               value={petData.images || []}
               onChange={handleImagesChange}
+              onUploadingChange={setIsUploading}
             />
           </div>
 
@@ -305,12 +451,29 @@ export default function ShelterEditPet() {
             </div>
           )}
 
+          {/* Barra de carga al guardar cambios / subir imágenes */}
+          {(isSaving || isUploading) && (
+            <div className="pt-1">
+              <div className="h-1.5 w-full bg-gray-100 dark:bg-dark-border rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full animate-progress" />
+              </div>
+              <p className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+                {isUploading
+                  ? "Subiendo imágenes, esto puede tomar unos segundos..."
+                  : "Guardando cambios, esto puede tomar unos segundos..."}
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 dark:border-dark-border">
-            <button type="submit" disabled={isSaving}
+            <button type="submit" disabled={isSaving || isUploading}
               className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-500/20 disabled:opacity-75 text-sm">
               {isSaving ? (
-                <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Guardando...</>
+                <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Guardando cambios...</>
+              ) : isUploading ? (
+                <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Procesando imágenes...</>
               ) : (
                 <><Save className="w-4 h-4" />Guardar Cambios</>
               )}
