@@ -69,6 +69,16 @@ def _limitar_texto(valor, campo, maximo):
     return limpio
 
 
+def _a_texto_lista(valor):
+    """Normaliza un valor a texto plano.
+
+    Si el cliente envia una lista (p. ej. rasgos de personalidad), se une con
+    ", " para guardarla como texto en la columna Text, manteniendo el contrato
+    del modelo y de la API.
+    """
+    if isinstance(valor, (list, tuple)):
+        return ", ".join(str(v).strip() for v in valor if str(v).strip())
+    return valor
 def _validar_personalidad(v):
     """Limpia y valida la lista de rasgos de personalidad.
 
@@ -231,8 +241,8 @@ class MascotaCreate(BaseModel):
 
     @field_validator("personalidad", mode="before")
     @classmethod
-    def _validar_personalidad(cls, v):
-        return _validar_personalidad(v)
+    def _validar_texto_lista(cls, v):
+        return _a_texto_lista(v)
 
 
 class MascotaUpdate(BaseModel):

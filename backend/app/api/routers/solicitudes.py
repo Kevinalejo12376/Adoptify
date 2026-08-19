@@ -7,6 +7,8 @@ from fastapi.responses import Response
 # pyrefly: ignore [missing-import]
 from sqlalchemy import and_, func, or_
 # pyrefly: ignore [missing-import]
+from sqlalchemy import and_, func, or_
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from typing import List
@@ -162,7 +164,7 @@ def reporte_solicitudes_usuario(
     """
     solicitudes = (
         db.query(SolicitudAdopcion)
-        .filter(SolicitudAdopcion.usuario_id == current_user.id)
+        .filter(or_(*condiciones))
         .order_by(SolicitudAdopcion.creada_en.desc())
         .all()
     )
