@@ -50,6 +50,7 @@ from app.models.interaccion import (
     Configuracion, FavoritoMascota, FavoritoProducto, ForoComentario, ForoReaccion, Resena,
 )
 from app.models.verificacion import CodigoVerificacion
+from app.models.ia import TareaIA, ChatSesion, ChatMensaje
 
 __all__ = [
     "TipoDocumento", "Rol", "TipoMascota", "TamanoMascota", "GeneroMascota",
@@ -66,4 +67,5 @@ __all__ = [
     "SolicitudRefugio", "SolicitudRefugioDocumento", "SolicitudRefugioHistorial",
     "SolicitudTienda", "SolicitudTiendaDocumento", "SolicitudTiendaHistorial",
     "EnlaceCreacionPassword",
+    "TareaIA", "ChatSesion", "ChatMensaje",
 ]

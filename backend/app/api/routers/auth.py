@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
 from fastapi.security import OAuth2PasswordRequestForm
 # pyrefly: ignore [missing-import]
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, ValidationError
@@ -68,6 +69,9 @@ def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
     """Crea un usuario (y refugio si aplica) en la base de datos.
     No hace commit — la transacción debe ser manejada por el llamador.
     """
+    # Normalizar email: se guarda siempre en minúsculas y sin espacios.
+    email_normalizado = (payload.email or "").strip().lower()
+
     # Resuelve el rol (por codigo o nombre); por defecto 'usuario'.
     rol_obj = (
         db.query(Rol)
@@ -87,7 +91,7 @@ def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
         tipo_documento_id=tipo_doc_id,
         numero_documento=payload.numero_documento,
         telefono=payload.telefono,
-        email=payload.email,
+        email=email_normalizado,
         hashed_password=get_password_hash(payload.password),
         rol_id=rol_obj.id,
         ubicacion=payload.ubicacion,
@@ -105,7 +109,7 @@ def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
             nombre=nombre_refugio,
             slug=slug,
             telefono=payload.telefono,
-            email=payload.email,
+            email=email_normalizado,
             ubicacion=payload.ubicacion,
         ))
 
@@ -236,7 +240,12 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
     """Registro directo (sin verificación de código).
     Se mantiene por compatibilidad. Para registro con verificación, usar /verify-register.
     """
-    existing = db.query(Usuario).filter(Usuario.email == payload.email).first()
+    email_normalizado = (payload.email or "").strip().lower()
+    existing = (
+        db.query(Usuario)
+        .filter(func.lower(Usuario.email) == email_normalizado)
+        .first()
+    )
     if existing:
         raise HTTPException(status_code=400, detail="El correo ya esta registrado")
 
@@ -479,7 +488,14 @@ def change_password(
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # El campo "username" del formulario OAuth2 contiene el email.
-    user = db.query(Usuario).filter(Usuario.email == form_data.username).first()
+    # Normalizar el email (minúsculas y sin espacios) para que el login sea
+    # consistente con el registro y tolerante a mayúsculas/espacios del usuario.
+    email_buscado = form_data.username.strip().lower()
+    user = (
+        db.query(Usuario)
+        .filter(func.lower(Usuario.email) == email_buscado)
+        .first()
+    )
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

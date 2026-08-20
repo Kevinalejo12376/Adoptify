@@ -18,6 +18,8 @@ class Configuracion(Base):
     notif_nuevas_solicitudes = Column(Boolean, nullable=False, default=True)
     notif_cambios_estado = Column(Boolean, nullable=False, default=True)
     notif_mensajes_foro = Column(Boolean, nullable=False, default=True)
+    # Opt-in para notificaciones por WhatsApp (entrega via n8n)
+    notif_whatsapp = Column(Boolean, nullable=False, default=False)
     tema = Column(String(10), nullable=False, default="light")
     idioma = Column(String(5), nullable=False, default="es")
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now())

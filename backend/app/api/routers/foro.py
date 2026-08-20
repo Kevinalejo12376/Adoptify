@@ -22,6 +22,7 @@ from app.models.catalogos import ForoCategoria, TipoPostForo, EstadoPostForo, Ti
 from app.services.cloudinary_service import (
     eliminar_imagen_temporal,
 )
+from app.api.routers.ia import crear_tarea_ia
 
 router = APIRouter()
 
@@ -341,6 +342,17 @@ def crear_post(payload: PostCreate, current_user: Usuario = Depends(get_current_
         ))
     db.commit()
 
+    # IA / n8n: encola la moderacion del post (WF-2 decide si se oculta).
+    try:
+        crear_tarea_ia(db, "moderar_post", {
+            "post_id": post.id,
+            "autor_id": current_user.id,
+            "titulo": post.titulo,
+            "contenido": post.contenido or "",
+        })
+    except Exception as exc:
+        logger.warning("[foro] No se pudo encolar moderacion del post: %s", exc)
+
     db.refresh(post)
     return _serialize_post(post, db)
 
@@ -358,6 +370,18 @@ def comentar(post_id: int, payload: ComentarioCreate, current_user: Usuario = De
     )
     db.add(com)
     db.commit()
+
+    # IA / n8n: encola la moderacion del comentario.
+    try:
+        crear_tarea_ia(db, "moderar_comentario", {
+            "post_id": post_id,
+            "comentario_id": com.id,
+            "autor_id": current_user.id,
+            "contenido": payload.contenido,
+        })
+    except Exception as exc:
+        logger.warning("[foro] No se pudo encolar moderacion del comentario: %s", exc)
+
     db.refresh(com)
     return {
         "id": com.id,

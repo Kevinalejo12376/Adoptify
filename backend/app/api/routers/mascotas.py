@@ -1,8 +1,14 @@
 # pyrefly: ignore [missing-import]
+<<<<<<< HEAD
 import threading
 import time
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+=======
+import logging
+# pyrefly: ignore [missing-import]
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+>>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
@@ -18,7 +24,13 @@ from app.models.mascota import Mascota, MascotaImagen
 from app.models.catalogos import TipoMascota, TamanoMascota, GeneroMascota, EstadoMascota
 from app.schemas.mascota import MascotaCreate, MascotaUpdate, MascotaResponse
 from app.schemas.serializers import serialize_mascota
+<<<<<<< HEAD
 from app.core.softdelete import soft_delete
+=======
+from app.api.routers.ia import crear_tarea_ia
+
+logger = logging.getLogger(__name__)
+>>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 
 router = APIRouter()
 
@@ -223,6 +235,29 @@ def crear_mascota(
     )
     registrar_auditoria(db, current_user.id, "crear", "mascotas", mascota.id, f"Registro mascota {mascota.nombre}")
     db.commit()
+
+    # IA / n8n: modera el contenido de la mascota y sugiere descripcion (WF-2/WF-4).
+    try:
+        crear_tarea_ia(db, "moderar_mascota", {
+            "mascota_id": mascota.id,
+            "refugio_id": refugio.id,
+            "autor_id": current_user.id,
+            "nombre": mascota.nombre,
+            "descripcion": mascota.descripcion or "",
+            "personalidad": mascota.personalidad or "",
+        })
+        crear_tarea_ia(db, "sugerir_descripcion", {
+            "mascota_id": mascota.id,
+            "tipo": payload.tipo,
+            "nombre": mascota.nombre,
+            "raza": mascota.raza,
+            "edad": mascota.edad,
+            "personalidad": mascota.personalidad or "",
+            "salud": mascota.salud or "",
+        })
+    except Exception as exc:
+        logger.warning("[mascotas] No se pudo encolar IA para la mascota: %s", exc)
+
     return serialize_mascota(mascota)
 
 
