@@ -84,6 +84,7 @@ from app.services.cloudinary_service import (
     subir_imagen_tienda,
     eliminar_imagen_permanente,
 )
+from app.api.routers.ia import crear_tarea_ia
 
 router = APIRouter()
 
@@ -929,6 +930,21 @@ def crear_producto(
         elemento_tipo="producto",
         elemento=producto.nombre,
     )
+
+    # IA / n8n: modera el contenido del producto (WF-2).
+    try:
+        crear_tarea_ia(db, "moderar_producto", {
+            "producto_id": producto.id,
+            "tienda_id": tienda.id,
+            "autor_id": current_user.id,
+            "nombre": producto.nombre,
+            "descripcion": producto.descripcion or "",
+            "descripcion_larga": producto.descripcion_larga or "",
+            "marca": producto.marca,
+        })
+    except Exception as exc:
+        logger.warning("[tienda] No se pudo encolar moderacion del producto: %s", exc)
+
     return serialize_producto(producto)
 
 
@@ -1848,6 +1864,19 @@ def crear_pqrs_tienda(
         elemento=pqrs.asunto,
         detalle=f"Categoría: {pqrs.tipo}",
     )
+
+    # IA / n8n: clasifica y prioriza la PQRS (WF-2) para agilizar su gestion.
+    try:
+        crear_tarea_ia(db, "clasificar_pqrs", {
+            "pqrs_id": pqrs.id,
+            "tienda_id": tienda.id,
+            "tienda_nombre": tienda.nombre,
+            "tipo": pqrs.tipo,
+            "asunto": pqrs.asunto,
+            "descripcion": pqrs.descripcion,
+        })
+    except Exception as exc:
+        logger.warning("[tienda] No se pudo encolar clasificacion de PQRS: %s", exc)
 
     return _serialize_pqrs(pqrs)
 

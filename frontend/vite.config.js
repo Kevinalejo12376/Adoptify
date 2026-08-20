@@ -9,6 +9,11 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
-    allowedHosts: true
+    // Escucha solo en localhost/127.0.0.1. Evita que Vite muestre
+    // direcciones de red (LAN) en la consola y no expone el server.
+    host: 'localhost',
+    // Puerto fijo: evita que Vite salte a 5174 si el 5173 esta ocupado.
+    port: 5173,
+    strictPort: true
   }
 })

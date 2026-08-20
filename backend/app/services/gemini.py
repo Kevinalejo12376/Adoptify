@@ -14,7 +14,7 @@ import httpx
 
 from app.core.config import settings
 
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 # Configuración de reintentos
@@ -78,6 +78,157 @@ def _comprimir_imagen_base64(b64_data: str, max_size_kb: int = 500) -> str:
     max_chars = int(max_size_kb * 1024 * 4 / 3)
     b64_data = b64_data[:max_chars]
     return f"{prefix},{b64_data}" if prefix else b64_data
+
+
+# ---------------------------------------------------------------------------
+# Clasificacion / generacion de texto (moderacion, PQRS, sugerencias)
+# ---------------------------------------------------------------------------
+
+# Prompts por tipo de tarea. Deben devolver SOLO JSON con la forma indicada.
+_PROMPTS_CLASIFICACION = {
+    "moderar_post": (
+        "Eres el moderador de contenido de Adoptify (plataforma de adopcion de mascotas). "
+        "Analiza el texto de una PUBLICACION del foro y responde SOLO JSON: "
+        '{"decision": "aprobar"|"marcar"|"ocultar", "confianza": 0.0-1.0, '
+        '"motivo": "explicacion corta en espanol", '
+        '"sugerencias": "como reescribirlo para que sea apropiado"}.\n'
+        "Reglas: ocultar SOLO para spam evidente, insultos graves o contenido ilegal "
+        "(confianza alta). marcar para contenido dudoso. aprobar para el resto.\n"
+        "Texto de la publicacion:\n"
+    ),
+    "moderar_comentario": (
+        "Eres el moderador de comentarios de Adoptify. Analiza un COMENTARIO del foro "
+        "y responde SOLO JSON: "
+        '{"decision": "aprobar"|"marcar"|"ocultar", "confianza": 0.0-1.0, '
+        '"motivo": "...", "sugerencias": "..."}.\n'
+        "Reglas: ocultar SOLO para spam o insultos graves (confianza alta); "
+        "marcar para groserias leves; aprobar para el resto.\n"
+        "Texto del comentario:\n"
+    ),
+    "moderar_producto": (
+        "Eres el moderador del marketplace de Adoptify. Analiza la descripcion de un "
+        "PRODUCTO y responde SOLO JSON: "
+        '{"decision": "aprobar"|"marcar"|"ocultar", "confianza": 0.0-1.0, '
+        '"motivo": "...", "sugerencias": "..."}.\n'
+        "Oculta solo si es contenido inapropiado, prohibido o spam.\n"
+        "Nombre y descripcion del producto:\n"
+    ),
+    "moderar_mascota": (
+        "Eres el moderador de Adoptify. Analiza la ficha de una MASCOTA y responde "
+        "SOLO JSON: "
+        '{"decision": "aprobar"|"marcar"|"ocultar", "confianza": 0.0-1.0, '
+        '"motivo": "...", "sugerencias": "..."}.\n'
+        "Oculta solo si hay contenido inapropiado, ilegal o spam.\n"
+        "Ficha de la mascota:\n"
+    ),
+    "clasificar_pqrs": (
+        "Clasifica la siguiente PQRS de una tienda de Adoptify. Responde SOLO JSON: "
+        '{"categoria": "pago"|"envio"|"producto"|"plataforma"|"otro", '
+        '"prioridad": "alta"|"media"|"baja", "resumen": "una frase corta en espanol"}.\n'
+        "PQRS:\n"
+    ),
+    "clasificar_reporte": (
+        "Clasifica el siguiente REPORTE de contenido de Adoptify. Responde SOLO JSON: "
+        '{"categoria": "spam"|"abuso"|"contenido_inapropiado"|"estafa"|"otro", '
+        '"prioridad": "alta"|"media"|"baja", "resumen": "una frase corta en espanol"}.\n'
+        "Reporte:\n"
+    ),
+    "sugerir_descripcion": (
+        "Eres un redactor experto en adopcion de mascotas. Con los datos de la mascota "
+        "escribe una descripcion atractiva y empatica en espanol, y requisitos de adopcion "
+        "claros. Responde SOLO JSON: "
+        '{"descripcion": "descripcion de 3-5 frases", "requisitos": "lista de requisitos"}.\n'
+        "Datos de la mascota:\n"
+    ),
+    "sugerir_hashtags": (
+        "Genera 5-8 hashtags relevantes en espanol para una publicacion de Adoptify. "
+        "Responde SOLO JSON: {\"hashtags\": [\"#...\", ...]}.\n"
+        "Contenido de la publicacion:\n"
+    ),
+    "chatbot": (
+        "Eres el asistente virtual de Adoptify, una plataforma de adopcion de mascotas "
+        "que conecta refugios, tiendas y adoptantes. Respondes en espanol, con un tono "
+        "amable y cercano, en 1-3 frases. Responde SOLO JSON con esta forma exacta:\n"
+        '{"respuesta": "tu mensaje al usuario", "accion": null}\n'
+        'Si el usuario pide "ir a" una seccion, devuelve accion como '
+        '{"tipo": "navegar", "ruta": "/..."} usando SOLO una de estas rutas: '
+        "/, /adoptar, /refugios, /tienda, /foro, /mis-pedidos, /favoritos, /login, /registrar-refugio. "
+        "Si no aplica navegacion, accion: null.\n"
+        "Usa el CONTEXTO (historial y pedidos del usuario) para responder sobre el estado "
+        "de pedidos si se te pregunta; no inventes datos ni consultes nada fuera de lo dado.\n\n"
+        "CONTEXTO (historial de la conversacion):\n"
+    ),
+}
+
+
+async def clasificar_contenido(tipo: str, texto: str) -> dict:
+    """Clasifica o genera contenido de texto con Gemini para una tarea de IA.
+
+    Args:
+        tipo: clave en _PROMPTS_CLASIFICACION (moderar_post, clasificar_pqrs, ...).
+        texto: contenido a analizar.
+
+    Returns:
+        dict con el resultado estructurado (decision/confianza o categoria/...).
+        Si la API falla, devuelve un dict "seguro" por tipo para no romper el flujo.
+    """
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY no esta configurada en el archivo .env")
+
+    prompt = _PROMPTS_CLASIFICACION.get(tipo)
+    if not prompt:
+        raise ValueError(f"Tipo de clasificacion desconocido: {tipo}")
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt + texto}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024},
+    }
+
+    url = f"{GEMINI_API_URL}?key={api_key}"
+    last_exception = None
+    for intento in range(1, MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                result = response.json()
+            texto_resp = ""
+            try:
+                texto_resp = result["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError) as exc:
+                raise ValueError(f"Error al procesar respuesta de Gemini: {str(exc)}")
+
+            texto_resp = texto_resp.strip()
+            if texto_resp.startswith("```json"):
+                texto_resp = texto_resp[7:]
+            elif texto_resp.startswith("```"):
+                texto_resp = texto_resp[3:]
+            if texto_resp.endswith("```"):
+                texto_resp = texto_resp[:-3]
+            texto_resp = texto_resp.strip()
+
+            datos = json.loads(texto_resp)
+            if not isinstance(datos, dict):
+                raise ValueError("Gemini no devolvio un objeto JSON")
+            return datos
+
+        except httpx.TimeoutException:
+            last_exception = ValueError("Gemini tardo demasiado.")
+            if intento < MAX_RETRIES:
+                await asyncio.sleep(min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY))
+                continue
+            raise last_exception
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429 and intento < MAX_RETRIES:
+                await asyncio.sleep(min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY))
+                continue
+            last_exception = ValueError(f"Error HTTP {e.response.status_code} de Gemini")
+            raise last_exception
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Gemini no devolvio JSON valido: {str(exc)}")
+
+    raise last_exception or ValueError("No se pudo obtener respuesta de Gemini")
 
 
 async def analizar_producto(imagenes_base64: list[str]) -> dict:

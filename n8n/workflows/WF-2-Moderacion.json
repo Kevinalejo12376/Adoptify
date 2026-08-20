@@ -1,0 +1,267 @@
+{
+  "name": "WF-2 Moderacion",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000020",
+      "name": "Cada 1 minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/tareas/siguiente?tipos=moderar,clasificar",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000021",
+      "name": "Consumir tarea",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "c9b9d9f0-0000-4000-8000-000000000001",
+              "leftValue": "={{ $json.tarea }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "isNotEmpty"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000022",
+      "name": "¿Hay tarea?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construye el prompt para Gemini segun el tipo de tarea.\nconst task = $input.all()[0].json;\nconst t = task.tarea;\nconst p = (t && t.payload) || {};\nlet instruccion = '';\nlet texto = '';\nif (t.tipo === 'moderar_post') {\n  instruccion = 'Eres el moderador de Adoptify (plataforma de adopcion de mascotas). Analiza esta PUBLICACION del foro y responde SOLO JSON: {\"decision\": \"aprobar\"|\"marcar\"|\"ocultar\", \"confianza\": 0.0-1.0, \"motivo\": \"corto en espanol\", \"sugerencias\": \"como reescribirlo\"}. Oculta SOLO spam/insultos graves/ilegal (confianza alta); marca lo dudoso; aprueba el resto.\\n\\n';\n  texto = (p.titulo || '') + '\\n' + (p.contenido || '');\n} else if (t.tipo === 'moderar_comentario') {\n  instruccion = 'Eres el moderador de comentarios de Adoptify. Analiza este COMENTARIO del foro y responde SOLO JSON: {\"decision\": \"aprobar\"|\"marcar\"|\"ocultar\", \"confianza\": 0.0-1.0, \"motivo\": \"...\", \"sugerencias\": \"...\"}. Oculta SOLO spam/insultos graves; marca groserias leves; aprueba el resto.\\n\\n';\n  texto = p.contenido || '';\n} else if (t.tipo === 'moderar_producto') {\n  instruccion = 'Eres el moderador del marketplace de Adoptify. Analiza este PRODUCTO y responde SOLO JSON: {\"decision\": \"aprobar\"|\"marcar\"|\"ocultar\", \"confianza\": 0.0-1.0, \"motivo\": \"...\", \"sugerencias\": \"...\"}. Oculta solo contenido inapropiado, prohibido o spam.\\n\\n';\n  texto = (p.nombre || '') + '\\n' + (p.descripcion_larga || p.descripcion || '');\n} else if (t.tipo === 'moderar_mascota') {\n  instruccion = 'Eres el moderador de Adoptify. Analiza la ficha de esta MASCOTA y responde SOLO JSON: {\"decision\": \"aprobar\"|\"marcar\"|\"ocultar\", \"confianza\": 0.0-1.0, \"motivo\": \"...\", \"sugerencias\": \"...\"}.\\n\\n';\n  texto = (p.nombre || '') + '\\n' + (p.descripcion || '') + '\\n' + (p.personalidad || '');\n} else if (t.tipo === 'clasificar_pqrs') {\n  instruccion = 'Clasifica esta PQRS de una tienda de Adoptify. Responde SOLO JSON: {\"categoria\": \"pago\"|\"envio\"|\"producto\"|\"plataforma\"|\"otro\", \"prioridad\": \"alta\"|\"media\"|\"baja\", \"resumen\": \"una frase corta en espanol\"}.\\n\\n';\n  texto = (p.asunto || '') + '\\n' + (p.descripcion || '');\n} else if (t.tipo === 'clasificar_reporte') {\n  instruccion = 'Clasifica este REPORTE de contenido de Adoptify. Responde SOLO JSON: {\"categoria\": \"spam\"|\"abuso\"|\"contenido_inapropiado\"|\"estafa\"|\"otro\", \"prioridad\": \"alta\"|\"media\"|\"baja\", \"resumen\": \"una frase corta en espanol\"}.\\n\\n';\n  texto = (p.tipo_objeto || '') + ': ' + (p.motivo || '');\n} else {\n  instruccion = 'Analiza el contenido y responde SOLO JSON.\\n\\n';\n  texto = JSON.stringify(p);\n}\nreturn [{ json: { tipo: t.tipo, tarea_id: t.id, prompt: instruccion + texto } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000023",
+      "name": "Construir texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: 'user', parts: [{ text: $json.prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000024",
+      "name": "Clasificar con Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [880, -80]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae y valida el JSON que devuelve Gemini y lo entrega a la tarea.\nconst r = $input.all()[0].json;\nconst tareaId = $('Construir texto').first().json.tarea_id;\nlet texto = '';\ntry {\n  texto = r.candidates[0].content.parts[0].text;\n} catch (e) {\n  texto = '';\n}\nif (!texto) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'Respuesta vacia de Gemini' } }];\n}\ntexto = texto.trim();\nif (texto.startsWith('```json')) texto = texto.slice(7);\nelse if (texto.startsWith('```')) texto = texto.slice(3);\nif (texto.endsWith('```')) texto = texto.slice(0, -3);\ntexto = texto.trim();\ntry {\n  const resultado = JSON.parse(texto);\n  return [{ json: { tarea_id: tareaId, resultado, error: null } }];\n} catch (e) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'JSON invalido devuelto por Gemini' } }];\n}"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000025",
+      "name": "Combinar resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, -80]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "c9b9d9f0-0000-4000-8000-000000000002",
+              "leftValue": "={{ $json.resultado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "isNotEmpty"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000026",
+      "name": "¿Clasificó bien?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1320, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/tareas/{{ $json.tarea_id }}/resultado",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ resultado: $json.resultado }) }}",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000027",
+      "name": "Entregar resultado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1540, -140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/tareas/{{ $json.tarea_id }}/error",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ error: $json.error || 'Error procesando tarea' }) }}",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000028",
+      "name": "Reportar error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1540, -20]
+    }
+  ],
+  "connections": {
+    "Cada 1 minuto": {
+      "main": [[
+        {
+          "node": "Consumir tarea",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Consumir tarea": {
+      "main": [[
+        {
+          "node": "¿Hay tarea?",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "¿Hay tarea?": {
+      "main": [
+        [
+          {
+            "node": "Construir texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Construir texto": {
+      "main": [[
+        {
+          "node": "Clasificar con Gemini",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Clasificar con Gemini": {
+      "main": [[
+        {
+          "node": "Combinar resultado",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Combinar resultado": {
+      "main": [[
+        {
+          "node": "¿Clasificó bien?",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "¿Clasificó bien?": {
+      "main": [
+        [
+          {
+            "node": "Entregar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reportar error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

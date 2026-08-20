@@ -10,6 +10,7 @@ import StoreRoute from "./components/StoreRoute";
 import StorePermisoRuta from "./components/StorePermisoRuta";
 import ShelterPermisoRuta from "./components/ShelterPermisoRuta";
 import CompleteProfileModal from "./components/CompleteProfileModal";
+import ChatBot from "./components/ChatBot";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StoreProvider } from "./context/StoreContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -274,6 +275,9 @@ function AppContent() {
           onComplete={markProfileCompleted}
         />
       )}
+
+      {/* Chatbot flotante (IA via n8n) — en todas las vistas EXCEPTO Login y Register */}
+      {location.pathname !== "/login" && location.pathname !== "/register" && <ChatBot />}
     </div>
   );
 }

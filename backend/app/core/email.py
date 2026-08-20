@@ -1,8 +1,14 @@
-"""Servicio de envio de correos electronicos via Brevo (Sendinblue) API."""
+"""Servicio de envío de correos electrónicos.
+
+Método principal: la API de Brevo (Sendinblue) — correos transaccionales.
+Si Brevo no está configurado (BREVO_API_KEY vacío), se intenta como fallback
+el workflow "enviar_correo" de n8n (solo si N8N_ENABLED=true).
+"""
 import logging
 import random
 import httpx
 from app.core.config import settings
+from app.core.webhooks import n8n_activo, disparar_webhook_sync
 
 logger = logging.getLogger(__name__)
 
@@ -359,45 +365,78 @@ def _build_codigo_html(codigo: str, tipo: str, nombre: str = "") -> str:
 
 
 def _enviar_correo(email_destino: str, asunto: str, html: str) -> bool:
-    """Función interna para enviar un correo mediante la API de Brevo (Sendinblue)."""
-    if not settings.BREVO_API_KEY:
-        logger.warning("Brevo no configurado — no se envió correo a %s", email_destino)
-        return False
+    """Envía un correo electrónico.
 
-    url = "https://api.brevo.com/v3/smtp/email"
-    headers = {
-        "api-key": settings.BREVO_API_KEY,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-    payload = {
-        "sender": {"name": settings.BREVO_FROM_NAME, "email": settings.BREVO_FROM_EMAIL},
-        "to": [{"email": email_destino}],
-        "subject": asunto,
-        "htmlContent": html,
-    }
-
-    try:
-        resp = httpx.post(url, json=payload, headers=headers, timeout=30)
-        if resp.status_code == 201:
-            data = resp.json()
+    Si la integración con n8n está habilitada (N8N_ENABLED=true), el correo se
+    enruta al workflow "enviar_correo" de n8n (WF-1) y se ESPERA su respuesta
+    (WF-1 responde después de enviar). Si n8n no responde o falla, se usa Brevo
+    (Sendinblue) como respaldo; si tampoco está configurado Brevo, se devuelve False.
+    """
+    # 1. Método preferido: workflow "enviar_correo" de n8n (si está habilitado).
+    if n8n_activo():
+        ok = disparar_webhook_sync(
+            "enviar_correo",
+            {
+                "to": email_destino,
+                "asunto": asunto,
+                "html": html,
+            },
+            timeout=settings.N8N_WEBHOOK_TIMEOUT,
+        )
+        if ok:
             logger.info(
-                "✓ Correo enviado EXITOSAMENTE vía Brevo a %s — Asunto: %s | ID: %s",
+                "✓ Correo enrutado a n8n (WF-1) para %s — Asunto: %s",
                 email_destino,
                 asunto,
-                data.get("messageId"),
             )
             return True
-        logger.error(
-            "✗ Brevo respondió %s al enviar a %s: %s",
-            resp.status_code,
+        logger.warning(
+            "n8n no respondió para %s — se intenta enviar con Brevo.",
             email_destino,
-            resp.text,
         )
-        return False
-    except Exception as exc:
-        logger.error("✗ Error inesperado al enviar correo a %s: %s", email_destino, exc)
-        return False
+
+    # 2. Método de respaldo: API de Brevo (Sendinblue).
+    if settings.BREVO_API_KEY:
+        url = "https://api.brevo.com/v3/smtp/email"
+        headers = {
+            "api-key": settings.BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        payload = {
+            "sender": {"name": settings.BREVO_FROM_NAME, "email": settings.BREVO_FROM_EMAIL},
+            "to": [{"email": email_destino}],
+            "subject": asunto,
+            "htmlContent": html,
+        }
+
+        try:
+            resp = httpx.post(url, json=payload, headers=headers, timeout=30)
+            if resp.status_code == 201:
+                data = resp.json()
+                logger.info(
+                    "✓ Correo enviado EXITOSAMENTE vía Brevo a %s — Asunto: %s | ID: %s",
+                    email_destino,
+                    asunto,
+                    data.get("messageId"),
+                )
+                return True
+            logger.error(
+                "✗ Brevo respondió %s al enviar a %s: %s",
+                resp.status_code,
+                email_destino,
+                resp.text,
+            )
+            return False
+        except Exception as exc:
+            logger.error("✗ Error inesperado al enviar correo a %s: %s", email_destino, exc)
+            return False
+
+    logger.error(
+        "No se pudo enviar correo a %s (n8n no disponible y Brevo no configurado)",
+        email_destino,
+    )
+    return False
 
 
 def enviar_correo_bienvenida(email_destino: str, nombre: str, apellido: str | None = None) -> bool:
@@ -590,6 +629,38 @@ def enviar_correo_solicitud_informacion(
         email_destino,
         asunto,
         _build_base_html("Necesitamos más información", contenido),
+    )
+
+
+def enviar_correo_contenido_inapropiado(
+    email_destino: str,
+    nombre: str,
+    entidad: str,
+    motivo: str,
+    sugerencias: str = "",
+) -> bool:
+    """Correo informando que un contenido no paso la moderacion (IA via n8n)."""
+    asunto = f"🚫 Contenido no publicado en Adoptify — {entidad}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre}</strong> 👋</p>
+        <p>Tu {entidad} no se publicó porque nuestro sistema de moderación detectó
+        contenido que no es apropiado para la comunidad.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;"><strong>Motivo:</strong></p>
+            <p style="margin:0;">{motivo}</p>
+        </div>
+
+        {'<div class="caja"><p style="margin:0 0 6px;"><strong>Sugerencia para corregirlo:</strong></p><p style="margin:0;">' + sugerencias + '</p></div>' if sugerencias else ''}
+
+        <p>Si crees que esto es un error, contacta a nuestro equipo de soporte y lo
+        revisaremos con gusto.</p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Contenido no publicado", contenido),
     )
 
 
