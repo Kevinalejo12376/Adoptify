@@ -66,7 +66,7 @@ class RefugioUpdate(BaseModel):
     @field_validator("telefono")
     @classmethod
     def _validar_telefono(cls, v):
-        return validar_telefono(v)
+        return validar_telefono_empleado(v)
 
 
 class RefugioResponse(RefugioBase):

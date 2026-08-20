@@ -10,6 +10,8 @@ from decimal import Decimal, ROUND_HALF_UP
 
 logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+
 from app.db.database import get_db
 from app.core.security import (
     get_current_user,
