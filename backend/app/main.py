@@ -18,11 +18,9 @@ from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
-<<<<<<< HEAD
+    solicitudes_tienda, solicitudes_tienda_admin, upload, reportes_descarga,
     reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
-=======
     solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
->>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 )
 
 logger = logging.getLogger(__name__)
@@ -55,7 +53,6 @@ async def lifespan(app: FastAPI):
 
 
 def _run_migrations():
-<<<<<<< HEAD
     """Ejecuta migraciones para sincronizar el schema de Supabase con los modelos.
 
     Cada grupo de migración se ejecuta de forma AISLADA: si uno falla (por
@@ -66,8 +63,6 @@ def _run_migrations():
     """
     if getattr(engine.dialect, "name", "") == "sqlite":
         print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
-=======
-    """Ejecuta migraciones para sincronizar el schema de Supabase con los modelos."""
     from app.core.config import settings
 
     # SQLite local: SQLAlchemy ya crea todas las tablas con create_all y las
@@ -75,7 +70,6 @@ def _run_migrations():
     # se omiten las migraciones SQL (solo aplican a Supabase/PostgreSQL).
     if settings.DATABASE_URL.startswith("sqlite"):
         print("[migracion] SQLite local: tablas creadas por SQLAlchemy. Se omiten migraciones SQL de Postgres.")
->>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
         return
 
     from app.db.database import SessionLocal
@@ -886,7 +880,11 @@ app.include_router(
     tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
-<<<<<<< HEAD
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descargables",
+    tags=["Reportes descargables"],
+)
 app.include_router(
     reportes_descarga.router,
     prefix="/api/reportes-descarga",
@@ -897,9 +895,7 @@ app.include_router(
     prefix="/api/adopciones",
     tags=["Adopciones"],
 )
-=======
 app.include_router(ia.router, prefix="/api/ia", tags=["IA / n8n"])
->>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 
 
 @app.get("/")

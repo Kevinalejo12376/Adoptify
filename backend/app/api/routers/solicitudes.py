@@ -1,5 +1,9 @@
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timezone
+# pyrefly: ignore [missing-import]
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+# pyrefly: ignore [missing-import]
+from fastapi.responses import Response
 # pyrefly: ignore [missing-import]
 from sqlalchemy import and_, func, or_
 # pyrefly: ignore [missing-import]
@@ -22,6 +26,8 @@ from app.models.solicitud import SolicitudAdopcion
 from app.models.catalogos import EstadoSolicitud
 from app.schemas.solicitud import SolicitudCreate, SolicitudResponse, SolicitudEstadoUpdate
 from app.schemas.serializers import serialize_solicitud
+from app.services.reportes.base import Columna, TIPO_ENTERO, TIPO_FECHA_HORA
+from app.services.reportes import pdf as pdf_utils, excel as excel_utils
 
 router = APIRouter()
 
@@ -111,6 +117,81 @@ def mis_solicitudes(current_user: Usuario = Depends(get_current_user), db: Sessi
     return [_enrich(s, db) for s in solicitudes]
 
 
+@router.get("/mias/reporte")
+def reporte_solicitudes_usuario(
+    formato: str = Query("pdf", pattern="^(pdf|excel)$"),
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Genera y descarga el reporte de SOLO las solicitudes del usuario autenticado.
+
+    La validacion de aislamiento se hace en el backend: las solicitudes se
+    filtran por ``usuario_id == current_user.id``. Si no hay solicitudes, se
+    devuelve 404 y no se genera una descarga vacia.
+    """
+    solicitudes = (
+        db.query(SolicitudAdopcion)
+        .filter(SolicitudAdopcion.usuario_id == current_user.id)
+        .order_by(SolicitudAdopcion.creada_en.desc())
+        .all()
+    )
+    if not solicitudes:
+        raise HTTPException(
+            status_code=404,
+            detail="No hay solicitudes de adopción registradas para este usuario",
+        )
+
+    columnas = [
+        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
+        Columna("mascota", "Mascota", ancho_pdf=110, ancho_excel=20),
+        Columna("estado", "Estado", ancho_pdf=80, ancho_excel=14),
+        Columna("ubicacion", "Ubicación", ancho_pdf=90, ancho_excel=16),
+        Columna("creada_en", "Fecha", TIPO_FECHA_HORA, ancho_pdf=85, ancho_excel=16),
+    ]
+
+    filas = []
+    for s in solicitudes:
+        row = db.query(Mascota.nombre, Mascota.tipo_id).filter(Mascota.id == s.mascota_id).first()
+        mascota_nombre = row[0] if row else "—"
+        estado = db.query(EstadoSolicitud.nombre).filter(EstadoSolicitud.id == s.estado_id).scalar()
+        filas.append({
+            "id": s.id,
+            "mascota": mascota_nombre,
+            "estado": estado or "—",
+            "ubicacion": s.ubicacion or "—",
+            "creada_en": s.creada_en,
+        })
+
+    ahora = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    subtitulo = f"Generado el {ahora} (UTC) · Adoptify"
+
+    if formato == "excel":
+        contenido = excel_utils.construir_excel(
+            titulo="Mis Solicitudes de Adopción",
+            subtitulo=subtitulo,
+            columnas=columnas,
+            filas=filas,
+        )
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = ".xlsx"
+    else:
+        contenido = pdf_utils.construir_pdf(
+            titulo="Mis Solicitudes de Adopción",
+            subtitulo=subtitulo,
+            columnas=columnas,
+            filas=filas,
+        )
+        media_type = "application/pdf"
+        ext = ".pdf"
+
+    nombre = f"mis_solicitudes_adopcion{ext}"
+    return Response(
+        content=contenido,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
 @router.get("/recibidas", response_model=List[SolicitudResponse])
 def solicitudes_recibidas(current_user: Usuario = Depends(require_permiso_refugio("solicitudes")), db: Session = Depends(get_db)):
     """Solicitudes recibidas por el refugio autenticado."""
@@ -125,6 +206,92 @@ def solicitudes_recibidas(current_user: Usuario = Depends(require_permiso_refugi
         .all()
     )
     return [_enrich(s, db) for s in solicitudes]
+
+
+@router.get("/recibidas/reporte")
+def reporte_solicitudes_refugio(
+    formato: str = Query("pdf", pattern="^(pdf|excel)$"),
+    current_user: Usuario = Depends(require_permiso_refugio("solicitudes")),
+    db: Session = Depends(get_db),
+):
+    """Genera y descarga el reporte de SOLO las solicitudes del refugio autenticado.
+
+    La validacion de aislamiento se hace en el backend: el refugio se obtiene
+    del usuario autenticado y las solicitudes se filtran por su ``refugio_id``,
+    por lo que un refugio nunca puede acceder a datos de otro.
+    """
+    refugio = get_refugio_de_usuario(db, current_user)
+    if not refugio:
+        raise HTTPException(status_code=404, detail="Refugio no encontrado")
+
+    solicitudes = (
+        db.query(SolicitudAdopcion)
+        .join(Mascota, SolicitudAdopcion.mascota_id == Mascota.id)
+        .filter(Mascota.refugio_id == refugio.id)
+        .order_by(SolicitudAdopcion.creada_en.desc())
+        .all()
+    )
+    if not solicitudes:
+        raise HTTPException(
+            status_code=404,
+            detail="No hay solicitudes registradas para este refugio",
+        )
+
+    columnas = [
+        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
+        Columna("contacto", "Solicitante", ancho_pdf=110, ancho_excel=20),
+        Columna("email", "Correo", ancho_pdf=130, ancho_excel=24),
+        Columna("telefono", "Teléfono", ancho_pdf=90, ancho_excel=14),
+        Columna("mascota", "Mascota", ancho_pdf=110, ancho_excel=20),
+        Columna("estado", "Estado", ancho_pdf=80, ancho_excel=14),
+        Columna("ubicacion", "Ubicación", ancho_pdf=90, ancho_excel=16),
+        Columna("creada_en", "Fecha", TIPO_FECHA_HORA, ancho_pdf=85, ancho_excel=16),
+    ]
+
+    filas = []
+    for s in solicitudes:
+        row = db.query(Mascota.nombre, Mascota.tipo_id).filter(Mascota.id == s.mascota_id).first()
+        mascota_nombre = row[0] if row else "—"
+        estado = db.query(EstadoSolicitud.nombre).filter(EstadoSolicitud.id == s.estado_id).scalar()
+        filas.append({
+            "id": s.id,
+            "contacto": s.nombre_contacto or "—",
+            "email": s.email_contacto or "—",
+            "telefono": s.telefono_contacto or "—",
+            "mascota": mascota_nombre,
+            "estado": estado or "—",
+            "ubicacion": s.ubicacion or "—",
+            "creada_en": s.creada_en,
+        })
+
+    ahora = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    subtitulo = f"Generado el {ahora} (UTC) · {refugio.nombre} · Adoptify"
+
+    if formato == "excel":
+        contenido = excel_utils.construir_excel(
+            titulo="Historial de Solicitudes del Refugio",
+            subtitulo=subtitulo,
+            columnas=columnas,
+            filas=filas,
+        )
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = ".xlsx"
+    else:
+        contenido = pdf_utils.construir_pdf(
+            titulo="Historial de Solicitudes del Refugio",
+            subtitulo=subtitulo,
+            columnas=columnas,
+            filas=filas,
+        )
+        media_type = "application/pdf"
+        ext = ".pdf"
+
+    nombre = f"reporte_historial_refugio_{refugio.id}{ext}"
+    return Response(
+        content=contenido,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 # Notificacion al solicitante segun el nuevo estado de su solicitud.
