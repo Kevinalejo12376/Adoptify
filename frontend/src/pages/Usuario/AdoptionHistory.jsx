@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 import {
   PawPrint, CheckCircle, XCircle, AlertCircle, MapPin, Calendar,
   Phone, MessageCircle, Search, Clock, ChevronRight, Dog, Cat,
-  Heart, ClipboardList, UserCheck, FileText, Home, Loader2, FileDown,
+  Heart, ClipboardList, UserCheck, FileText, Home, Loader2, FileDown, ChevronDown,
 } from "lucide-react";
-import { misSolicitudes } from "../../api/solicitudes";
+import { misSolicitudes, descargarReporteHistorialUsuario } from "../../api/solicitudes";
 import ReporteGeneralModal from "../../components/ReporteGeneralModal";
 
 // Mapea codigos del backend al status que usa la UI
@@ -57,6 +57,7 @@ export default function AdoptionHistory() {
   const [adoptions, setAdoptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reporteAbierto, setReporteAbierto] = useState(false);
   const [showReporteModal, setShowReporteModal] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -117,13 +118,13 @@ export default function AdoptionHistory() {
               Seguimiento de todas tus solicitudes
             </p>
           </div>
-          {/* Boton Reporte General: abre el modal de descarga PDF/Excel */}
           <button
-            onClick={() => setShowReporteModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-md whitespace-nowrap flex-shrink-0"
+            onClick={() => setReporteAbierto(true)}
+            className="inline-flex items-center self-start sm:self-auto px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border transition-all"
           >
-            <FileDown className="w-4 h-4" />
-            Reporte General
+            <FileDown className="w-4 h-4 mr-2 text-rose-500" />
+            Reporte general
+            <ChevronDown className="w-4 h-4 ml-1 text-gray-400" />
           </button>
         </div>
 
@@ -295,6 +296,13 @@ export default function AdoptionHistory() {
             })}
           </div>
         )}
+
+        {/* Reporte general: descarga PDF/Excel de las solicitudes del usuario */}
+        <ReporteGeneralModal
+          isOpen={reporteAbierto}
+          onClose={() => setReporteAbierto(false)}
+          descargar={descargarReporteHistorialUsuario}
+        />
       </div>
 
       {/* Modal de Reporte General (PDF/Excel) */}

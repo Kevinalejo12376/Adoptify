@@ -7,11 +7,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import AutoFadingImage from "../../components/AutoFadingImage";
-import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
-// Imágenes estáticas servidas desde Cloudinary
-const loginDog = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347014/frontend-assets/login-dog/loginDog.jpg";
-const mascotasImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
-const daycareImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347013/frontend-assets/daycare/daycare.jpg";
 import GoogleIcon from "../../components/GoogleIcon";
 import { CAROUSEL_IMAGES } from "../../assets/images";
 import {

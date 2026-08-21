@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
-import { ClipboardList, Calendar, Clock, User, Dog, Cat, Heart, Search, Filter, CheckCircle, XCircle, AlertCircle, Download, ArrowUp, ChevronDown, MapPin, Loader2 } from "lucide-react";
-import { solicitudesRecibidas } from "../../api/solicitudes";
+import { ClipboardList, Calendar, Clock, User, Dog, Cat, Heart, Search, Filter, CheckCircle, XCircle, AlertCircle, FileDown, ArrowUp, ChevronDown, MapPin, Loader2 } from "lucide-react";
+import { solicitudesRecibidas, descargarReporteHistorialRefugio } from "../../api/solicitudes";
+import ReporteGeneralModal from "../../components/ReporteGeneralModal";
 
 export default function ShelterAdoptionHistory() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -9,6 +10,7 @@ export default function ShelterAdoptionHistory() {
   const [adoptions, setAdoptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reporteAbierto, setReporteAbierto] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
@@ -84,9 +86,13 @@ export default function ShelterAdoptionHistory() {
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white font-display">Historial</h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-1">Todas las solicitudes de adopción procesadas</p>
           </div>
-          <button className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border transition-all">
-            <Download className="w-4 h-4 mr-2" />
-            Exportar
+          <button
+            onClick={() => setReporteAbierto(true)}
+            className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border transition-all"
+          >
+            <FileDown className="w-4 h-4 mr-2 text-rose-500" />
+            Reporte general
+            <ChevronDown className="w-4 h-4 ml-1 text-gray-400" />
           </button>
         </div>
       </section>
@@ -195,6 +201,13 @@ export default function ShelterAdoptionHistory() {
           )}
         </div>
       </section>
+
+      {/* Reporte general: descarga PDF/Excel de las solicitudes del refugio */}
+      <ReporteGeneralModal
+        isOpen={reporteAbierto}
+        onClose={() => setReporteAbierto(false)}
+        descargar={descargarReporteHistorialRefugio}
+      />
     </div>
   );
 }

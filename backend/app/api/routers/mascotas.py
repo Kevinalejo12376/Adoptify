@@ -20,6 +20,7 @@ from app.models.catalogos import TipoMascota, TamanoMascota, GeneroMascota, Esta
 from app.schemas.mascota import MascotaCreate, MascotaUpdate, MascotaResponse
 from app.schemas.serializers import serialize_mascota
 from app.core.softdelete import soft_delete
+from app.core.softdelete import soft_delete
 from app.api.routers.ia import crear_tarea_ia
 
 logger = logging.getLogger(__name__)

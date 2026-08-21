@@ -18,7 +18,9 @@ from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
-    reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
+    solicitudes_tienda, solicitudes_tienda_admin, upload, reportes_descarga,
+    reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
+    solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,8 @@ def _run_migrations():
     migraciones faltantes. En SQLite local las tablas ya las crea
     ``Base.metadata.create_all`` (modelos), por lo que no se aplica SQL de Supabase.
     """
+    if getattr(engine.dialect, "name", "") == "sqlite":
+        print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
     from app.core.config import settings
 
     # SQLite local: SQLAlchemy ya crea todas las tablas con create_all y las
@@ -150,6 +154,9 @@ def _run_migrations():
             print(f"[migracion] Con aviso (no críticas): {', '.join(fallos)}")
         else:
             print("[migracion] Todas las migraciones aplicadas/verificadas correctamente.")
+        # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
+        _soft_delete_migrations(db)
+
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
 
@@ -873,6 +880,11 @@ app.include_router(
     tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descargables",
+    tags=["Reportes descargables"],
+)
 app.include_router(
     reportes_descarga.router,
     prefix="/api/reportes-descarga",

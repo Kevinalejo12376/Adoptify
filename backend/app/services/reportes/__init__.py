@@ -1,4 +1,9 @@
 """
+Registro central de los reportes descargables de Adoptify.
+
+Expone el diccionario ``REGISTRO_REPORTES`` (codigo -> clase generadora) que
+usan el router de descarga y la UI para listar y generar reportes en PDF/Excel.
+"""
 Modulo de generacion de reportes de Adoptify.
 
 Registro central de tipos de reporte. Para agregar un nuevo reporte:
@@ -23,6 +28,8 @@ from app.services.reportes.generadores import (
     ReporteUsuarios,
 )
 
+# Codigo -> clase generadora
+REGISTRO_REPORTES = {
 __all__ = [
     "Columna",
     "GeneradorReporte",
@@ -54,6 +61,21 @@ REGISTRO_REPORTES: Dict[str, Type[GeneradorReporte]] = {
 }
 
 
+def obtener_generador(codigo: str):
+    """Devuelve una instancia del generador segun su codigo (o None)."""
+    cls = REGISTRO_REPORTES.get(codigo)
+    return cls() if cls else None
+
+
+def listar_reportes():
+    """Devuelve la lista de reportes disponibles (para el selector de la UI)."""
+    return [
+        {
+            "codigo": g.codigo,
+            "titulo": g.titulo,
+            "descripcion": g.descripcion,
+        }
+        for g in REGISTRO_REPORTES.values()
 def obtener_generador(codigo: str) -> Optional[GeneradorReporte]:
     """Instancia el generador de reporte correspondiente al codigo.
 

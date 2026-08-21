@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy.orm import Session
+
 import requests
 from sqlalchemy.orm import Session
 

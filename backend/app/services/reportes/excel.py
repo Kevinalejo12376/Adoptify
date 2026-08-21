@@ -26,11 +26,11 @@ from app.services.reportes.base import (
 )
 
 # ---------------------------------------------------------------------------
-# Paleta (identidad Adoptify)
+# Paleta (identidad Adoptify, misma del frontend)
 # ---------------------------------------------------------------------------
-COLOR_PRIMARIO = "E11D48"  # Rose-600
+COLOR_PRIMARIO = "FF4D7A"  # Rosa del gradiente (logo / botones)
 COLOR_ACENTO = "F59E0B"  # Amber-500
-COLOR_ZEBRA = "FFF7ED"  # Orange-50
+COLOR_ZEBRA = "FFF1F2"  # Rose-50 (zebra)
 COLOR_TEXTO = "1F2937"
 COLOR_TEXTO_SUAVE = "6B7280"
 
@@ -124,6 +124,14 @@ def construir_excel(
     borde = Border(left=borde_fino, right=borde_fino, top=borde_fino, bottom=borde_fino)
 
     # ------------------------------------------------------------------
+    # Encabezado del documento (titulo + subtitulo)
+    # ------------------------------------------------------------------
+    hoja.cell(row=1, column=1, value=titulo).font = fuente_titulo
+    hoja.cell(row=2, column=1, value=subtitulo).font = fuente_sub
+    hoja.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(columnas))
+    hoja.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(columnas))
+    hoja.row_dimensions[1].height = 22
+    hoja.row_dimensions[2].height = 14
     # Logo institucional (Cloudinary) en la esquina superior izquierda
     # ------------------------------------------------------------------
     _agregar_logo(hoja)
