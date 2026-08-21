@@ -1,0 +1,178 @@
+{
+  "name": "WF-3 Chatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000030",
+      "name": "Webhook chatbot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "5f3f8a1e-0000-4000-8000-000000000030"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae el payload del webhook y normaliza los datos.\n// El webhook de n8n puede entregar el cuerpo como $json (directo) o como $json.body.\nconst raw = $input.first().json || {};\nconst bodyObj = (raw.body && typeof raw.body === 'object') ? raw.body : raw;\nconst p = (bodyObj.payload && typeof bodyObj.payload === 'object') ? bodyObj.payload : bodyObj;\nreturn [{\n  json: {\n    session_id: p.session_id || '',\n    usuario_id: (p.usuario_id !== undefined && p.usuario_id !== null) ? p.usuario_id : null,\n    mensaje: p.mensaje || '',\n    historial: Array.isArray(p.historial) ? p.historial : []\n  }\n}];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000036",
+      "name": "Extraer datos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/chat/{{ $json.session_id }}/contexto",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000031",
+      "name": "Obtener contexto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construye el prompt completo del chatbot: instruccion + rol + historial + contexto + mensaje.\nconst datos = $('Extraer datos').first().json;\nconst ctx = $input.first().json; // respuesta de 'Obtener contexto' (backend seguro)\nconst historial = (datos.historial || [])\n  .map((m) => (m.rol === 'user' ? 'Usuario: ' : 'Bot: ') + m.contenido)\n  .join('\\n');\n\n// Contexto del usuario segun rol (el backend solo devuelve datos del dueno de la sesion).\nlet contextoTexto = 'Usuario: NO autenticado (invitado). No tiene datos personales visibles. Si pide algo personal (pedidos, adopciones, favoritos) o ir a una seccion protegida, indica que primero debe iniciar sesion o registrarse.';\nif (ctx && ctx.autenticado) {\n  const rol = ctx.rol || 'usuario';\n  const rolNombre = { usuario: 'usuario adoptante', refugio: 'representante de refugio', empleado_refugio: 'empleado de refugio', tienda_aliada: 'miembro de tienda aliada', administrador: 'administrador' }[rol] || rol;\n  contextoTexto = 'Usuario AUTENTICADO. Rol: ' + rolNombre + '.\\nNombre: ' + (ctx.usuario ? (ctx.usuario.nombre || '') : '') + '\\n';\n  const pedidos = Array.isArray(ctx.pedidos) ? ctx.pedidos : [];\n  contextoTexto += (pedidos.length ? 'Sus pedidos:\\n' + pedidos.map((p) => '- ' + (p.numero || p.id) + ': ' + (p.estado_nombre || p.estado || '?')).join('\\n') + '\\n' : 'Sus pedidos: (sin pedidos)\\n');\n  const adop = Array.isArray(ctx.adopciones) ? ctx.adopciones : [];\n  contextoTexto += (adop.length ? 'Sus solicitudes de adopcion:\\n' + adop.map((a) => '- ' + a.mascota + ': ' + a.estado + ' (progreso ' + a.progreso + '%)').join('\\n') + '\\n' : 'Sus solicitudes de adopcion: (sin adopciones)\\n');\n  if (ctx.refugio) contextoTexto += 'Su refugio: ' + ctx.refugio.nombre + '\\n';\n  if (ctx.tienda) contextoTexto += 'Su tienda: ' + ctx.tienda.nombre + '\\n';\n}\n\nconst instruccion = 'Eres el asistente virtual de Adoptify, una plataforma de adopcion de mascotas que conecta refugios, tiendas aliadas y adoptantes. Ayudas a las personas a entender la plataforma, el proceso de adopcion, el cuidado de mascotas, los refugios, la tienda y el foro. Respondes en espanol con un tono amable, cercano y claro. Puedes responder dudas generales (adopcion, cuidado, requisitos, como funciona la pagina) de forma natural y util, sin limitarte solo a navegar. Responde SOLO JSON con esta forma exacta: {\"respuesta\": \"tu mensaje al usuario\", \"accion\": null}. Si el usuario quiere IR A una seccion de la pagina, devuelve accion como {\"tipo\": \"navegar\", \"ruta\": \"/...\"} usando SOLO una de estas rutas reales: / (inicio), /animals (mascotas en adopcion), /shelters (refugios), /store (tienda), /forum (foro), /mis-pedidos (mis pedidos), /favoritos (mis favoritos), /login, /register, /registrar-refugio, /registrar-tienda. Si no aplica navegacion, accion: null.\\n\\nIMPORTANTE ROL Y ACCESO: Conoces el rol del usuario (invitado, usuario, refugio, empleado_refugio, tienda_aliada, administrador) por el CONTEXTO y adaptas tu respuesta a ese rol. Si el usuario NO esta autenticado y pide algo personal (estado de sus adopciones, pedidos, favoritos) o una seccion protegida (mascotas, refugios, tienda, foro, mis pedidos, favoritos), responde con una frase amable como: \"Para eso primero debes iniciar sesion o registrarte\" y sugiere la ruta /login. Si es empleado de una tienda o refugio, ten en cuenta que puede no tener todos los permisos; orientalo a su representante o a soporte. Usa el CONTEXTO (historial, pedidos y adopciones) para responder sobre el estado real de sus solicitudes; no inventes datos ni consultes nada fuera de lo dado.\\n\\n';\n\nconst prompt = instruccion +\n  'CONTEXTO DEL USUARIO:\\n' + contextoTexto +\n  '\\n\\nHISTORIAL DE LA CONVERSACION:\\n' + historial +\n  '\\n\\nMENSAJE DEL USUARIO:\\n' + (datos.mensaje || '');\n\nreturn [{ json: { prompt } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000037",
+      "name": "Construir prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000038",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.5,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000039",
+      "name": "Google Gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [880, -160],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bTrjJ2WRiO4TRjnt",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae y valida la respuesta del AI Agent ($json.output) para el formato esperado.\nconst r = $input.all()[0].json;\nlet texto = (typeof r.output === 'string') ? r.output : (r.output ? JSON.stringify(r.output) : '');\ntexto = String(texto || '').trim();\nif (texto.startsWith('```json')) texto = texto.slice(7);\nelse if (texto.startsWith('```')) texto = texto.slice(3);\nif (texto.endsWith('```')) texto = texto.slice(0, -3);\nlet res = {};\ntry {\n  res = JSON.parse(texto.trim());\n} catch (e) {\n  res = {};\n}\nlet accion = null;\nif (res.accion && res.accion.tipo === 'navegar' && typeof res.accion.ruta === 'string') {\n  accion = { tipo: 'navegar', ruta: res.accion.ruta };\n}\nconst respuesta = res.respuesta || (texto && !res.accion ? texto : null) || 'Hola, ¿en qué te ayudo?';\nreturn [{ json: { respuesta, accion } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000034",
+      "name": "Mapear respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000035",
+      "name": "Responder al webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1320, 0]
+    }
+  ],
+  "connections": {
+    "Webhook chatbot": {
+      "main": [[
+        {
+          "node": "Extraer datos",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Extraer datos": {
+      "main": [[
+        {
+          "node": "Obtener contexto",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Obtener contexto": {
+      "main": [[
+        {
+          "node": "Construir prompt",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Construir prompt": {
+      "main": [[
+        {
+          "node": "AI Agent",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "AI Agent": {
+      "ai_languageModel": [[
+        {
+          "node": "Google Gemini",
+          "type": "ai_languageModel",
+          "index": 0
+        }
+      ]],
+      "main": [[
+        {
+          "node": "Mapear respuesta",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Mapear respuesta": {
+      "main": [[
+        {
+          "node": "Responder al webhook",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

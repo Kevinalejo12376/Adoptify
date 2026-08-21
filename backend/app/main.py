@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
 # pyrefly: ignore [missing-import]
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.core.config import settings
 from app.db.database import Base, engine
 # Importa todos los modelos para registrarlos en Base.metadata
@@ -19,6 +19,8 @@ from app.api.routers import (
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
     solicitudes_tienda, solicitudes_tienda_admin, upload, reportes_descarga,
+    reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
+    solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,6 +63,13 @@ def _run_migrations():
     """
     if getattr(engine.dialect, "name", "") == "sqlite":
         print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
+    from app.core.config import settings
+
+    # SQLite local: SQLAlchemy ya crea todas las tablas con create_all y las
+    # consultas de information_schema/ALTER de Postgres no existen aqui, asi que
+    # se omiten las migraciones SQL (solo aplican a Supabase/PostgreSQL).
+    if settings.DATABASE_URL.startswith("sqlite"):
+        print("[migracion] SQLite local: tablas creadas por SQLAlchemy. Se omiten migraciones SQL de Postgres.")
         return
 
     from app.db.database import SessionLocal
@@ -145,6 +154,9 @@ def _run_migrations():
             print(f"[migracion] Con aviso (no críticas): {', '.join(fallos)}")
         else:
             print("[migracion] Todas las migraciones aplicadas/verificadas correctamente.")
+        # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
+        _soft_delete_migrations(db)
+
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
 
@@ -728,6 +740,51 @@ def _crear_tablas_nuevas_tienda(db):
     db.commit()
 
 
+def _crear_tablas_ia(db):
+    """Crea las tablas de IA / n8n (tareas_ia, chat_sesiones, chat_mensajes)
+    si no existen (Supabase/PostgreSQL). En SQLite local las crea SQLAlchemy."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tareas_ia (
+            id BIGSERIAL PRIMARY KEY,
+            tipo VARCHAR(60) NOT NULL,
+            payload TEXT NOT NULL,
+            estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+            resultado TEXT,
+            error TEXT,
+            intentos INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            procesado_en TIMESTAMPTZ
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tareas_ia_estado ON tareas_ia(estado)"
+    ))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS chat_sesiones (
+            id BIGSERIAL PRIMARY KEY,
+            session_id VARCHAR(64) NOT NULL UNIQUE,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS chat_mensajes (
+            id BIGSERIAL PRIMARY KEY,
+            sesion_id BIGINT NOT NULL REFERENCES chat_sesiones(id) ON DELETE CASCADE,
+            rol VARCHAR(20) NOT NULL,
+            contenido TEXT NOT NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_chat_msj_sesion ON chat_mensajes(sesion_id)"
+    ))
+    db.commit()
+    print("[migracion] Tablas de IA / n8n verificadas.")
+
+
 def _backfill_super_admin_tiendas(db):
     """Garantiza que el representante de cada tienda existente tenga su registro
     de Super Administrador en tienda_usuarios (idempotente)."""
@@ -753,20 +810,27 @@ def _backfill_super_admin_tiendas(db):
 app = FastAPI(title="Adoptify API", lifespan=lifespan)
 
 
-# Maneja errores de base de datos (conexion caida, DNS no resuelve, timeout)
-# devolviendo un JSON 503 limpio en lugar de un stack trace gigante en consola.
+# Maneja errores de base de datos devolviendo un JSON 503 limpio en lugar de un
+# stack trace gigante en consola. Distingue entre errores de CONEXION
+# (red/DNS/timeout) y errores de consulta/esquema para no dar mensajes
+# enganosos: el mensaje de red solo aparece cuando realmente hubo un fallo de
+# conectividad.
 @app.exception_handler(SQLAlchemyError)
 async def _db_error_handler(request: Request, exc: SQLAlchemyError):
     logger.error("Error de base de datos en %s: %s", request.url.path, exc)
-    return JSONResponse(
-        status_code=503,
-        content={
-            "detail": (
-                "La base de datos no esta disponible en este momento. "
-                "Revisa tu conexion de red/DNS hacia Supabase e intentalo de nuevo."
-            )
-        },
-    )
+
+    if isinstance(exc, OperationalError):
+        detail = (
+            "No se pudo conectar con la base de datos en este momento. "
+            "Revisa tu conexion de red/DNS hacia Supabase e intentalo de nuevo."
+        )
+    else:
+        detail = (
+            "Ocurrio un error al consultar la base de datos. "
+            "Si el problema persiste, contacta al administrador del sistema."
+        )
+
+    return JSONResponse(status_code=503, content={"detail": detail})
 
 
 # CORS para permitir que el frontend de React se comunique con la API.
@@ -821,6 +885,17 @@ app.include_router(
     prefix="/api/reportes-descargables",
     tags=["Reportes descargables"],
 )
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descarga",
+    tags=["Reportes descargables (PDF/Excel)"],
+)
+app.include_router(
+    adopciones.router,
+    prefix="/api/adopciones",
+    tags=["Adopciones"],
+)
+app.include_router(ia.router, prefix="/api/ia", tags=["IA / n8n"])
 
 
 @app.get("/")

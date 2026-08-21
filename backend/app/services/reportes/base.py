@@ -24,6 +24,41 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+import requests
+from sqlalchemy.orm import Session
+
+# ---------------------------------------------------------------------------
+# Logo institucional (servido desde Cloudinary)
+# ---------------------------------------------------------------------------
+# Se centraliza aqui para reutilizarlo en PDF (ReportLab) y Excel (openpyxl).
+# Se sube con backend/scripts/upload_assets_to_cloudinary.py.
+LOGO_URL = (
+    "https://res.cloudinary.com/kj0wube2/image/upload/"
+    "v1786743743/frontend-assets/logo/logo.png"
+)
+
+_logo_bytes_cache: Optional[bytes] = None
+
+
+def obtener_logo_bytes() -> Optional[bytes]:
+    """Descarga el logo de Adoptify desde Cloudinary (con cache en memoria).
+
+    Devuelve ``None`` si la descarga falla (p. ej. sin conexion a internet),
+    para que la generacion de reportes nunca falle por el logo: los llamadores
+    deben omitir el logo en ese caso.
+    """
+    global _logo_bytes_cache
+    if _logo_bytes_cache is not None:
+        return _logo_bytes_cache
+    try:
+        resp = requests.get(LOGO_URL, timeout=5)
+        if resp.status_code == 200 and resp.content:
+            _logo_bytes_cache = resp.content
+    except Exception:
+        # Sin cache: se reintenta en la siguiente generacion.
+        pass
+    return _logo_bytes_cache
+
 
 # ---------------------------------------------------------------------------
 # Tipos de columna soportados

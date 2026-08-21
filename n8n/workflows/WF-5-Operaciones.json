@@ -1,0 +1,179 @@
+{
+  "name": "WF-5 Operaciones",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "cronExpression": {
+            "expression": "0 8 * * *"
+          }
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000050",
+      "name": "Diario 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/operaciones/sla-refugios",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000051",
+      "name": "Consultar SLA refugios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "c9b9d9f0-0000-4000-8000-000000000004",
+              "leftValue": "={{ $json.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000052",
+      "name": "¿Hay pendientes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Arma el cuerpo completo del correo a administradores (Brevo) de n8n.\nconst pendientes = $input.all()[0].json;\nlet asunto = 'SLA Adoptify';\nlet html = '<p>Sin solicitudes de refugio pendientes.</p>';\nif (Array.isArray(pendientes) && pendientes.length > 0) {\n  const lineas = pendientes\n    .map((s) => '- <b>' + (s.nombre_refugio || '?') + '</b> (' + (s.ciudad || '—') + ') - ' + s.estado + ' - creada ' + (s.creada_en || '?'))\n    .join('<br/>');\n  asunto = 'SLA Adoptify: ' + pendientes.length + ' solicitudes de refugio sin revisar (>72h)';\n  html = '<p>Las siguientes solicitudes de refugio llevan m&aacute;s de 72 horas sin revisi&oacute;n:</p><p>' + lineas + '</p>';\n}\nreturn [{\n  json: {\n    sender: { name: $env.BREVO_FROM_NAME, email: $env.BREVO_FROM_EMAIL },\n    to: [{ email: $env.ADMIN_EMAIL }],\n    subject: asunto,\n    htmlContent: html\n  }\n}];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000053",
+      "name": "Armar mensaje admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api-key",
+              "value": "={{ $env.BREVO_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000054",
+      "name": "Enviar correo admins Brevo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Diario 08:00": {
+      "main": [
+        [
+          {
+            "node": "Consultar SLA refugios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar SLA refugios": {
+      "main": [
+        [
+          {
+            "node": "¿Hay pendientes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay pendientes?": {
+      "main": [
+        [
+          {
+            "node": "Armar mensaje admin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Armar mensaje admin": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo admins Brevo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

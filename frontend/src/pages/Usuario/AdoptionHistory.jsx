@@ -58,6 +58,7 @@ export default function AdoptionHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reporteAbierto, setReporteAbierto] = useState(false);
+  const [showReporteModal, setShowReporteModal] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
@@ -303,6 +304,12 @@ export default function AdoptionHistory() {
           descargar={descargarReporteHistorialUsuario}
         />
       </div>
+
+      {/* Modal de Reporte General (PDF/Excel) */}
+      <ReporteGeneralModal
+        isOpen={showReporteModal}
+        onClose={() => setShowReporteModal(false)}
+      />
     </div>
   );
 }

@@ -57,6 +57,37 @@ def _formato_para(col: Columna) -> str:
     return _FORMATOS_EXCEL.get(col.tipo, "General")
 
 
+def _agregar_logo(hoja) -> None:
+    """Inserta el logo de Adoptify (desde Cloudinary) en la celda A1.
+
+    Si la descarga o la carga de la imagen falla, se omite sin romper el
+    libro Excel.
+    """
+    from io import BytesIO
+
+    from openpyxl.drawing.image import Image as XLImage
+
+    from app.services.reportes.base import obtener_logo_bytes
+
+    logo_bytes = obtener_logo_bytes()
+    if logo_bytes is None:
+        return
+    try:
+        from PIL import Image as PILImage
+
+        with PILImage.open(BytesIO(logo_bytes)) as im:
+            ancho, alto = im.size
+        alto_px = 52
+        ancho_px = int(alto_px * ancho / alto)
+        img = XLImage(BytesIO(logo_bytes))
+        img.width = ancho_px
+        img.height = alto_px
+        hoja.add_image(img, "A1")
+    except Exception:
+        # Si el logo no se puede cargar, se omite sin romper el reporte.
+        pass
+
+
 def construir_excel(
     *,
     titulo: str,
@@ -101,6 +132,20 @@ def construir_excel(
     hoja.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(columnas))
     hoja.row_dimensions[1].height = 22
     hoja.row_dimensions[2].height = 14
+    # Logo institucional (Cloudinary) en la esquina superior izquierda
+    # ------------------------------------------------------------------
+    _agregar_logo(hoja)
+
+    # ------------------------------------------------------------------
+    # Encabezado del documento (titulo + subtitulo)
+    # ------------------------------------------------------------------
+    hoja.cell(row=1, column=2, value=titulo).font = fuente_titulo
+    hoja.cell(row=2, column=2, value=subtitulo).font = fuente_sub
+    hoja.merge_cells(start_row=1, start_column=2, end_row=1, end_column=len(columnas))
+    hoja.merge_cells(start_row=2, start_column=2, end_row=2, end_column=len(columnas))
+    hoja.row_dimensions[1].height = 26
+    hoja.row_dimensions[2].height = 14
+    hoja.column_dimensions["A"].width = 16
 
     # ------------------------------------------------------------------
     # Fila de encabezado de columnas (fila 4)

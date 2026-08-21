@@ -4,6 +4,7 @@ import {
   ArrowLeft, Eye, EyeOff, Lock, KeyRound, CheckCircle2,
   Loader2, AlertCircle, Sparkles,
 } from "lucide-react";
+import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
 import { crearPasswordRefugio } from "../../api/solicitudesRefugio";
 import { crearPasswordTienda } from "../../api/solicitudesTienda";
 

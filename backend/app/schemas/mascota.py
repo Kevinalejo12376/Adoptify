@@ -1,7 +1,7 @@
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, field_validator
 # pyrefly: ignore [missing-import]
-from typing import Optional, List
+from typing import List, Optional, Union
 
 from app.core.validadores import validar_nombre_comercial
 
@@ -15,6 +15,16 @@ def _limitar_texto(valor, campo, maximo):
     return limpio
 
 
+def _a_texto_lista(valor):
+    """Normaliza un valor a texto plano.
+
+    Si el cliente envia una lista (p. ej. rasgos de personalidad), se une con
+    ", " para guardarla como texto en la columna Text, manteniendo el contrato
+    del modelo y de la API.
+    """
+    if isinstance(valor, (list, tuple)):
+        return ", ".join(str(v).strip() for v in valor if str(v).strip())
+    return valor
 def _validar_personalidad(v):
     """Limpia y valida la lista de rasgos de personalidad.
 
@@ -63,10 +73,9 @@ class MascotaCreate(BaseModel):
     peso: Optional[str] = None
     color: Optional[str] = None
     descripcion: Optional[str] = None
-    # Rasgos de personalidad como array de textos (text[]). Máximo 5.
-    personalidad: Optional[List[str]] = None
-    salud: Optional[str] = None
-    requisitos: Optional[str] = None
+    personalidad: Optional[Union[str, List[str]]] = None
+    salud: Optional[Union[str, List[str]]] = None
+    requisitos: Optional[Union[str, List[str]]] = None
     vacunado: bool = False
     esterilizado: bool = False
     desparasitado: bool = False
@@ -122,10 +131,10 @@ class MascotaCreate(BaseModel):
     def _validar_descripcion(cls, v):
         return _limitar_texto(v, "campo descripción", 1000)
 
-    @field_validator("personalidad", mode="before")
+    @field_validator("personalidad", "salud", "requisitos")
     @classmethod
-    def _validar_personalidad(cls, v):
-        return _validar_personalidad(v)
+    def _validar_texto_lista(cls, v):
+        return _a_texto_lista(v)
 
 
 class MascotaUpdate(BaseModel):
@@ -144,10 +153,9 @@ class MascotaUpdate(BaseModel):
     peso: Optional[str] = None
     color: Optional[str] = None
     descripcion: Optional[str] = None
-    # Rasgos de personalidad como array de textos (text[]). Máximo 5.
-    personalidad: Optional[List[str]] = None
-    salud: Optional[str] = None
-    requisitos: Optional[str] = None
+    personalidad: Optional[Union[str, List[str]]] = None
+    salud: Optional[Union[str, List[str]]] = None
+    requisitos: Optional[Union[str, List[str]]] = None
     vacunado: Optional[bool] = None
     esterilizado: Optional[bool] = None
     desparasitado: Optional[bool] = None
@@ -203,6 +211,10 @@ class MascotaUpdate(BaseModel):
     def _validar_descripcion(cls, v):
         return _limitar_texto(v, "campo descripción", 1000)
 
+    @field_validator("personalidad", "salud", "requisitos")
+    @classmethod
+    def _validar_texto_lista(cls, v):
+        return _a_texto_lista(v)
     @field_validator("personalidad", mode="before")
     @classmethod
     def _validar_personalidad(cls, v):

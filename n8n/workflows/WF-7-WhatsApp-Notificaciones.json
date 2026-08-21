@@ -1,0 +1,138 @@
+{
+  "name": "WF-7 WhatsApp Notificaciones",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enviar_whatsapp",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000070",
+      "name": "Webhook enviar_whatsapp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "5f3f8a1e-0000-4000-8000-000000000070"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepara la llamada al proveedor de WhatsApp (Twilio o Meta) segun $env.WHATSAPP_PROVIDER.\nconst body = $input.first().json; // {telefono, mensaje}\nconst prov = ($env.WHATSAPP_PROVIDER || 'twilio').toLowerCase();\nconst telefono = String(body.telefono || '').replace(/^\\+/, ''); // E.164 sin '+'\nconst mensaje = String(body.mensaje || '');\nlet url = '';\nlet headers = {};\nlet meta = null;\nlet twilio = null;\nif (prov === 'meta') {\n  url = 'https://graph.facebook.com/' + ($env.META_WHATSAPP_VERSION || 'v20.0') + '/' + $env.META_WHATSAPP_PHONE_ID + '/messages';\n  headers = { Authorization: 'Bearer ' + $env.META_WHATSAPP_TOKEN };\n  meta = { messaging_product: 'whatsapp', to: telefono, type: 'text', text: { body: mensaje } };\n} else {\n  url = 'https://api.twilio.com/2010-04-01/Accounts/' + $env.TWILIO_ACCOUNT_SID + '/Messages.json';\n  headers = { Authorization: 'Basic ' + Buffer.from($env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') };\n  twilio = { From: $env.TWILIO_WHATSAPP_FROM, To: 'whatsapp:' + telefono, Body: mensaje };\n}\nreturn [{ json: { provider: prov, url, headers, meta, twilio } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000071",
+      "name": "Preparar envío",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "c9b9d9f0-0000-4000-8000-000000000701",
+              "leftValue": "={{ $json.provider }}",
+              "rightValue": "meta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000072",
+      "name": "¿Es Meta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": "={{ Object.entries($json.headers).map(([name, value]) => ({ name, value })) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.meta }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000073",
+      "name": "Enviar por Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, -120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": "={{ Object.entries($json.headers).map(([name, value]) => ({ name, value })) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.twilio }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000074",
+      "name": "Enviar por Twilio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 120]
+    }
+  ],
+  "connections": {
+    "Webhook enviar_whatsapp": {
+      "main": [[
+        {
+          "node": "Preparar envío",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Preparar envío": {
+      "main": [[
+        {
+          "node": "¿Es Meta?",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "¿Es Meta?": {
+      "main": [
+        [
+          {
+            "node": "Enviar por Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar por Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
