@@ -612,10 +612,11 @@ function PqrsTiendaDetailModal({ item, onClose, onEstado, onResponder }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
       <div
-        className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-2xl max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative h-24 bg-gradient-to-r from-rose-500 to-amber-500 rounded-t-2xl" />
@@ -720,6 +721,7 @@ function PqrsTiendaDetailModal({ item, onClose, onEstado, onResponder }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
