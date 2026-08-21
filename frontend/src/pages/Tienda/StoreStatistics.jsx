@@ -15,24 +15,102 @@ const BAR_COLORS = [
   "from-orange-500 to-orange-400 dark:from-orange-600 dark:to-orange-500",
 ];
 
-// Grafica de barras simple con datos reales.
+// Calcula el paso del eje Y según el máximo, usando números "bonitos" (1, 2, 5, 10, 20, 50...).
+// Ej: máximo 100 → pasos de 10; máximo 10 → pasos de 1.
+function calcStep(max) {
+  if (max <= 0) return 1;
+  const raw = max / 10;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
+  const normalized = raw / magnitude;
+  let nice = 1;
+  if (normalized >= 7.5) nice = 10;
+  else if (normalized >= 3.5) nice = 5;
+  else if (normalized >= 1.5) nice = 2;
+  return Math.max(1, nice * magnitude);
+}
+
+// Grafica de barras con eje Y (números de medición), barras delgadas con
+// espacio entre ellas y tooltip al pasar el cursor (nombre + cantidad).
 // Cada barra usa su propio color: si el item trae `color` lo usa,
 // si no, usa el color por defecto del componente.
-function BarChart({ items, height = 200, color = "from-rose-500 to-amber-500" }) {
+function BarChart({ items, height = 200, color = "from-rose-500 to-amber-500", unit = "" }) {
   const max = Math.max(...items.map((i) => i.value), 1);
   if (items.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-8">Sin datos suficientes</p>;
   }
+  const max = Math.max(...items.map((i) => i.value), 1);
+  const step = calcStep(max);
+  const ticks = [];
+  for (let i = 0; ; i += 1) {
+    const t = i * step;
+    ticks.push(Math.round(t * 100) / 100);
+    if (t >= max) break;
+  }
+  const topVal = ticks[ticks.length - 1];
+  const labelH = 18;
+  const plotH = height - labelH;
+
   return (
-    <div className="flex items-end justify-between gap-2" style={{ height: `${height}px` }}>
-      {items.map((it, index) => (
-        <div key={index} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
-          <span className="text-[10px] font-medium text-gray-400">{it.value}</span>
-          <div className={`w-full rounded-lg bg-gradient-to-t ${it.color || color} transition-all duration-500 min-h-[4px]`}
-            style={{ height: `${(it.value / max) * 100}%` }} />
-          <span className="text-[10px] font-medium text-gray-400 truncate w-full text-center" title={it.label}>{it.label}</span>
+    <div>
+      <div className="flex gap-2 items-start">
+        {/* Eje Y: números de medición (ascendentes de abajo hacia arriba) */}
+        <div
+          className="flex flex-col justify-between items-end pr-1.5 text-[9px] font-medium text-gray-400 dark:text-dark-text-secondary select-none shrink-0"
+          style={{ height: `${plotH}px` }}
+        >
+          {[...ticks].reverse().map((t, i) => (
+            <span key={i} style={{ lineHeight: 0 }}>{t}</span>
+          ))}
         </div>
-      ))}
+
+        {/* Columna derecha: área de trazado + etiquetas inferiores (alineadas con las barras) */}
+        <div className="flex-1 min-w-0">
+          {/* Área de trazado */}
+          <div className="relative" style={{ height: `${plotH}px` }}>
+            {/* Líneas de rejilla */}
+            {ticks.map((t, i) => (
+              <div
+                key={`g-${i}`}
+                className="absolute left-0 right-0 border-t border-dashed border-gray-100 dark:border-dark-border"
+                style={{ bottom: `${(t / topVal) * 100}%` }}
+              />
+            ))}
+
+            {/* Barras */}
+            <div className="absolute inset-0 flex items-end justify-between gap-3 sm:gap-4">
+              {items.map((it, index) => {
+                const altura = (it.value / topVal) * 100;
+                return (
+                  <div key={index} className="relative flex-1 flex items-end justify-center h-full min-w-0 group">
+                    <div
+                      className={`relative w-6 sm:w-9 rounded-lg bg-gradient-to-t ${it.color || color} transition-all duration-500 cursor-pointer group-hover:opacity-90`}
+                      style={{ height: `${Math.max(altura, 3)}%` }}
+                    >
+                      {/* Tooltip con nombre + cantidad */}
+                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20 whitespace-nowrap">
+                        <div className="bg-gray-900 dark:bg-gray-700 text-white dark:text-dark-text text-[10px] font-medium px-2.5 py-1.5 rounded-lg shadow-lg">
+                          <p className="font-semibold">{it.nombre || it.label}</p>
+                          <p className="text-gray-300 dark:text-dark-text-secondary">{it.value} {unit}</p>
+                        </div>
+                        <div className="mx-auto w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-gray-900 dark:border-t-gray-700" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Etiquetas inferiores (nombres abreviados) */}
+          <div className="flex gap-3 sm:gap-4 mt-1.5">
+            {items.map((it, i) => (
+              <span key={i} className="flex-1 text-center text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary truncate" title={it.nombre || it.label}>
+                {it.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -106,11 +184,27 @@ export default function StoreStatistics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
           <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top 7 productos por ventas</h3>
-          <BarChart items={top.slice(0, 7).map((p, i) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.ventas || 0, color: BAR_COLORS[i % BAR_COLORS.length] }))} />
+          <BarChart
+            items={top.slice(0, 7).map((p, i) => ({
+              nombre: p.nombre || "-",
+              label: p.nombre?.slice(0, 8) || "-",
+              value: p.ventas || 0,
+              color: BAR_COLORS[i % BAR_COLORS.length],
+            }))}
+            unit="ventas"
+          />
         </div>
         <div className="bg-white dark:bg-dark-card rounded-2xl p-5 border border-gray-100 dark:border-dark-border">
           <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Top 7 productos por stock</h3>
-          <BarChart items={[...products].sort((a, b) => (b.stock || 0) - (a.stock || 0)).slice(0, 7).map((p, i) => ({ label: p.nombre?.slice(0, 8) || "-", value: p.stock || 0, color: BAR_COLORS[i % BAR_COLORS.length] }))} />
+          <BarChart
+            items={[...products].sort((a, b) => (b.stock || 0) - (a.stock || 0)).slice(0, 7).map((p, i) => ({
+              nombre: p.nombre || "-",
+              label: p.nombre?.slice(0, 8) || "-",
+              value: p.stock || 0,
+              color: BAR_COLORS[i % BAR_COLORS.length],
+            }))}
+            unit="unidades"
+          />
         </div>
       </div>
 

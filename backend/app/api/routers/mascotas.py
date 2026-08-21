@@ -1,14 +1,11 @@
 # pyrefly: ignore [missing-import]
-<<<<<<< HEAD
 import threading
 import time
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-=======
 import logging
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status, Query
->>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
@@ -24,13 +21,11 @@ from app.models.mascota import Mascota, MascotaImagen
 from app.models.catalogos import TipoMascota, TamanoMascota, GeneroMascota, EstadoMascota
 from app.schemas.mascota import MascotaCreate, MascotaUpdate, MascotaResponse
 from app.schemas.serializers import serialize_mascota
-<<<<<<< HEAD
 from app.core.softdelete import soft_delete
-=======
+from app.core.softdelete import soft_delete
 from app.api.routers.ia import crear_tarea_ia
 
 logger = logging.getLogger(__name__)
->>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 
 router = APIRouter()
 

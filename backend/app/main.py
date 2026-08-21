@@ -163,6 +163,9 @@ def _run_migrations():
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
 
+        # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
+        _soft_delete_migrations(db)
+
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
         print("[migracion] Tabla 'movimientos_kardex' verificada correctamente.")
     except Exception as e:
