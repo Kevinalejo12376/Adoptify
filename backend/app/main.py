@@ -52,7 +52,6 @@ async def lifespan(app: FastAPI):
 
 
 def _run_migrations():
-<<<<<<< HEAD
     """Ejecuta migraciones para sincronizar el schema de Supabase con los modelos.
 
     Cada grupo de migración se ejecuta de forma AISLADA: si uno falla (por
@@ -1217,7 +1216,11 @@ app.include_router(
     tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
-<<<<<<< HEAD
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descargables",
+    tags=["Reportes descargables"],
+)
 app.include_router(
     reportes_descarga.router,
     prefix="/api/reportes-descarga",
