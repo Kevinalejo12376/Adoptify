@@ -6,8 +6,13 @@ import {
   FileText, AlertTriangle, Loader2, Building2, Image as ImageIcon,
   Globe, RefreshCw, User, Home,
 } from "lucide-react";
-import Badge from "../../../components/admin/Badge";
+import FieldError from "../../../components/FieldError";
 import { listarUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from "../../../api/admin";
+import {
+  validarNombre, validarApellido, validarEmail, validarTelefonoAdmin, validarPassword,
+  normalizarEmail, limpiarEspacios, claseInput, soloDigitos,
+} from "../../../utils/validaciones";
+import AdminModalPortal from "../../../components/admin/AdminModalPortal";
 
 // ========================================================
 // GENERADOR DE AVATARES CON INICIALES Y COLORES PASTEL
@@ -90,8 +95,8 @@ const estadoConfig = {
     label: "Suspendido",
   },
   eliminado: {
-    dot: "bg-gray-400",
-    bg: "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400",
+    dot: "bg-red-500",
+    bg: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
     label: "Eliminado",
   },
 };
@@ -202,47 +207,37 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-lg max-h-full flex flex-col bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header con degradado */}
-        <div className="relative h-28 bg-gradient-to-r from-rose-500 to-amber-500 rounded-t-2xl" />
-
-        {/* Avatar superpuesto */}
-        <div className="absolute top-16 left-6">
-          <UserAvatar name={user.nombre} size="xl" className="ring-4 ring-white dark:ring-dark-card shadow-lg" />
-        </div>
-
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-        >
-          <X size={16} />
-        </button>
-
-        {/* Info principal */}
-        <div className="pt-14 px-6 pb-4 border-b border-gray-100 dark:border-dark-border">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-                {user.nombre || "Sin nombre"}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-0.5">
-                {user.email}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
+        {/* Info principal: Nombre + Estado + Rol (encabezado compacto con botón cerrar) */}
+        <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-gray-100 dark:border-dark-border flex-shrink-0">
+          <div className="min-w-0">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text break-words">
+              {user.nombre || "Sin nombre"}
+            </h3>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <StatusBadge estado={user.estado || (user.activo ? "activo" : "suspendido")} />
               <RolBadge rol={user.rol} />
             </div>
           </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors flex-shrink-0"
+            title="Cerrar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Información detallada */}
-        <div className="px-6 py-4 space-y-3">
+        {/* Contenido con scroll interno */}
+        <div className="overflow-y-auto flex-1">
+          {/* Información detallada */}
+          <div className="px-6 py-4 space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
             Información general
           </h4>
@@ -304,9 +299,10 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
             })}
           </div>
         </div>
+        </div>
 
         {/* Botones rápidos: Editar, Activar/Inactivar, Eliminar */}
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-dark-border flex items-center gap-2">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-dark-border flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => { onClose(); onEdit(user); }}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-200 text-sm"
@@ -335,6 +331,7 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -343,39 +340,94 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
 // ========================================================
 function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
   const emptyForm = {
-    nombre: "", apellido: "", email: "", password: "",
+    nombre: "", apellido: "", email: "", password: "", confirmar_password: "",
     telefono: "", ubicacion: "", nombre_refugio: "",
   };
   const [form, setForm] = useState(emptyForm);
+  const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
       if (user) {
-        const parts = (user.nombre || "").split(" ");
+        // El backend devuelve 'nombre' y 'apellido' por separado: cada dato se
+        // carga en su respectivo input (sin concatenar ni dividir el nombre).
         setForm({
-          nombre: parts[0] || "",
-          apellido: parts.slice(1).join(" ") || "",
+          nombre: user.nombre || "",
+          apellido: user.apellido || "",
           email: user.email || "",
           password: "",
-          telefono: user.telefono || "",
+          confirmar_password: "",
+          // Solo dígitos (máx 10) para que coincida con el validador del formulario.
+          telefono: soloDigitos(user.telefono || "").slice(0, 10),
           ubicacion: user.ubicacion || user.ciudad || "",
           nombre_refugio: user.refugio_nombre || "",
         });
       } else {
         setForm(emptyForm);
       }
+      setErrors({});
       setError(null);
     }
   }, [isOpen, user]);
 
   if (!isOpen) return null;
 
+  const validarCampo = (campo, valor) => {
+    const v = valor === undefined ? form[campo] : valor;
+    switch (campo) {
+      case "nombre":
+        return validarNombre(v, { campo: "nombre" });
+      case "apellido":
+        return validarApellido(v);
+      case "email":
+        return validarEmail(v);
+      case "password":
+        return user ? "" : validarPassword(v);
+      case "confirmar_password":
+        if (user) return "";
+        if (form.password && !v) return "Confirma la contraseña.";
+        if (form.password && v !== form.password) return "Las contraseñas no coinciden.";
+        return "";
+      case "telefono":
+        return validarTelefonoAdmin(v);
+      default:
+        return "";
+    }
+  };
+
+  const handleChange = (campo, valor) => {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+    setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, valor) }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const nuevosErrores = {};
+    ["nombre", "apellido", "email", "telefono"].forEach((c) => {
+      nuevosErrores[c] = validarCampo(c);
+    });
+    if (!user) {
+      nuevosErrores.password = validarPassword(form.password);
+      nuevosErrores.confirmar_password = form.password
+        ? (form.confirmar_password === form.password ? "" : "Las contraseñas no coinciden.")
+        : "";
+    }
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some((m) => m)) return;
+
     setError(null);
     try {
-      await onSave(form, user);
+      const payload = {
+        nombre: limpiarEspacios(form.nombre),
+        apellido: limpiarEspacios(form.apellido) || null,
+        email: normalizarEmail(form.email),
+        password: form.password,
+        telefono: form.telefono ? form.telefono.trim() : null,
+        ubicacion: form.ubicacion,
+        nombre_refugio: form.nombre_refugio,
+      };
+      await onSave(payload, user);
     } catch (err) {
       setError(err?.message || "Error al guardar");
     }
@@ -384,13 +436,14 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
   const inputClass = "w-full px-3 py-2.5 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-gray-900 dark:text-dark-text placeholder-gray-400";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-lg max-h-full flex flex-col bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-5 pb-0">
+        <div className="flex items-center justify-between p-5 pb-0 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
               {user ? <Edit3 size={18} className="text-rose-500" /> : <Plus size={18} className="text-rose-500" />}
@@ -404,45 +457,94 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
           </button>
         </div>
 
-        {error && (
-          <div className="mx-5 mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
-            <AlertTriangle size={14} />
-            {error}
-          </div>
-        )}
+        <div className="overflow-y-auto flex-1">
+          {error && (
+            <div className="mx-5 mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+              <AlertTriangle size={14} />
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <form onSubmit={handleSubmit} noValidate className="p-5 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Nombre *</label>
-              <input required value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className={inputClass} placeholder="Ej: Ana" />
+              <input
+                value={form.nombre}
+                onChange={(e) => handleChange("nombre", e.target.value)}
+                className={claseInput(inputClass, !!errors.nombre)}
+                placeholder="Ej: Ana"
+              />
+              <FieldError mensaje={errors.nombre} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Apellido</label>
-              <input value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} className={inputClass} placeholder="Ej: Martínez" />
+              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Apellido *</label>
+              <input
+                value={form.apellido}
+                onChange={(e) => handleChange("apellido", e.target.value)}
+                className={claseInput(inputClass, !!errors.apellido)}
+                placeholder="Ej: Martínez"
+              />
+              <FieldError mensaje={errors.apellido} />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Email *</label>
-            <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputClass} placeholder="usuario@email.com" />
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => handleChange("email", e.target.value)}
+              className={claseInput(inputClass, !!errors.email)}
+              placeholder="usuario@email.com"
+            />
+            <FieldError mensaje={errors.email} />
           </div>
 
           {!user && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña *</label>
-              <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={inputClass} placeholder="••••••••" />
-            </div>
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña *</label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => handleChange("password", e.target.value)}
+                  className={claseInput(inputClass, !!errors.password)}
+                  placeholder="Mínimo 8 caracteres"
+                />
+                <FieldError mensaje={errors.password} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Confirmar contraseña *</label>
+                <input
+                  type="password"
+                  value={form.confirmar_password}
+                  onChange={(e) => handleChange("confirmar_password", e.target.value)}
+                  className={claseInput(inputClass, !!errors.confirmar_password)}
+                  placeholder="Repite la contraseña"
+                />
+                <FieldError mensaje={errors.confirmar_password} />
+              </div>
+            </>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono</label>
-              <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} className={inputClass} placeholder="+57 300 123 4567" />
+              <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono *</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={form.telefono}
+                onChange={(e) => handleChange("telefono", soloDigitos(e.target.value).slice(0, 10))}
+                className={claseInput(inputClass, !!errors.telefono)}
+                placeholder="3001234567"
+              />
+              <FieldError mensaje={errors.telefono} />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Ciudad</label>
-              <input value={form.ubicacion} onChange={(e) => setForm({ ...form, ubicacion: e.target.value })} className={inputClass} placeholder="Bogotá" />
+              <input value={form.ubicacion} onChange={(e) => handleChange("ubicacion", e.target.value)} className={inputClass} placeholder="Bogotá" />
             </div>
           </div>
 
@@ -462,9 +564,11 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
               Cancelar
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -633,16 +737,29 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
       setError("El correo del responsable es obligatorio");
       return;
     }
+    // Separa el nombre completo del responsable en nombre y apellido para que
+    // cada campo se persista de forma independiente (nunca concatenados).
+    const partesNombre = (formData.responsable_nombre || "").trim().split(/\s+/);
+    if (partesNombre.length < 2) {
+      setError("Ingresa el nombre y apellido del responsable");
+      return;
+    }
+    const telefonoResponsable = soloDigitos(formData.responsable_telefono || formData.telefono).slice(0, 10);
+    const errTel = validarTelefonoAdmin(telefonoResponsable);
+    if (errTel) {
+      setError(errTel);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       // Llamar al API de crearUsuario con rol refugio
       await onSave({
-        nombre: formData.responsable_nombre,
-        apellido: "",
+        nombre: partesNombre[0] || "",
+        apellido: partesNombre.slice(1).join(" ") || "",
         email: formData.responsable_email,
         password: formData.password,
-        telefono: formData.responsable_telefono || formData.telefono,
+        telefono: telefonoResponsable,
         ubicacion: formData.ubicacion,
         rol: "refugio",
         nombre_refugio: formData.nombre_refugio,
@@ -672,14 +789,15 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content"
+        className="relative w-full max-w-2xl max-h-full flex flex-col bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 pb-0">
+        <div className="flex items-center justify-between p-5 pb-0 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
               <Building2 size={20} className="text-rose-500" />
@@ -691,7 +809,7 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-6" noValidate>
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 space-y-6" noValidate>
           {successMsg && (
             <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-sm font-semibold flex items-center gap-3 animate-fade-in">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500 flex-shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="16 8 11 15 8 12"/></svg>
@@ -785,8 +903,8 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
                 <input required type="email" value={formData.responsable_email} onChange={(e) => setFormData({ ...formData, responsable_email: e.target.value })} className={inputClass} placeholder="responsable@email.com" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono del responsable</label>
-                <input value={formData.responsable_telefono} onChange={(e) => setFormData({ ...formData, responsable_telefono: e.target.value })} className={inputClass} placeholder="+57 300 123 4567" />
+                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Teléfono del responsable *</label>
+                <input type="text" inputMode="numeric" maxLength={10} value={formData.responsable_telefono} onChange={(e) => setFormData({ ...formData, responsable_telefono: soloDigitos(e.target.value).slice(0, 10) })} className={inputClass} placeholder="3001234567" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña temporal</label>
@@ -811,6 +929,7 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
         </form>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -821,10 +940,11 @@ function ActionConfirmModal({ config, onClose, onConfirm, loading }) {
   if (!config) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-md bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content overflow-hidden"
+        className="relative w-full max-w-md max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 pb-0">
@@ -873,6 +993,7 @@ function ActionConfirmModal({ config, onClose, onConfirm, loading }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Heart, Mail, Phone, Sparkles } from "lucide-react";
-import logo from "../assets/logo.png";
+import { ADOPTIFY_LOGO as logo } from "../constants/assets";
 import { useI18n } from "../context/I18nContext";
 import { useAuth } from "../context/AuthContext";
 
@@ -12,7 +12,7 @@ export default function Footer() {
   const navigate = useNavigate();
 
   const isAuthenticated = !!user;
-  const isShelter = user?.role === "refugio";
+  const isShelter = (user?.role === "refugio") || (user?.role === "empleado_refugio");
   const isStoreEnabled = user?.settings?.storeEnabled ?? false;
 
   const navigateWithScroll = (path) => {

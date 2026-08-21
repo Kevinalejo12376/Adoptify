@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, Loader2, KeyRound, Lock } from "lucide-react";
+import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, XCircle, Loader2, KeyRound, Lock } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useI18n } from "../../context/I18nContext";
 import { useAuth } from "../../context/AuthContext";
@@ -177,7 +177,7 @@ export default function Settings() {
       setCodeSent(true);
       setPassCountdown(60);
       if (result && result.enviado === false) {
-        setPassCodeError("No se pudo enviar el código. Verifica la configuración SMTP.");
+        setPassCodeError("No se pudo enviar el código. Verifica la configuración de Brevo.");
         return;
       }
       setTimeout(() => {

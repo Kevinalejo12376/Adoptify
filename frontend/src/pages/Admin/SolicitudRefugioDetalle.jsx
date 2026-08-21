@@ -16,6 +16,7 @@ import {
   solicitarInformacionSolicitud,
   verificarDocumentoSolicitud,
 } from "../../api/admin";
+import AdminModalPortal from "../../components/admin/AdminModalPortal";
 
 // ========================================================
 // CONFIGURACIÓN DE ESTADOS / CATEGORÍAS
@@ -402,12 +403,14 @@ export default function SolicitudRefugioDetalle() {
 
       {/* Lightbox */}
       {lightbox && (
+        <AdminModalPortal>
         <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
           <button className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20">
             <X size={20} />
           </button>
           <img src={lightbox} alt="Vista ampliada" className="max-h-[85vh] max-w-full rounded-2xl shadow-2xl animate-zoom-in" onClick={(e) => e.stopPropagation()} />
         </div>
+        </AdminModalPortal>
       )}
     </div>
   );
@@ -684,9 +687,10 @@ function TabHistorial({ historial }) {
 
 function ModalBase({ children, onClose }) {
   return (
-    <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-pop-in"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto p-6 sm:p-8 animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center hover:bg-gray-200">
@@ -695,6 +699,7 @@ function ModalBase({ children, onClose }) {
         {children}
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 

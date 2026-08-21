@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
-import { ClipboardList, Calendar, Clock, User, Dog, Cat, Heart, Search, Filter, CheckCircle, XCircle, AlertCircle, Download, ArrowUp, ChevronDown, MapPin, Loader2 } from "lucide-react";
-import { solicitudesRecibidas } from "../../api/solicitudes";
+import { ClipboardList, Calendar, Clock, User, Dog, Cat, Heart, Search, Filter, CheckCircle, XCircle, AlertCircle, FileDown, ArrowUp, ChevronDown, MapPin, Loader2 } from "lucide-react";
+import { solicitudesRecibidas, descargarReporteHistorialRefugio } from "../../api/solicitudes";
+import ReporteGeneralModal from "../../components/ReporteGeneralModal";
 
 export default function ShelterAdoptionHistory() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -9,6 +10,7 @@ export default function ShelterAdoptionHistory() {
   const [adoptions, setAdoptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reporteAbierto, setReporteAbierto] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
@@ -84,16 +86,20 @@ export default function ShelterAdoptionHistory() {
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white font-display">Historial</h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-1">Todas las solicitudes de adopción procesadas</p>
           </div>
-          <button className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border transition-all">
-            <Download className="w-4 h-4 mr-2" />
-            Exportar
+          <button
+            onClick={() => setReporteAbierto(true)}
+            className="inline-flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border transition-all"
+          >
+            <FileDown className="w-4 h-4 mr-2 text-rose-500" />
+            Reporte general
+            <ChevronDown className="w-4 h-4 ml-1 text-gray-400" />
           </button>
         </div>
       </section>
 
       {/* Stats */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-500/10 dark:to-teal-500/10 rounded-2xl p-5 text-center border border-emerald-100 dark:border-emerald-500/20">
             <Heart className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
             <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-display">{finalizadas}</p>
@@ -137,7 +143,7 @@ export default function ShelterAdoptionHistory() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gray-50 dark:bg-dark-bg/50">
+                <tr className="bg-gray-50 dark:bg-dark-bg">
                   <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase tracking-wider">Solicitante</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase tracking-wider">Mascota</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase tracking-wider">Estado</th>
@@ -148,7 +154,7 @@ export default function ShelterAdoptionHistory() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
                 {filteredAdoptions.map((ad) => (
-                  <tr key={ad.id} className="hover:bg-gray-50 dark:hover:bg-dark-bg/30 transition-colors">
+                  <tr key={ad.id} className="hover:bg-gray-50 dark:hover:bg-[#20202c] transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
@@ -195,6 +201,13 @@ export default function ShelterAdoptionHistory() {
           )}
         </div>
       </section>
+
+      {/* Reporte general: descarga PDF/Excel de las solicitudes del refugio */}
+      <ReporteGeneralModal
+        isOpen={reporteAbierto}
+        onClose={() => setReporteAbierto(false)}
+        descargar={descargarReporteHistorialRefugio}
+      />
     </div>
   );
 }

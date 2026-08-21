@@ -1,10 +1,14 @@
-"""Servicio de envio de correos electronicos via SMTP (Gmail)."""
-import smtplib
+"""Servicio de envío de correos electrónicos.
+
+Método principal: la API de Brevo (Sendinblue) — correos transaccionales.
+Si Brevo no está configurado (BREVO_API_KEY vacío), se intenta como fallback
+el workflow "enviar_correo" de n8n (solo si N8N_ENABLED=true).
+"""
 import logging
 import random
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import httpx
 from app.core.config import settings
+from app.core.webhooks import n8n_activo, disparar_webhook_sync
 
 logger = logging.getLogger(__name__)
 
@@ -361,46 +365,78 @@ def _build_codigo_html(codigo: str, tipo: str, nombre: str = "") -> str:
 
 
 def _enviar_correo(email_destino: str, asunto: str, html: str) -> bool:
-    """Función interna para enviar un correo SMTP con HTML."""
-    if not settings.SMTP_HOST or not settings.SMTP_PASSWORD:
-        logger.warning("SMTP no configurado — no se envió correo a %s", email_destino)
-        return False
+    """Envía un correo electrónico.
 
-    logger.info(
-        "Intentando enviar correo a %s — SMTP_HOST=%s, SMTP_PORT=%s, SMTP_USER=%s, SMTP_FROM=%s",
+    Si la integración con n8n está habilitada (N8N_ENABLED=true), el correo se
+    enruta al workflow "enviar_correo" de n8n (WF-1) y se ESPERA su respuesta
+    (WF-1 responde después de enviar). Si n8n no responde o falla, se usa Brevo
+    (Sendinblue) como respaldo; si tampoco está configurado Brevo, se devuelve False.
+    """
+    # 1. Método preferido: workflow "enviar_correo" de n8n (si está habilitado).
+    if n8n_activo():
+        ok = disparar_webhook_sync(
+            "enviar_correo",
+            {
+                "to": email_destino,
+                "asunto": asunto,
+                "html": html,
+            },
+            timeout=settings.N8N_WEBHOOK_TIMEOUT,
+        )
+        if ok:
+            logger.info(
+                "✓ Correo enrutado a n8n (WF-1) para %s — Asunto: %s",
+                email_destino,
+                asunto,
+            )
+            return True
+        logger.warning(
+            "n8n no respondió para %s — se intenta enviar con Brevo.",
+            email_destino,
+        )
+
+    # 2. Método de respaldo: API de Brevo (Sendinblue).
+    if settings.BREVO_API_KEY:
+        url = "https://api.brevo.com/v3/smtp/email"
+        headers = {
+            "api-key": settings.BREVO_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        payload = {
+            "sender": {"name": settings.BREVO_FROM_NAME, "email": settings.BREVO_FROM_EMAIL},
+            "to": [{"email": email_destino}],
+            "subject": asunto,
+            "htmlContent": html,
+        }
+
+        try:
+            resp = httpx.post(url, json=payload, headers=headers, timeout=30)
+            if resp.status_code == 201:
+                data = resp.json()
+                logger.info(
+                    "✓ Correo enviado EXITOSAMENTE vía Brevo a %s — Asunto: %s | ID: %s",
+                    email_destino,
+                    asunto,
+                    data.get("messageId"),
+                )
+                return True
+            logger.error(
+                "✗ Brevo respondió %s al enviar a %s: %s",
+                resp.status_code,
+                email_destino,
+                resp.text,
+            )
+            return False
+        except Exception as exc:
+            logger.error("✗ Error inesperado al enviar correo a %s: %s", email_destino, exc)
+            return False
+
+    logger.error(
+        "No se pudo enviar correo a %s (n8n no disponible y Brevo no configurado)",
         email_destino,
-        settings.SMTP_HOST,
-        settings.SMTP_PORT,
-        settings.SMTP_USER,
-        settings.SMTP_FROM,
     )
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = settings.SMTP_FROM
-        msg["To"] = email_destino
-        msg["Subject"] = asunto
-
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.set_debuglevel(1)  # ← Muestra la conversación SMTP en los logs
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SMTP_FROM, email_destino, msg.as_string())
-
-        logger.info("✓ Correo enviado EXITOSAMENTE a %s — Asunto: %s", email_destino, asunto)
-        return True
-
-    except smtplib.SMTPAuthenticationError:
-        logger.error("✗ Error de AUTENTICACION SMTP — verifica usuario/contraseña de aplicación para %s", settings.SMTP_USER)
-        return False
-    except smtplib.SMTPException as exc:
-        logger.error("✗ Error SMTP al enviar correo a %s: %s", email_destino, exc)
-        return False
-    except Exception as exc:
-        logger.error("✗ Error inesperado al enviar correo a %s: %s", email_destino, exc)
-        return False
+    return False
 
 
 def enviar_correo_bienvenida(email_destino: str, nombre: str, apellido: str | None = None) -> bool:
@@ -596,6 +632,38 @@ def enviar_correo_solicitud_informacion(
     )
 
 
+def enviar_correo_contenido_inapropiado(
+    email_destino: str,
+    nombre: str,
+    entidad: str,
+    motivo: str,
+    sugerencias: str = "",
+) -> bool:
+    """Correo informando que un contenido no paso la moderacion (IA via n8n)."""
+    asunto = f"🚫 Contenido no publicado en Adoptify — {entidad}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre}</strong> 👋</p>
+        <p>Tu {entidad} no se publicó porque nuestro sistema de moderación detectó
+        contenido que no es apropiado para la comunidad.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;"><strong>Motivo:</strong></p>
+            <p style="margin:0;">{motivo}</p>
+        </div>
+
+        {'<div class="caja"><p style="margin:0 0 6px;"><strong>Sugerencia para corregirlo:</strong></p><p style="margin:0;">' + sugerencias + '</p></div>' if sugerencias else ''}
+
+        <p>Si crees que esto es un error, contacta a nuestro equipo de soporte y lo
+        revisaremos con gusto.</p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Contenido no publicado", contenido),
+    )
+
+
 def enviar_correo_rechazo_refugio(
     email_destino: str,
     nombre_refugio: str,
@@ -605,6 +673,108 @@ def enviar_correo_rechazo_refugio(
     asunto = f"💔 Actualización de tu solicitud — {nombre_refugio}"
     contenido = f"""
         <p>Hola, <strong>{nombre_refugio}</strong></p>
+        <p>Lamentablemente, después de revisar cuidadosamente tu solicitud, hemos tomado la
+        decisión de <strong>no aprobarla</strong> en esta ocasión.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;"><strong>Motivo del rechazo:</strong></p>
+            <p style="margin:0;">{motivo}</p>
+        </div>
+
+        <p>
+            Si consideras que esta decisión fue un error o deseas aclarar algún punto,
+            no dudes en contactarnos. Estamos aquí para ayudarte a construir una comunidad
+            segura y confiable para las mascotas.
+        </p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Estado de tu solicitud", contenido),
+    )
+
+
+# ============================================================
+# Plantillas de correo para el flujo de Solicitudes de Tiendas Aliadas
+# ============================================================
+
+def enviar_correo_aprobacion_tienda(
+    email_destino: str,
+    nombre_tienda: str,
+    username: str,
+    enlace_crear_password: str,
+) -> bool:
+    """Correo de aprobación de Tienda Aliada: bienvenida + usuario + enlace seguro."""
+    asunto = f"🎉 ¡Bienvenido a Adoptify, {nombre_tienda}! Tu solicitud fue aprobada"
+    contenido = f"""
+        <p>¡Hola, <strong>{nombre_tienda}</strong>! 🎉</p>
+        <p>¡Excelentes noticias! Tu solicitud de registro ha sido <strong>aprobada</strong>
+        y tu tienda ya forma parte de la comunidad Adoptify.</p>
+
+        <div class="caja">
+            <p style="margin:0 0 6px;">Tu cuenta fue creada con el siguiente <strong>usuario</strong>:</p>
+            <p style="margin:0; font-size:22px; font-weight:800; color:#ea580c; letter-spacing:1px;">{username}</p>
+        </div>
+
+        <p>Para terminar de activar tu cuenta, crea tu contraseña con el siguiente botón.
+        El enlace es <strong>seguro y expira en 24 horas</strong>.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_crear_password}" class="btn" target="_blank">Crear mi contraseña</a>
+        </p>
+
+        <p class="footnote">
+            Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+            {enlace_crear_password}
+        </p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(email_destino, asunto, _build_base_html("¡Solicitud aprobada!", contenido))
+
+
+def enviar_correo_solicitud_informacion_tienda(
+    email_destino: str,
+    nombre_tienda: str,
+    mensaje: str,
+    enlace_completar: str,
+) -> bool:
+    """Correo pidiendo información adicional para la solicitud de la Tienda Aliada."""
+    asunto = f"📋 Información adicional para tu solicitud — {nombre_tienda}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre_tienda}</strong> 👋</p>
+        <p>Para continuar con la revisión de tu solicitud, nuestro equipo necesita
+        <strong>información adicional</strong>:</p>
+
+        <div class="caja">
+            <p style="margin:0;">{mensaje}</p>
+        </div>
+
+        <p>Puedes completar la información solicitada ingresando al siguiente enlace.
+        Solo necesitas adjuntar lo que se pide; no es necesario volver a diligenciar toda la solicitud.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_completar}" class="btn" target="_blank">Completar información</a>
+        </p>
+
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("Necesitamos más información", contenido),
+    )
+
+
+def enviar_correo_rechazo_tienda(
+    email_destino: str,
+    nombre_tienda: str,
+    motivo: str,
+) -> bool:
+    """Correo informando que la solicitud de la Tienda Aliada fue rechazada y el motivo."""
+    asunto = f"💔 Actualización de tu solicitud — {nombre_tienda}"
+    contenido = f"""
+        <p>Hola, <strong>{nombre_tienda}</strong></p>
         <p>Lamentablemente, después de revisar cuidadosamente tu solicitud, hemos tomado la
         decisión de <strong>no aprobarla</strong> en esta ocasión.</p>
 

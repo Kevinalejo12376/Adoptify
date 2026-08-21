@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
 from fastapi.security import OAuth2PasswordRequestForm
 # pyrefly: ignore [missing-import]
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, ValidationError
@@ -32,7 +33,7 @@ from app.core.email import (
     enviar_codigo_verificacion,
 )
 from app.models.usuario import Usuario
-from app.models.refugio import Refugio
+from app.models.refugio import Refugio, RefugioEmpleado, RefugioPermiso
 from app.models.catalogos import Rol, TipoDocumento
 from app.models.verificacion import CodigoVerificacion
 from app.schemas.usuario import (
@@ -68,6 +69,9 @@ def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
     """Crea un usuario (y refugio si aplica) en la base de datos.
     No hace commit — la transacción debe ser manejada por el llamador.
     """
+    # Normalizar email: se guarda siempre en minúsculas y sin espacios.
+    email_normalizado = (payload.email or "").strip().lower()
+
     # Resuelve el rol (por codigo o nombre); por defecto 'usuario'.
     rol_obj = (
         db.query(Rol)
@@ -87,7 +91,7 @@ def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
         tipo_documento_id=tipo_doc_id,
         numero_documento=payload.numero_documento,
         telefono=payload.telefono,
-        email=payload.email,
+        email=email_normalizado,
         hashed_password=get_password_hash(payload.password),
         rol_id=rol_obj.id,
         ubicacion=payload.ubicacion,
@@ -105,7 +109,7 @@ def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
             nombre=nombre_refugio,
             slug=slug,
             telefono=payload.telefono,
-            email=payload.email,
+            email=email_normalizado,
             ubicacion=payload.ubicacion,
         ))
 
@@ -186,12 +190,12 @@ def enviar_codigo(payload: EnviarCodigoRequest, db: Session = Depends(get_db)):
     )
 
     if not ok:
-        logger.warning("Código generado pero NO se pudo enviar el correo a %s (SMTP no configurado?)", email)
+        logger.warning("Código generado pero NO se pudo enviar el correo a %s (Brevo no configurado?)", email)
         # Aún así devolvemos éxito, pero el frontend puede mostrar advertencia
         return {
-            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración SMTP.",
+            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración de Brevo.",
             "enviado": False,
-            "debug_codigo": codigo if not settings.SMTP_HOST else None,
+            "debug_codigo": codigo if not settings.BREVO_API_KEY else None,
         }
 
     return {
@@ -236,7 +240,12 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
     """Registro directo (sin verificación de código).
     Se mantiene por compatibilidad. Para registro con verificación, usar /verify-register.
     """
-    existing = db.query(Usuario).filter(Usuario.email == payload.email).first()
+    email_normalizado = (payload.email or "").strip().lower()
+    existing = (
+        db.query(Usuario)
+        .filter(func.lower(Usuario.email) == email_normalizado)
+        .first()
+    )
     if existing:
         raise HTTPException(status_code=400, detail="El correo ya esta registrado")
 
@@ -254,7 +263,7 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
         if ok:
             logger.info("Correo de bienvenida ENVIADO a %s", user.email)
         else:
-            logger.warning("Correo de bienvenida NO enviado a %s (SMTP no configurado?)", user.email)
+            logger.warning("Correo de bienvenida NO enviado a %s (Brevo no configurado?)", user.email)
     except Exception as exc:
         logger.error("Error al enviar correo de bienvenida a %s: %s", user.email, exc)
 
@@ -325,7 +334,7 @@ def verify_register(payload: RegistrarConCodigoRequest, db: Session = Depends(ge
         if ok:
             logger.info("Correo de bienvenida ENVIADO a %s", user.email)
         else:
-            logger.warning("Correo de bienvenida NO enviado a %s (SMTP no configurado?)", user.email)
+            logger.warning("Correo de bienvenida NO enviado a %s (Brevo no configurado?)", user.email)
     except Exception as exc:
         logger.error("Error al enviar correo de bienvenida a %s: %s", user.email, exc)
 
@@ -385,7 +394,7 @@ def forgot_password(payload: EnviarCodigoRequest, db: Session = Depends(get_db))
     if not ok:
         logger.error("Código generado pero FALLÓ el envío del correo a %s", email)
         return {
-            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración SMTP.",
+            "mensaje": "Código generado pero no se pudo enviar el correo. Verifica la configuración de Brevo.",
             "enviado": False,
         }
 
@@ -479,11 +488,25 @@ def change_password(
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # El campo "username" del formulario OAuth2 contiene el email.
-    user = db.query(Usuario).filter(Usuario.email == form_data.username).first()
+    # Normalizar el email (minúsculas y sin espacios) para que el login sea
+    # consistente con el registro y tolerante a mayúsculas/espacios del usuario.
+    email_buscado = form_data.username.strip().lower()
+    user = (
+        db.query(Usuario)
+        .filter(func.lower(Usuario.email) == email_buscado)
+        .first()
+    )
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contrasena incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.activo:
+        # Cuenta desactivada (soft delete): no puede iniciar sesión.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu cuenta está desactivada",
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(
@@ -521,15 +544,51 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
             "reportes": True, "pqrs": True, "estadisticas": todos,
             "administradores": todos, "configuracion": todos,
         }
-    if rol_codigo == "refugio":
-        refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+    if rol_codigo in ("refugio", "empleado_refugio"):
+        refugio = None
+        es_representante = False
+        if rol_codigo == "refugio":
+            # Representante: el refugio es el que está vinculado a su cuenta.
+            refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+            es_representante = refugio is not None
+        else:
+            # Empleado de refugio: se busca su vínculo activo (refugio_empleados).
+            vinculo = (
+                db.query(RefugioEmpleado)
+                .filter(
+                    RefugioEmpleado.usuario_id == current_user.id,
+                    RefugioEmpleado.activo == True,
+                )
+                .first()
+            )
+            if vinculo:
+                refugio = vinculo.refugio
         if refugio:
-            data["name"] = refugio.nombre
+            # El nombre mostrado en el avatar: para el representante es el nombre
+            # del refugio; para el empleado es su propio nombre (el nombre del
+            # refugio se expone aparte como shelterName).
+            if not es_representante:
+                data["name"] = nombre_completo
+                data["shelterName"] = refugio.nombre
+            else:
+                data["name"] = refugio.nombre
             data["shelterId"] = refugio.id
             data["description"] = refugio.descripcion
             data["address"] = refugio.direccion
             data["location"] = refugio.ubicacion or current_user.ubicacion
             data["settings"] = {"storeEnabled": bool(refugio.tienda_habilitada)}
+            data["es_representante"] = es_representante
+            # Permisos reales desde la BD: el representante tiene todos los
+            # activos; el empleado solo los que le asignó el representante.
+            if es_representante:
+                data["permisos"] = [
+                    p.codigo
+                    for p in db.query(RefugioPermiso)
+                    .filter(RefugioPermiso.activo == True)
+                    .all()
+                ]
+            else:
+                data["permisos"] = [p.permiso.codigo for p in vinculo.permisos]
     if rol_codigo == "tienda_aliada":
         from app.models.tienda import Tienda
         tienda = db.query(Tienda).filter(Tienda.usuario_id == current_user.id).first()
@@ -720,7 +779,7 @@ def google_login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
                 if ok:
                     logger.info("Correo de bienvenida ENVIADO a %s (Google)", user.email)
                 else:
-                    logger.warning("Correo de bienvenida NO enviado a %s (Google - SMTP no configurado?)", user.email)
+                    logger.warning("Correo de bienvenida NO enviado a %s (Google - Brevo no configurado?)", user.email)
             except Exception as exc:
                 logger.error("Error al enviar correo de bienvenida a %s (Google): %s", user.email, exc)
 

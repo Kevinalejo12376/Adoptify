@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2 } from "lucide-react";
-// Imagen estática servida desde Cloudinary
-const mascotaImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
+import { Heart, PawPrint, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2 } from "lucide-react";
+import AutoFadingImage from "../../components/AutoFadingImage";
+import { CAROUSEL_IMAGES } from "../../assets/images";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
@@ -116,7 +116,7 @@ export default function Dashboard() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-6 mt-12 pt-8 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-6 mt-12 pt-8 border-t border-gray-200">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <PawPrint className="w-5 h-5 text-rose-500" />
@@ -131,20 +131,16 @@ export default function Dashboard() {
                   </div>
                   <div className="text-sm text-gray-600">Adopciones exitosas</div>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Users className="w-5 h-5 text-rose-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">{nf.format(stats?.usuarios ?? 0)}</div>
-                  </div>
-                  <div className="text-sm text-gray-600">Miembros activos</div>
-                </div>
               </div>
             </div>
             <div className="relative">
-              <img
-                src={mascotaImg}
-                alt="Perro y gato juntos"
+              <AutoFadingImage
+                images={CAROUSEL_IMAGES}
+                alt="Perros y gatos - Adoptify"
                 className="rounded-3xl shadow-2xl w-full object-cover"
+                wrapperClassName="rounded-3xl"
+                interval={5000}
+                fadeDuration={1000}
               />
             </div>
           </div>
@@ -236,14 +232,14 @@ export default function Dashboard() {
       {/* Pets Section */}
       <section id="animals" className="py-20 bg-gradient-to-br from-rose-50 via-white to-amber-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-12">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-12">
             <div>
-              <h2 className="text-4xl font-bold text-gray-900 font-display mb-2">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 font-display mb-2">
                 Ellos están esperando una familia
               </h2>
               <p className="text-gray-600">Conoce a algunos de nuestros amigos disponibles</p>
             </div>
-            <Link to="/animals" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center">
+            <Link to="/animals" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center shrink-0">
               Ver todos los animales <ArrowRight className="w-5 h-5 ml-2" />
             </Link>
           </div>
@@ -278,14 +274,14 @@ export default function Dashboard() {
       {/* Store Section */}
       <section id="store" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-12">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-12">
             <div>
-              <h2 className="text-4xl font-bold text-gray-900 font-display mb-2">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 font-display mb-2">
                 Tienda Online
               </h2>
               <p className="text-gray-600">Todo lo que tu mascota necesita en un solo lugar</p>
             </div>
-            <Link to="/store" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center">
+            <Link to="/store" className="text-rose-600 hover:text-rose-700 font-semibold text-lg flex items-center shrink-0">
               Ver tienda completa <ArrowRight className="w-5 h-5 ml-2" />
             </Link>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTheme } from "../../../context/ThemeContext";
 import { useAuth } from "../../../context/AuthContext";
 import {
@@ -25,6 +25,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import ImageUploader from "../../../components/ImageUploader";
+import { eliminarImagen } from "../../../api/upload";
 
 const postTypes = [
   { id: "story", label: "Historia", icon: "📖", desc: "Comparte tu historia de adopción" },
@@ -354,7 +356,12 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
   const [showPostTypes, setShowPostTypes] = useState(false);
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState("");
+  // Imágenes de la publicación: [{url, publicId, id?}] (id = imágenes ya guardadas).
   const [images, setImages] = useState([]);
+  // Snapshot de imágenes existentes al abrir (para calcular eliminaciones).
+  const initialImagesRef = useRef([]);
+  // publicIds de imágenes NUEVAS subidas en esta sesión (para limpiar huérfanos).
+  const uploadedThisSession = useRef([]);
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [showAiSuggestions, setShowAiSuggestions] = useState(false);
   const [location, setLocation] = useState(null);
@@ -368,6 +375,8 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
   const [saveFeedback, setSaveFeedback] = useState(false);
   // Estado del envío de la publicación: null | "loading" | "success" | "error"
   const [publishingStatus, setPublishingStatus] = useState(null);
+  // Progreso real de la barra de carga (0-100) mientras se sube la publicación.
+  const [progress, setProgress] = useState(0);
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: "",
@@ -395,6 +404,14 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
       setCategory(editingPost.category && editingPost.category !== "General" ? editingPost.category : "");
       setTags(editingPost.tags || []);
       setPublishingStatus(null);
+      const preloaded = (editingPost.images || []).map((img) => ({
+        id: img.id,
+        url: img.url,
+        publicId: img.publicId || "",
+      }));
+      setImages(preloaded);
+      initialImagesRef.current = preloaded;
+      uploadedThisSession.current = [];
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editingPost]);
@@ -541,10 +558,32 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
     setPostType("");
     setTags([]);
     setImages([]);
+    initialImagesRef.current = [];
+    uploadedThisSession.current = [];
     setLocation(null);
     setLocationLoading(false);
     setLocationError(null);
     setSaveFeedback(false);
+  };
+
+  // Elimina de Cloudinary las imágenes NUEVAS subidas si el usuario cancela
+  // (evita almacenar imágenes huérfanas). Las ya guardadas NO se tocan.
+  const cleanupOrphanImages = () => {
+    const pendientes = uploadedThisSession.current;
+    uploadedThisSession.current = [];
+    pendientes.forEach((pid) => {
+      if (pid) eliminarImagen(pid).catch(() => {});
+    });
+  };
+
+  // Handler del ImageUploader: registra nuevas subidas para limpieza posterior.
+  const handleImagesChange = (newImages) => {
+    newImages.forEach((img) => {
+      if (!img.id && img.publicId && !uploadedThisSession.current.includes(img.publicId)) {
+        uploadedThisSession.current.push(img.publicId);
+      }
+    });
+    setImages(newImages);
   };
 
   // Obtener ubicación del usuario vía Geolocation API + geocodificación inversa
@@ -614,11 +653,27 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
     // El contenido debe tener mas de 10 caracteres para publicar.
     if (!title.trim() || content.trim().length < 10 || !category || publishingStatus === "loading") return;
     setPublishingStatus("loading");
+    setProgress(0);
+    // Barra de progreso: avanza de forma realista mientras el backend procesa
+    // la solicitud (nunca llega a 100% hasta que la petición termina).
+    const progressTimer = setInterval(() => {
+      setProgress((prev) => (prev >= 90 ? prev : prev + 8));
+    }, 200);
+    // Calcular imágenes nuevas (sin id) y eliminaciones de imágenes existentes.
+    const idsIniciales = initialImagesRef.current.map((i) => i.id);
+    const idsActuales = images.map((i) => i.id).filter(Boolean);
+    const imagenesEliminar = idsIniciales.filter((id) => !idsActuales.includes(id));
+    const imagenesNuevas = images
+      .filter((i) => !i.id)
+      .map((i) => ({ url: i.url, public_id: i.publicId || "" }));
+
     const payload = {
       titulo: title.trim(),
       contenido: content.trim(),
       categoria: category,
       tags: tags.join(","),
+      imagenes: imagenesNuevas,
+      imagenes_eliminar: imagenesEliminar,
     };
     try {
       if (editingPost) {
@@ -627,11 +682,15 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
         await onCreate?.(payload);
       }
     } catch (e) {
+      clearInterval(progressTimer);
+      setProgress(0);
       // si falla la creacion, se mantiene el formulario
       setPublishingStatus("error");
       setTimeout(() => setPublishingStatus(null), 2500);
       return;
     }
+    clearInterval(progressTimer);
+    setProgress(100);
     if (currentDraftId) {
       const allDrafts = loadDraftsFromStorage(userId);
       const updated = allDrafts.filter((d) => d.id !== currentDraftId);
@@ -639,6 +698,8 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
       setDrafts(updated);
     }
     setPublishingStatus("success");
+    // Las imágenes nuevas ya quedaron guardadas: no deben eliminarse al cerrar.
+    uploadedThisSession.current = [];
     setTimeout(() => {
       setPublishingStatus(null);
       resetForm();
@@ -655,12 +716,14 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
         confirmText: "Salir sin guardar",
         type: "warning",
         onConfirm: () => {
+          cleanupOrphanImages();
           resetForm();
           onClose();
           setConfirmModal((prev) => ({ ...prev, isOpen: false }));
         },
       });
     } else {
+      cleanupOrphanImages();
       resetForm();
       onClose();
     }
@@ -1134,49 +1197,16 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
               )}
             </div>
 
-            {/* Image Upload */}
+            {/* Image Upload (Cloudinary) */}
             <div>
-              <label
-                className={`block text-sm font-medium mb-2 ${
-                  isDark ? "text-dark-text" : "text-gray-700"
-                }`}
-              >
-                Imágenes
-                <span
-                  className={`text-xs ml-2 ${
-                    isDark ? "text-dark-text-secondary" : "text-gray-400"
-                  }`}
-                >
-                  (Máx. 5)
-                </span>
-              </label>
-              <div
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                  isDark
-                    ? "border-dark-border hover:border-rose-500/30 bg-transparent"
-                    : "border-gray-200 hover:border-rose-300 bg-gray-50/50"
-                }`}
-              >
-                <ImageIcon
-                  className={`w-8 h-8 mx-auto mb-2 ${
-                    isDark ? "text-dark-text-secondary" : "text-gray-400"
-                  }`}
-                />
-                <p
-                  className={`text-sm font-medium ${
-                    isDark ? "text-dark-text" : "text-gray-700"
-                  }`}
-                >
-                  Arrastra tus imágenes aquí
-                </p>
-                <p
-                  className={`text-xs mt-1 ${
-                    isDark ? "text-dark-text-secondary" : "text-gray-500"
-                  }`}
-                >
-                  o haz clic para seleccionar archivos
-                </p>
-              </div>
+              <ImageUploader
+                tipo="foro"
+                multiple
+                maxFiles={5}
+                label="Imágenes (Máx. 5)"
+                value={images}
+                onChange={handleImagesChange}
+              />
             </div>
 
             {/* Location - Estilo WhatsApp */}
@@ -1523,20 +1553,28 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
               <>
                 <Loader2 className="w-12 h-12 text-rose-500 animate-spin mx-auto mb-4" />
                 <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-                  Publicando tu publicación...
+                  Subiendo publicación...
                 </h3>
                 <p className={`text-sm mb-5 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
                   Esto puede tomar unos segundos
                 </p>
-                <div className={`h-2 rounded-full overflow-hidden ${isDark ? "bg-dark-border" : "bg-gray-100"}`}>
-                  <div className="h-full w-3/4 bg-gradient-to-r from-rose-500 to-amber-500 rounded-full animate-pulse" />
+                <div>
+                  <div className={`h-2.5 rounded-full overflow-hidden ${isDark ? "bg-dark-border" : "bg-gray-100"}`}>
+                    <div
+                      className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-200"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className={`mt-2 text-xs font-semibold text-right ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+                    {progress}%
+                  </p>
                 </div>
               </>
             ) : publishingStatus === "success" ? (
               <>
                 <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
                 <h3 className={`text-lg font-bold font-display mb-1.5 ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-                  ¡Publicación creada!
+                  ✓ Publicación creada correctamente
                 </h3>
                 <p className={`text-sm ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
                   Gracias por compartir con la comunidad

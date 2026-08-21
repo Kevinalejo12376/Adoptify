@@ -1,4 +1,4 @@
--- ============================================================
+git -- ============================================================
 -- ADOPTIFY - Esquema de base de datos NORMALIZADO A 3FN (PostgreSQL / Supabase)
 -- ============================================================
 -- Como usarlo:
@@ -25,7 +25,7 @@ DROP TABLE IF EXISTS
     historial_estados_pedido, pedido_items, pedidos, codigos_promocion, carrito_items,
     favoritos_productos, favoritos_mascotas,
     resenas_refugio, resenas, producto_caracteristicas, producto_imagenes, productos,
-    tienda_imagenes, tiendas,
+    tienda_usuario_permisos, tienda_usuarios, tienda_permisos, tienda_imagenes, tiendas,
     solicitudes_adopcion, mascota_imagenes, mascotas,
     enlaces_creacion_password, solicitudes_refugio_historial, solicitudes_refugio_documentos, solicitudes_refugio,
     refugio_imagenes, configuraciones, refugios, usuarios,
@@ -59,6 +59,7 @@ CREATE TABLE roles (
 INSERT INTO roles (codigo, nombre) VALUES
     ('usuario', 'Usuario adoptante'),
     ('refugio', 'Refugio'),
+    ('empleado_refugio', 'Empleado de refugio'),
     ('administrador_principal', 'Administrador principal'),
     ('administrador', 'Administrador'),
     ('tienda_aliada', 'Tienda aliada');
@@ -100,6 +101,43 @@ INSERT INTO estados_mascota (codigo, nombre) VALUES
     ('disponible', 'Disponible'),
     ('en_proceso', 'En proceso'),
     ('adoptado',   'Adoptado');
+
+CREATE TABLE razas_mascota (
+    id              BIGSERIAL PRIMARY KEY,
+    tipo_mascota_id BIGINT REFERENCES tipos_mascota(id),
+    codigo          VARCHAR(60) NOT NULL UNIQUE,
+    nombre          VARCHAR(80) NOT NULL
+);
+CREATE INDEX idx_razas_mascota_tipo ON razas_mascota(tipo_mascota_id);
+INSERT INTO razas_mascota (codigo, nombre, tipo_mascota_id) VALUES
+    ('labrador',      'Labrador Retriever', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('pastor_aleman', 'Pastor Alemán', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('golden',        'Golden Retriever', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('bulldog',       'Bulldog', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('poodle',        'Poodle', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('chihuahua',     'Chihuahua', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('beagle',        'Beagle', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('rottweiler',    'Rottweiler', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('criollo',       'Criollo', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('pug',           'Pug', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('shih_tzu',      'Shih Tzu', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('doberman',      'Doberman', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('boxer',         'Boxer', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('cocker',        'Cocker Spaniel', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('siberiano',     'Husky Siberiano', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('schnauzer',     'Schnauzer', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('maltes',        'Maltés', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('yorkshire',     'Yorkshire Terrier', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('persa',         'Persa', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('siames',        'Siamés', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('maine_coon',    'Maine Coon', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('bengali',       'Bengalí', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('sphynx',        'Sphynx', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('angora',        'Angora', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('ragdoll',       'Ragdoll', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('britanico',     'British Shorthair', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('comun_europeo', 'Común Europeo', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('fold_escoces',  'Scottish Fold', (SELECT id FROM tipos_mascota WHERE codigo='gato'));
 
 CREATE TABLE estados_solicitud (
     id     BIGSERIAL PRIMARY KEY,
@@ -190,9 +228,12 @@ CREATE TABLE tipos_reaccion (
 INSERT INTO tipos_reaccion (codigo, nombre) VALUES
     ('like',      'Me gusta'),
     ('love',      'Me encanta'),
+    ('funny',     'Me divierte'),
+    ('wow',       'Me asombra'),
+    ('sad',       'Me entristece'),
+    ('angry',     'Me enoja'),
     ('celebrate', 'Celebrar'),
-    ('support',   'Apoyo'),
-    ('funny',     'Divertido');
+    ('support',   'Apoyo');
 
 -- ============================================================
 -- 2. USUARIOS Y PERFILES
@@ -219,6 +260,8 @@ CREATE TABLE usuarios (
     instagram          VARCHAR(120),
     verificado         BOOLEAN NOT NULL DEFAULT false,
     perfil_completo    BOOLEAN NOT NULL DEFAULT false,
+    -- Soft delete
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_usuarios_rol ON usuarios(rol_id);
@@ -256,6 +299,9 @@ CREATE TABLE refugios (
     total_voluntarios  INT NOT NULL DEFAULT 0,
     verificado         BOOLEAN NOT NULL DEFAULT false,
     tienda_habilitada  BOOLEAN NOT NULL DEFAULT false,
+    -- Soft delete
+    activo             BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -375,13 +421,16 @@ CREATE TABLE mascotas (
     peso           VARCHAR(30),
     color          VARCHAR(60),
     descripcion    TEXT,
-    personalidad   TEXT,
+    personalidad   TEXT[],
     salud          TEXT,
     requisitos     TEXT,
     vacunado       BOOLEAN NOT NULL DEFAULT false,
     esterilizado   BOOLEAN NOT NULL DEFAULT false,
     desparasitado  BOOLEAN NOT NULL DEFAULT false,
     fecha_ingreso  DATE,
+    -- Soft delete
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en   TIMESTAMPTZ,
     creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_mascotas_refugio ON mascotas(refugio_id);
@@ -392,6 +441,7 @@ CREATE TABLE mascota_imagenes (
     id          BIGSERIAL PRIMARY KEY,
     mascota_id  BIGINT NOT NULL REFERENCES mascotas(id) ON DELETE CASCADE,
     url         TEXT NOT NULL,
+    public_id   VARCHAR(255),
     orden       INT NOT NULL DEFAULT 0
 );
 
@@ -444,8 +494,139 @@ CREATE TABLE tiendas (
     horario_semana     VARCHAR(120),
     horario_fin_semana VARCHAR(120),
     rating             NUMERIC(2,1) NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo             BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en       TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================================
+-- RBAC del modulo Tienda (jerarquia de administradores)
+-- ============================================================
+-- Catalogo de permisos disponibles (se cargan dinamicamente en la API).
+-- Agregar un permiso nuevo = insertar una fila aqui.
+CREATE TABLE tienda_permisos (
+    id          BIGSERIAL PRIMARY KEY,
+    codigo      VARCHAR(80) NOT NULL UNIQUE,
+    nombre      VARCHAR(120) NOT NULL,
+    modulo      VARCHAR(40) NOT NULL,
+    descripcion TEXT,
+    activo      BOOLEAN NOT NULL DEFAULT true
+);
+CREATE INDEX idx_tienda_permisos_modulo ON tienda_permisos(modulo);
+
+-- Pertenencia a una tienda y jerarquia (super_admin | admin).
+CREATE TABLE tienda_usuarios (
+    id             BIGSERIAL PRIMARY KEY,
+    tienda_id      BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+    usuario_id     BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    tipo           VARCHAR(20) NOT NULL DEFAULT 'admin',
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    creado_por     BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    ultimo_acceso  TIMESTAMPTZ,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_tienda_usuarios_tienda  ON tienda_usuarios(tienda_id);
+CREATE INDEX idx_tienda_usuarios_usuario ON tienda_usuarios(usuario_id);
+
+-- Permisos asignados a cada administrador (solo aplica a tipo 'admin').
+CREATE TABLE tienda_usuario_permisos (
+    id                 BIGSERIAL PRIMARY KEY,
+    tienda_usuario_id  BIGINT NOT NULL REFERENCES tienda_usuarios(id) ON DELETE CASCADE,
+    permiso_id         BIGINT NOT NULL REFERENCES tienda_permisos(id) ON DELETE CASCADE,
+    UNIQUE (tienda_usuario_id, permiso_id)
+);
+
+-- Datos semilla del catalogo de permisos (idempotente con ON CONFLICT).
+INSERT INTO tienda_permisos (codigo, nombre, modulo, descripcion) VALUES
+    ('dashboard.ver',                  'Ver dashboard',                          'dashboard',      'Ver el panel principal de la tienda'),
+    ('productos.ver',                  'Ver productos',                          'productos',      'Ver el listado y detalle de productos'),
+    ('productos.crear',                'Crear productos',                        'productos',      'Crear nuevos productos'),
+    ('productos.editar',               'Editar productos',                       'productos',      'Editar productos existentes'),
+    ('productos.eliminar',             'Eliminar productos',                     'productos',      'Eliminar productos'),
+    ('productos.activar',              'Activar productos',                      'productos',      'Activar (mostrar) productos'),
+    ('productos.desactivar',           'Desactivar productos',                   'productos',      'Desactivar (ocultar) productos'),
+    ('categorias.ver',                 'Ver categorias',                         'categorias',     'Ver las categorias de productos'),
+    ('categorias.crear',               'Crear categorias',                       'categorias',     'Crear nuevas categorias'),
+    ('categorias.editar',              'Editar categorias',                      'categorias',     'Editar categorias existentes'),
+    ('categorias.eliminar',            'Eliminar categorias',                    'categorias',     'Eliminar categorias'),
+    ('inventario.ver',                 'Ver inventario',                         'inventario',     'Ver el inventario de la tienda'),
+    ('inventario.actualizar_stock',    'Actualizar stock',                       'inventario',     'Actualizar el stock de productos'),
+    ('inventario.registrar_entradas',  'Registrar entradas',                     'inventario',     'Registrar entradas de inventario'),
+    ('inventario.registrar_salidas',   'Registrar salidas',                      'inventario',     'Registrar salidas de inventario'),
+    ('pedidos.ver',                    'Ver pedidos',                            'pedidos',        'Ver el listado y detalle de pedidos'),
+    ('pedidos.aceptar',                'Aceptar pedidos',                        'pedidos',        'Aceptar pedidos'),
+    ('pedidos.rechazar',               'Rechazar pedidos',                       'pedidos',        'Rechazar pedidos'),
+    ('pedidos.cambiar_estado',         'Cambiar estados',                        'pedidos',        'Cambiar el estado de los pedidos'),
+    ('pedidos.gestionar_devoluciones', 'Gestionar devoluciones',                 'pedidos',        'Gestionar devoluciones'),
+    ('promociones.ver',                'Ver promociones',                        'promociones',    'Ver las promociones de la tienda'),
+    ('promociones.crear',              'Crear promociones',                      'promociones',    'Crear nuevas promociones'),
+    ('promociones.editar',             'Editar promociones',                     'promociones',    'Editar promociones existentes'),
+    ('promociones.eliminar',           'Eliminar promociones',                   'promociones',    'Eliminar promociones'),
+    ('clientes.ver',                   'Ver clientes',                           'clientes',       'Ver los clientes de la tienda'),
+    ('clientes.administrar',           'Administrar clientes',                   'clientes',       'Administrar la informacion de clientes'),
+    ('tienda.ver_perfil',              'Ver perfil de la tienda',                'tienda',         'Ver el perfil de la tienda'),
+    ('tienda.editar_informacion',      'Editar informacion de la tienda',        'tienda',         'Editar la informacion de la tienda'),
+    ('tienda.cambiar_logo',            'Cambiar logo',                           'tienda',         'Cambiar el logo de la tienda'),
+    ('tienda.cambiar_imagenes',        'Cambiar imagenes',                       'tienda',         'Cambiar las imagenes de la tienda'),
+    ('tienda.actualizar_horarios',     'Actualizar horarios',                    'tienda',         'Actualizar los horarios de atencion'),
+    ('reportes.ver_estadisticas',      'Ver estadisticas',                       'reportes',       'Ver las estadisticas de la tienda'),
+    ('reportes.descargar_reportes',    'Descargar reportes',                     'reportes',       'Descargar reportes'),
+    ('reportes.exportar_informacion',  'Exportar informacion',                   'reportes',       'Exportar informacion de la tienda'),
+    ('configuracion.acceder',          'Acceder a configuracion',                'configuracion',  'Acceder al apartado de configuracion'),
+    ('configuracion.editar_configuraciones', 'Editar configuraciones',           'configuracion',  'Editar las configuraciones permitidas'),
+    ('administradores.gestionar',      'Gestionar administradores',              'administradores','Crear, editar y eliminar administradores'),
+    ('administradores.asignar_permisos','Asignar permisos',                      'administradores','Asignar permisos a los administradores')
+ON CONFLICT (codigo) DO NOTHING;
+
+-- ============================================================
+-- RBAC del modulo Equipo de refugio (empleados y permisos)
+-- ============================================================
+-- Catalogo de permisos disponibles para los empleados del refugio.
+CREATE TABLE refugio_permisos (
+    id          BIGSERIAL PRIMARY KEY,
+    codigo      VARCHAR(80) NOT NULL UNIQUE,
+    nombre      VARCHAR(120) NOT NULL,
+    modulo      VARCHAR(40) NOT NULL,
+    descripcion TEXT,
+    activo      BOOLEAN NOT NULL DEFAULT true
+);
+CREATE INDEX idx_refugio_permisos_modulo ON refugio_permisos(modulo);
+
+-- Vinculo empleado -> refugio (un usuario puede pertenecer a un solo refugio).
+CREATE TABLE refugio_empleados (
+    id             BIGSERIAL PRIMARY KEY,
+    refugio_id     BIGINT NOT NULL REFERENCES refugios(id) ON DELETE CASCADE,
+    usuario_id     BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    activo         BOOLEAN NOT NULL DEFAULT true,
+    creado_por     BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (refugio_id, usuario_id)
+);
+CREATE INDEX idx_refugio_empleados_refugio  ON refugio_empleados(refugio_id);
+CREATE INDEX idx_refugio_empleados_usuario  ON refugio_empleados(usuario_id);
+
+-- Permisos asignados a cada empleado del refugio.
+CREATE TABLE refugio_empleado_permisos (
+    id                 BIGSERIAL PRIMARY KEY,
+    refugio_empleado_id BIGINT NOT NULL REFERENCES refugio_empleados(id) ON DELETE CASCADE,
+    permiso_id         BIGINT NOT NULL REFERENCES refugio_permisos(id) ON DELETE CASCADE,
+    UNIQUE (refugio_empleado_id, permiso_id)
+);
+
+-- Datos semilla del catalogo de permisos (idempotente con ON CONFLICT).
+INSERT INTO refugio_permisos (codigo, nombre, modulo, descripcion) VALUES
+    ('mascotas',               'Mascotas',               'mascotas',       'Gestionar las mascotas del refugio'),
+    ('solicitudes',            'Solicitudes de adopción', 'solicitudes',    'Gestionar las solicitudes de adopción'),
+    ('adopciones',             'Adopciones',             'adopciones',      'Gestionar las adopciones exitosas'),
+    ('foro',                   'Foro',                   'foro',            'Publicar y gestionar el foro'),
+    ('marketplace',            'Marketplace',            'marketplace',     'Gestionar el marketplace/tienda'),
+    ('pedidos',                'Pedidos',                'pedidos',         'Gestionar los pedidos'),
+    ('donaciones',             'Donaciones',             'donaciones',      'Gestionar las donaciones'),
+    ('estadisticas',           'Estadísticas',           'estadisticas',    'Consultar las estadísticas'),
+    ('configuracion',          'Configuración del refugio', 'configuracion', 'Acceder a la configuración del refugio'),
+    ('administrar_empleados',  'Administrar empleados',  'empleados',       'Crear, editar, eliminar empleados y asignar permisos')
+ON CONFLICT (codigo) DO NOTHING;
 
 CREATE TABLE tienda_imagenes (
     id         BIGSERIAL PRIMARY KEY,
@@ -477,6 +658,8 @@ CREATE TABLE productos (
     rating                 NUMERIC(2,1) NOT NULL DEFAULT 0,
     refugio_id             BIGINT REFERENCES refugios(id) ON DELETE SET NULL,
     tienda_id              BIGINT REFERENCES tiendas(id) ON DELETE SET NULL,
+    -- Soft delete (activo ya existía para publicar/ocultar)
+    eliminado_en           TIMESTAMPTZ,
     creado_en              TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT chk_producto_vendedor CHECK (refugio_id IS NOT NULL OR tienda_id IS NOT NULL)
 );
@@ -578,6 +761,27 @@ CREATE TABLE historial_estados_pedido (
 );
 CREATE INDEX idx_historial_pedido ON historial_estados_pedido(pedido_id);
 
+-- Kardex de inventario (tiendas aliadas)
+-- Registro cronologico de entradas/salidas/ajustes con saldos resultantes
+-- usando el metodo de costo promedio ponderado.
+CREATE TABLE movimientos_kardex (
+    id               BIGSERIAL PRIMARY KEY,
+    producto_id      BIGINT NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    tienda_id        BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+    tipo_movimiento  VARCHAR(30) NOT NULL, -- ENTRADA | SALIDA | AJUSTE_POSITIVO | AJUSTE_NEGATIVO
+    concepto         VARCHAR(255) NOT NULL DEFAULT '',
+    cantidad         INT NOT NULL DEFAULT 0,
+    costo_unitario   NUMERIC(12,2) NOT NULL DEFAULT 0,
+    costo_total      NUMERIC(12,2) NOT NULL DEFAULT 0,
+    saldo_cantidad   INT NOT NULL DEFAULT 0,
+    saldo_valor      NUMERIC(14,2) NOT NULL DEFAULT 0,
+    creado_en        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_kardex_producto ON movimientos_kardex(producto_id);
+CREATE INDEX idx_kardex_tienda   ON movimientos_kardex(tienda_id);
+CREATE INDEX idx_kardex_tipo     ON movimientos_kardex(tipo_movimiento);
+CREATE INDEX idx_kardex_fecha    ON movimientos_kardex(creado_en);
+
 -- ============================================================
 -- 5. FORO / COMUNIDAD
 -- ============================================================
@@ -594,6 +798,9 @@ CREATE TABLE foro_posts (
     fijado       BOOLEAN NOT NULL DEFAULT false,
     vistas       INT NOT NULL DEFAULT 0,
     compartidos  INT NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo       BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en TIMESTAMPTZ,
     creado_en    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_foro_posts_categoria ON foro_posts(categoria_id);
@@ -612,6 +819,9 @@ CREATE TABLE foro_comentarios (
     comentario_padre_id   BIGINT REFERENCES foro_comentarios(id) ON DELETE CASCADE,
     contenido             TEXT NOT NULL,
     likes                 INT NOT NULL DEFAULT 0,
+    -- Soft delete
+    activo                BOOLEAN NOT NULL DEFAULT true,
+    eliminado_en          TIMESTAMPTZ,
     creado_en             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_foro_comentarios_post ON foro_comentarios(post_id);
@@ -621,7 +831,8 @@ CREATE TABLE foro_reacciones (
     post_id           BIGINT NOT NULL REFERENCES foro_posts(id) ON DELETE CASCADE,
     usuario_id        BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     tipo_reaccion_id  BIGINT NOT NULL REFERENCES tipos_reaccion(id),
-    UNIQUE (post_id, usuario_id, tipo_reaccion_id)
+    -- Una única reacción por usuario y publicación (el tipo se actualiza al cambiar).
+    UNIQUE (post_id, usuario_id)
 );
 
 CREATE TABLE foro_comentario_likes (
@@ -765,6 +976,9 @@ ALTER TABLE favoritos_mascotas       ENABLE ROW LEVEL SECURITY;
 
 -- Tiendas, productos y compras
 ALTER TABLE tiendas                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tienda_permisos          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tienda_usuarios          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tienda_usuario_permisos  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tienda_imagenes          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE producto_imagenes        ENABLE ROW LEVEL SECURITY;
@@ -777,6 +991,7 @@ ALTER TABLE codigos_promocion        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedidos                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_items             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE historial_estados_pedido ENABLE ROW LEVEL SECURITY;
+ALTER TABLE movimientos_kardex       ENABLE ROW LEVEL SECURITY;
 
 -- Foro / comunidad
 ALTER TABLE foro_posts               ENABLE ROW LEVEL SECURITY;
@@ -796,7 +1011,7 @@ ALTER TABLE auditoria                ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================
 -- FIN DEL ESQUEMA
--- 13 catalogos + 32 tablas de datos = 45 tablas en total
+-- 13 catalogos + 33 tablas de datos = 46 tablas en total
 -- Catalogos: tipos_documento, roles, tipos_mascota, tamanos_mascota,
 --   generos_mascota, estados_mascota, estados_solicitud, estados_pedido,
 --   categorias_producto, foro_categorias, tipos_post_foro, estados_post_foro,
@@ -806,6 +1021,7 @@ ALTER TABLE auditoria                ENABLE ROW LEVEL SECURITY;
 --   tiendas, tienda_imagenes, productos, producto_imagenes,
 --   producto_caracteristicas, resenas, resenas_refugio, favoritos_productos,
 --   carrito_items, codigos_promocion, pedidos, pedido_items,
+--   movimientos_kardex,
 --   foro_posts, foro_post_imagenes, foro_comentarios, foro_reacciones,
 --   eventos, campanas, actividades, notificaciones,
 --   pqrs, reportes, auditoria, (+ super-admin se inserta al arrancar el backend)

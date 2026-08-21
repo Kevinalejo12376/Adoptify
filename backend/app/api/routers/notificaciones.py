@@ -38,6 +38,8 @@ TIPO_TITULOS = {
     "like_comentario": "Le gustó tu comentario",
     "venta": "Nueva Venta",
     "sistema": "Notificación del Sistema",
+    "donacion_recibida": "Donación Recibida",
+    "pqrs_tienda": "PQRS",
 }
 
 TIPO_CATEGORIAS = {
@@ -66,6 +68,8 @@ TIPO_CATEGORIAS = {
     "like_comentario": "comunidad",
     "venta": "marketplace",
     "sistema": "sistema",
+    "donacion_recibida": "adopciones",
+    "pqrs_tienda": "sistema",
 }
 
 def _serialize(n: Notificacion) -> dict:

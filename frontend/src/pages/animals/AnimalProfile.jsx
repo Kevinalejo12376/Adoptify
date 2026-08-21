@@ -1,9 +1,27 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Heart, PawPrint, MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Star, CheckCircle, XCircle, AlertCircle, FileText, Send, X, Home, Loader2 } from "lucide-react";
+import { Heart, PawPrint, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Star, CheckCircle, XCircle, AlertCircle, FileText, Send, X, Home, Loader2, ChevronRight, Info, Dog, Cat, Tag, Weight, Droplets, Venus, Mars, Ruler } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { obtenerMascota } from "../../api/mascotas";
 import { crearSolicitud } from "../../api/solicitudes";
+
+const getStatusBadge = (status) => {
+  const config = {
+    "disponible": { label: "Disponible", cls: "bg-emerald-100 text-emerald-700" },
+    "en_proceso": { label: "En proceso", cls: "bg-amber-100 text-amber-700" },
+    "adoptado": { label: "Adoptado", cls: "bg-blue-100 text-blue-700" },
+  };
+  const c = config[status] || config["disponible"];
+  return (
+    <span className={`px-4 py-2 rounded-full text-sm font-medium ${c.cls}`}>{c.label}</span>
+  );
+};
+
+// Convierte un valor vacío (null/undefined/"") en un texto amigable.
+const mostrarValor = (v) => {
+  const s = v === null || v === undefined ? "" : String(v).trim();
+  return s === "" ? "No especificado" : s;
+};
 
 export default function AnimalProfile() {
   const { id } = useParams();
@@ -18,6 +36,7 @@ export default function AnimalProfile() {
   const [animal, setAnimal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Formulario de solicitud
   const [form, setForm] = useState({ nombre: "", telefono: "", mensaje: "" });
@@ -34,19 +53,28 @@ export default function AnimalProfile() {
           id: m.id,
           name: m.nombre,
           type: m.tipo || "Perro",
-          breed: m.raza || "Sin raza",
-          age: m.edad || "—",
-          size: m.tamano || "—",
-          gender: m.genero || "—",
-          weight: m.peso || "—",
-          color: m.color || "—",
+          breed: m.raza || "",
+          age: m.edad || "",
+          size: m.tamano || "",
+          gender: m.genero || "",
+          weight: m.peso || "",
+          color: m.color || "",
           shelter: m.refugio_nombre || "Refugio",
+          shelterId: m.refugio_id,
           shelterPhone: m.refugio_telefono || "",
           shelterLocation: m.refugio_ubicacion || m.refugio_direccion || "",
           description: m.descripcion || "",
-          personality: m.personalidad ? m.personalidad.split(",").map((p) => p.trim()) : [],
+          personality: Array.isArray(m.personalidad)
+            ? m.personalidad
+            : (m.personalidad ? m.personalidad.split(",").map((p) => p.trim()) : []),
           health: [m.vacunado && "Vacunado", m.esterilizado && "Esterilizado", m.desparasitado && "Desparasitado"].filter(Boolean).join(", ") || "Sin información de salud",
+          healthExtra: m.salud || "",
+          vacunado: !!m.vacunado,
+          esterilizado: !!m.esterilizado,
+          desparasitado: !!m.desparasitado,
           requirements: m.requisitos || "",
+          status: m.estado || "disponible",
+          imagenes: m.imagenes || [],
         });
       } catch (e) {
         if (activo) setError(e?.message || "No se encontró la mascota");
@@ -94,7 +122,7 @@ export default function AnimalProfile() {
     setShowCompatibilityModal(true);
   };
 
-  const calculateCompatibility = (answers) => {
+  const calculateCompatibility = () => {
     // Simular cálculo de compatibilidad
     const score = Math.floor(Math.random() * 30) + 70; // 70-100%
     setCompatibilityScore(score);
@@ -130,15 +158,55 @@ export default function AnimalProfile() {
             {/* Image Gallery */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
               <div className="relative">
-                <div className="w-full h-96 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                  <PawPrint className="w-32 h-32 text-rose-400" />
-                </div>
+                {animal.imagenes && animal.imagenes.length > 0 ? (
+                  <>
+                    <div className="w-full h-96 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
+                      <img src={animal.imagenes[currentImageIndex]?.url} alt={animal.name}
+                        className="w-full h-full object-cover" />
+                      {animal.imagenes.length > 1 && (
+                        <>
+                          <button
+                            onClick={() => setCurrentImageIndex(prev => (prev - 1 + animal.imagenes.length) % animal.imagenes.length)}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-all">
+                            <ArrowLeft className="w-5 h-5 text-gray-700" />
+                          </button>
+                          <button
+                            onClick={() => setCurrentImageIndex(prev => (prev + 1) % animal.imagenes.length)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-all">
+                            <ChevronRight className="w-5 h-5 text-gray-700" />
+                          </button>
+                        </>
+                      )}
+                      <span className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/50 backdrop-blur-sm text-white text-xs font-medium rounded-lg">
+                        {currentImageIndex + 1} / {animal.imagenes.length}
+                      </span>
+                    </div>
+                    {animal.imagenes.length > 1 && (
+                      <div className="flex gap-2 p-3 overflow-x-auto">
+                        {animal.imagenes.map((img, idx) => (
+                          <button key={img.id || idx} onClick={() => setCurrentImageIndex(idx)}
+                            className={`w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${
+                              idx === currentImageIndex
+                                ? "border-rose-500 ring-2 ring-rose-200"
+                                : "border-gray-200 opacity-70 hover:opacity-100"
+                            }`}>
+                            <img src={img.url} alt={`${animal.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-full h-96 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
+                    <PawPrint className="w-32 h-32 text-rose-400" />
+                  </div>
+                )}
                 <button
                   onClick={handleFavorite}
                   className="absolute top-4 right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
                 >
-                  <Heart 
-                    className={`w-6 h-6 ${isFavorite(animal.id) ? 'fill-rose-500 text-rose-500' : 'text-gray-400'}`} 
+                  <Heart
+                    className={`w-6 h-6 ${isFavorite(animal.id) ? 'fill-rose-500 text-rose-500' : 'text-gray-400'}`}
                   />
                 </button>
                 <button className="absolute top-4 left-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all">
@@ -152,65 +220,124 @@ export default function AnimalProfile() {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900 mb-2 font-display">{animal.name}</h1>
-                  <p className="text-lg text-gray-600">{animal.breed}</p>
+                  <p className="text-lg text-gray-600">{mostrarValor(animal.breed)}</p>
                 </div>
-                <div className="flex gap-2">
-                  <span className="px-4 py-2 bg-rose-100 text-rose-700 rounded-full text-sm font-medium">
-                    {animal.type}
-                  </span>
-                  <span className="px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-sm font-medium">
-                    {animal.age}
-                  </span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {getStatusBadge(animal.status)}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="text-center p-4 bg-gray-50 rounded-xl">
-                  <MapPin className="w-5 h-5 text-rose-500 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">Tamaño</p>
-                  <p className="font-semibold text-gray-900">{animal.size}</p>
+                  {animal.type === "Perro"
+                    ? <Dog className="w-5 h-5 text-rose-500 mx-auto mb-2" />
+                    : <Cat className="w-5 h-5 text-amber-500 mx-auto mb-2" />}
+                  <p className="text-sm text-gray-600">Tipo</p>
+                  <p className="font-semibold text-gray-900">{mostrarValor(animal.type)}</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-xl">
+                  <Tag className="w-5 h-5 text-blue-500 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">Raza</p>
+                  <p className="font-semibold text-gray-900">{mostrarValor(animal.breed)}</p>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-xl">
                   <Calendar className="w-5 h-5 text-amber-500 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">Género</p>
-                  <p className="font-semibold text-gray-900">{animal.gender}</p>
+                  <p className="text-sm text-gray-600">Edad</p>
+                  <p className="font-semibold text-gray-900">{mostrarValor(animal.age)}</p>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-xl">
-                  <PawPrint className="w-5 h-5 text-rose-500 mx-auto mb-2" />
+                  <Weight className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">Peso</p>
-                  <p className="font-semibold text-gray-900">{animal.weight}</p>
+                  <p className="font-semibold text-gray-900">{mostrarValor(animal.weight)}</p>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-xl">
-                  <Star className="w-5 h-5 text-amber-500 mx-auto mb-2" />
+                  <Droplets className="w-5 h-5 text-violet-500 mx-auto mb-2" />
                   <p className="text-sm text-gray-600">Color</p>
-                  <p className="font-semibold text-gray-900">{animal.color}</p>
+                  <p className="font-semibold text-gray-900">{mostrarValor(animal.color)}</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-xl">
+                  {animal.gender === "Hembra"
+                    ? <Venus className="w-5 h-5 text-pink-500 mx-auto mb-2" />
+                    : <Mars className="w-5 h-5 text-rose-500 mx-auto mb-2" />}
+                  <p className="text-sm text-gray-600">Sexo</p>
+                  <p className="font-semibold text-gray-900">{mostrarValor(animal.gender)}</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-xl">
+                  <Ruler className="w-5 h-5 text-amber-500 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">Tamaño</p>
+                  <p className="font-semibold text-gray-900">{mostrarValor(animal.size)}</p>
                 </div>
               </div>
 
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Descripción</h3>
-                <p className="text-gray-600 leading-relaxed">{animal.description}</p>
+                {animal.description ? (
+                  <p className="text-gray-600 leading-relaxed whitespace-pre-line">{animal.description}</p>
+                ) : (
+                  <p className="text-gray-400 italic">No se ha registrado una descripción.</p>
+                )}
               </div>
 
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Personalidad</h3>
-                <div className="flex flex-wrap gap-2">
-                  {animal.personality.map((trait, index) => (
-                    <span key={index} className="px-4 py-2 bg-gradient-to-r from-rose-100 to-amber-100 text-gray-700 rounded-full text-sm">
-                      {trait}
-                    </span>
-                  ))}
-                </div>
+                {animal.personality && animal.personality.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {animal.personality.map((trait, index) => (
+                      <span key={index} className="px-4 py-2 bg-gradient-to-r from-rose-100 to-amber-100 text-gray-700 rounded-full text-sm">
+                        {trait}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 italic">No se registraron rasgos de personalidad.</p>
+                )}
               </div>
 
               <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Salud</h3>
-                <p className="text-gray-600">{animal.health}</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Estado y salud</h3>
+                <div className="mb-3 p-3 bg-gray-50 rounded-xl flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm text-gray-600">
+                    <Heart className="w-4 h-4 text-rose-500" /> Estado de adopción
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {animal.status === "en_proceso" ? "En proceso" : animal.status === "adoptado" ? "Adoptado" : "Disponible"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {animal.vacunado && (
+                    <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
+                      <CheckCircle className="w-3.5 h-3.5 inline mr-1" /> Vacunado
+                    </span>
+                  )}
+                  {animal.esterilizado && (
+                    <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
+                      <CheckCircle className="w-3.5 h-3.5 inline mr-1" /> Esterilizado
+                    </span>
+                  )}
+                  {animal.desparasitado && (
+                    <span className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
+                      <CheckCircle className="w-3.5 h-3.5 inline mr-1" /> Desparasitado
+                    </span>
+                  )}
+                  {!animal.vacunado && !animal.esterilizado && !animal.desparasitado && (
+                    <p className="text-gray-400 italic">No se registró información de salud.</p>
+                  )}
+                </div>
+                {animal.healthExtra && (
+                  <div className="mt-3 p-3 bg-rose-50 rounded-xl text-sm text-gray-700 flex items-start gap-2">
+                    <Info className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+                    <span>{animal.healthExtra}</span>
+                  </div>
+                )}
               </div>
 
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Requisitos</h3>
-                <p className="text-gray-600">{animal.requirements}</p>
+                {animal.requirements ? (
+                  <p className="text-gray-600 whitespace-pre-line">{animal.requirements}</p>
+                ) : (
+                  <p className="text-gray-400 italic">No se especificaron requisitos.</p>
+                )}
               </div>
             </div>
           </div>
@@ -332,7 +459,7 @@ export default function AnimalProfile() {
             {!adoptionStatus && (
               <div className="bg-white rounded-2xl shadow-lg p-6">
                 <button
-                  onClick={handleAdoptionRequest}
+                  onClick={() => setShowAdoptionModal(true)}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg"
                 >
                   <Heart className="w-5 h-5" />

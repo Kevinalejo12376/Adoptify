@@ -18,6 +18,8 @@ class Configuracion(Base):
     notif_nuevas_solicitudes = Column(Boolean, nullable=False, default=True)
     notif_cambios_estado = Column(Boolean, nullable=False, default=True)
     notif_mensajes_foro = Column(Boolean, nullable=False, default=True)
+    # Opt-in para notificaciones por WhatsApp (entrega via n8n)
+    notif_whatsapp = Column(Boolean, nullable=False, default=False)
     tema = Column(String(10), nullable=False, default="light")
     idioma = Column(String(5), nullable=False, default="es")
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now())
@@ -50,6 +52,10 @@ class ForoComentario(Base):
     comentario_padre_id = Column(Integer, ForeignKey("foro_comentarios.id", ondelete="CASCADE"))
     contenido = Column(Text, nullable=False)
     likes = Column(Integer, nullable=False, default=0)
+    # Soft delete: activo=False oculta el comentario y sus respuestas
+    # conservando los likes en lugar de borrarlos en cascada.
+    activo = Column(Boolean, nullable=False, default=True)
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     autor = relationship("Usuario", lazy="joined")

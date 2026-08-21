@@ -22,7 +22,10 @@ def estadisticas_publicas(db: Session = Depends(get_db)):
     finalizada_id = id_por_codigo(db, EstadoSolicitud, "finalizada")
 
     mascotas_disponibles = (
-        db.query(Mascota).filter(Mascota.estado_id == disponible_id).count()
+        db.query(Mascota).filter(
+            Mascota.estado_id == disponible_id,
+            Mascota.activo == True,  # noqa: E712
+        ).count()
         if disponible_id else 0
     )
     adopciones_exitosas = (
@@ -32,8 +35,8 @@ def estadisticas_publicas(db: Session = Depends(get_db)):
 
     return {
         "mascotas_disponibles": mascotas_disponibles,
-        "mascotas_total": db.query(Mascota).count(),
-        "refugios": db.query(Refugio).count(),
+        "mascotas_total": db.query(Mascota).filter(Mascota.activo == True).count(),  # noqa: E712
+        "refugios": db.query(Refugio).filter(Refugio.activo == True).count(),  # noqa: E712
         "adopciones_exitosas": adopciones_exitosas,
-        "usuarios": db.query(Usuario).count(),
+        "usuarios": db.query(Usuario).filter(Usuario.activo == True).count(),  # noqa: E712
     }

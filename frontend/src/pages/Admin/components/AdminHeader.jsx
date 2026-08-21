@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Search, Bell, Sun, Moon, ChevronDown, LogOut, Settings,
-  Shield, BarChart3, HelpCircle, Heart, Info, UserCircle, Sliders,
+  Search, Bell, Sun, Moon, ChevronDown, Settings,
+  Shield, BarChart3, HelpCircle, Info, UserCircle,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../../api/notificaciones";
+import ProfileDropdown from "../../../components/ProfileDropdown";
 
 const getTipoColor = (tipo) => {
   const map = {
@@ -19,22 +20,13 @@ const getTipoColor = (tipo) => {
   return map[tipo] || "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400";
 };
 
-export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activeMenu, onActiveMenuChange }) {
-  const menuOptions = [
-    { id: "configuracion", icon: Settings, label: "Configuracion", path: "/admin/configuracion" },
-    { id: "administradores", icon: Shield, label: "Administradores", path: "/admin/administradores" },
-    { id: "estadisticas", icon: BarChart3, label: "Estadisticas", path: "/admin/estadisticas" },
-    { id: "pqrs", icon: HelpCircle, label: "PQRS", path: "/admin/pqrs" },
-  ];
-
+export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const location = useLocation();
   const [busqueda, setBusqueda] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [perfilOpen, setPerfilOpen] = useState(false);
   const notifRef = useRef(null);
-  const perfilRef = useRef(null);
 
   const [notifs, setNotifs] = useState([]);
   const noLeidas = notifs.filter((n) => !n.leida).length;
@@ -43,28 +35,40 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
     try {
       const data = await listarNotificaciones();
       setNotifs(data || []);
-    } catch (e) {
+    } catch {
       // sin notificaciones si falla
     }
   }, []);
 
   useEffect(() => {
-    cargarNotifs();
     const timer = setInterval(cargarNotifs, 30000);
-    return () => clearInterval(timer);
+    const first = setTimeout(cargarNotifs, 0);
+    return () => { clearInterval(timer); clearTimeout(first); };
   }, [cargarNotifs]);
 
+  // Cierra el panel de notificaciones al hacer clic fuera.
   useEffect(() => {
-    const currentPath = location.pathname;
-    const active = menuOptions.find((opt) => currentPath === opt.path);
-    if (active && active.id !== activeMenu) {
-      onActiveMenuChange?.(active.id);
-    }
-  }, [location.pathname]);
+    const h = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  // Solo un menú desplegable abierto a la vez: abrir uno cierra el otro.
+  const toggleNotif = () => {
+    if (!notifOpen) setPerfilOpen(false);
+    setNotifOpen(!notifOpen);
+  };
+
+  const togglePerfil = () => {
+    if (!perfilOpen) setNotifOpen(false);
+    setPerfilOpen(!perfilOpen);
+  };
 
   const handleClickNotif = async (notif) => {
     if (!notif.leida) {
-      try { await marcarLeida(notif.id); } catch (e) { /* noop */ }
+      try { await marcarLeida(notif.id); } catch { /* noop */ }
       setNotifs((prev) => prev.map((n) => (n.id === notif.id ? { ...n, leida: true } : n)));
     }
     if (notif.enlace) navigate(notif.enlace);
@@ -72,18 +76,9 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
   };
 
   const handleMarcarTodas = async () => {
-    try { await marcarTodasLeidas(); } catch (e) { /* noop */ }
+    try { await marcarTodasLeidas(); } catch { /* noop */ }
     setNotifs((prev) => prev.map((n) => ({ ...n, leida: true })));
   };
-
-  useEffect(() => {
-    const h = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (perfilRef.current && !perfilRef.current.contains(e.target)) setPerfilOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -93,11 +88,35 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
     }
   };
 
-  const handleNavigation = (path, id) => {
-    onActiveMenuChange?.(id);
-    navigate(path);
+  const handleNavigation = (path) => {
     setPerfilOpen(false);
+    navigate(path);
   };
+
+  // Opciones del menú del perfil (sin duplicados), con el mismo estilo del rol Tienda.
+  const opcionesPerfil = [
+    { icon: UserCircle, label: "Perfil", path: "/admin/usuarios" },
+    { icon: Settings, label: "Configuración", path: "/admin/configuracion" },
+    { icon: Shield, label: "Administradores", path: "/admin/administradores" },
+    { icon: BarChart3, label: "Estadísticas", path: "/admin/estadisticas" },
+    { icon: HelpCircle, label: "PQRS", path: "/admin/pqrs" },
+    { icon: Info, label: "Acerca de Adoptify", path: "/admin/dashboard" },
+  ];
+
+  const nombreAdmin = adminNombre || "Administrador";
+
+  const trigger = (
+    <>
+      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400 flex-shrink-0">
+        {adminNombre?.[0] || "A"}
+      </div>
+      <div className="hidden sm:block text-left">
+        <p className="text-xs font-semibold text-gray-900 dark:text-dark-text leading-tight">{nombreAdmin}</p>
+        <p className="text-[10px] text-gray-400 dark:text-dark-text-secondary leading-tight">Administrador</p>
+      </div>
+      <ChevronDown size={14} className={`text-gray-400 hidden sm:block transition-transform duration-200 ${perfilOpen ? "rotate-180" : ""}`} />
+    </>
+  );
 
   return (
     <header className="sticky top-0 z-40 bg-white/80 dark:bg-dark-card/80 backdrop-blur-xl border-b border-gray-100 dark:border-dark-border">
@@ -139,7 +158,7 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
 
           <div className="relative" ref={notifRef}>
             <button
-              onClick={() => setNotifOpen(!notifOpen)}
+              onClick={toggleNotif}
               className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-all duration-200 hover:scale-105 active:scale-95"
             >
               <Bell size={18} />
@@ -208,135 +227,20 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle, activ
             )}
           </div>
 
-          <div className="relative" ref={perfilRef}>
-            <button
-              onClick={() => setPerfilOpen(!perfilOpen)}
-              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-200 hover:scale-105 active:scale-95"
-              title="Menu de administrador"
-            >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400">
-                {adminNombre?.[0] || "A"}
-              </div>
-            </button>
-
-            {perfilOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
-                <div className="relative">
-                  <div className="h-16 bg-gradient-to-r from-rose-500 to-amber-500" />
-                  <div className="px-4 pb-4 -mt-8">
-                    <div className="flex items-end gap-3">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-lg font-bold text-rose-600 dark:text-rose-400 ring-4 ring-white dark:ring-dark-card shadow-lg">
-                        {adminNombre?.[0] || "A"}
-                      </div>
-                      <div className="flex-1 min-w-0 pb-1">
-                        <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">
-                          {adminNombre || "Admin"}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                          Administrador
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-1.5">
-                  <div className="px-3 pt-2 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Mi cuenta</p>
-                  </div>
-                  <button onClick={() => handleNavigation("/admin/usuarios")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <UserCircle size={16} /> Perfil
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Settings size={16} /> Configuracion
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/configuracion")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Sliders size={16} /> Preferencias
-                  </button>
-
-                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Gestion</p>
-                  </div>
-                  <button onClick={() => handleNavigation("/admin/administradores")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Shield size={16} /> Administradores
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/estadisticas")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <BarChart3 size={16} /> Estadisticas
-                  </button>
-                  <button onClick={() => handleNavigation("/admin/pqrs")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <HelpCircle size={16} /> PQRS
-                  </button>
-
-                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sistema</p>
-                  </div>
-                  <button onClick={() => handleNavigation("/admin/dashboard")} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text transition-all duration-150">
-                    <Info size={16} /> Acerca de Adoptify
-                  </button>
-
-                  <div className="border-t border-gray-100 dark:border-dark-border mt-2 pt-2 px-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">Sesion</p>
-                  </div>
-                  <button onClick={() => { onLogout(); setPerfilOpen(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-150 mt-1">
-                    <LogOut size={16} /> Cerrar sesion
-                  </button>
-                </div>
-
-                <div className="px-2 pb-2">
-                  <div className="px-3 pt-1 pb-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
-                      Panel de gestion
-                    </p>
-                  </div>
-
-                  <nav className="space-y-0.5">
-                    {menuOptions.map((option) => {
-                      const Icono = option.icon;
-                      const isActive = activeMenu === option.id;
-                      return (
-                        <button
-                          key={option.id}
-                          onClick={() => handleNavigation(option.path, option.id)}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative ${
-                            isActive
-                              ? "bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 text-rose-600 dark:text-rose-400 shadow-sm"
-                              : "text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border hover:text-gray-900 dark:hover:text-dark-text"
-                          }`}
-                        >
-                          {isActive && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-rose-500 to-amber-500" />
-                          )}
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                            isActive
-                              ? "bg-rose-100 dark:bg-rose-500/20 text-rose-500"
-                              : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-dark-text"
-                          }`}>
-                            <Icono size={16} strokeWidth={isActive ? 2.5 : 1.5} />
-                          </div>
-                          <span className="flex-1 text-left">{option.label}</span>
-                          {isActive && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </nav>
-
-                  <div className="border-t border-gray-100 dark:border-dark-border mt-3 pt-3 px-1">
-                    <button
-                      onClick={() => { onLogout(); setPerfilOpen(false); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 dark:text-dark-text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-200 group"
-                    >
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 group-hover:text-red-500 transition-colors">
-                        <LogOut size={16} />
-                      </div>
-                      <span>Cerrar sesion</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Menú del perfil: mismo diseño que el rol Tienda, sin franja superior,
+              abre/cierra solo con clic; opciones con hover y estado activo. */}
+          <ProfileDropdown
+            open={perfilOpen}
+            onToggle={togglePerfil}
+            onClose={() => setPerfilOpen(false)}
+            trigger={trigger}
+            avatar={adminNombre?.[0] || "A"}
+            name={nombreAdmin}
+            subtitle="Administrador"
+            options={opcionesPerfil}
+            onOptionClick={(op) => handleNavigation(op.path)}
+            onLogout={() => { onLogout(); setPerfilOpen(false); }}
+          />
         </div>
       </div>
     </header>

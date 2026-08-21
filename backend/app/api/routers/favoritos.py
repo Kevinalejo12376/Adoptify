@@ -24,7 +24,9 @@ def listar_mascotas_fav(current_user: Usuario = Depends(get_current_user), db: S
     ids = [f.mascota_id for f in favs]
     if not ids:
         return []
-    mascotas = db.query(Mascota).filter(Mascota.id.in_(ids)).all()
+    mascotas = db.query(Mascota).filter(
+        Mascota.id.in_(ids), Mascota.activo == True  # noqa: E712
+    ).all()
     return [serialize_mascota(m) for m in mascotas]
 
 
@@ -60,7 +62,9 @@ def listar_productos_fav(current_user: Usuario = Depends(get_current_user), db: 
     ids = [f.producto_id for f in favs]
     if not ids:
         return []
-    productos = db.query(Producto).filter(Producto.id.in_(ids)).all()
+    productos = db.query(Producto).filter(
+        Producto.id.in_(ids), Producto.activo == True  # noqa: E712
+    ).all()
     return [serialize_producto(p) for p in productos]
 
 

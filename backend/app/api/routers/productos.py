@@ -3,20 +3,24 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
+from sqlalchemy import or_
+# pyrefly: ignore [missing-import]
 from typing import Optional, List
 
 from datetime import datetime, timezone
 
 from app.db.database import get_db
-from app.core.security import get_current_refugio, get_current_user
+from app.core.security import get_current_user, get_refugio_de_usuario, require_permiso_refugio
 from app.core.lookups import id_por_codigo
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
+from app.models.tienda import Tienda
 from app.models.producto import Producto
 from app.models.interaccion import Resena
 from app.models.catalogos import CategoriaProducto
 from app.schemas.producto import ProductoCreate, ProductoUpdate, ProductoResponse, ResenaCreate
 from app.schemas.serializers import serialize_producto
+from app.core.softdelete import soft_delete
 
 router = APIRouter()
 
@@ -46,7 +50,7 @@ def _serialize_resena(r: Resena) -> dict:
 
 
 def _refugio_de(current_user: Usuario, db: Session) -> Refugio:
-    refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
+    refugio = get_refugio_de_usuario(db, current_user)
     if not refugio:
         raise HTTPException(status_code=404, detail="Refugio no encontrado")
     return refugio
@@ -57,7 +61,15 @@ def listar_productos(
     db: Session = Depends(get_db),
     categoria: Optional[str] = Query(None),
 ):
-    query = db.query(Producto)
+    # Solo productos activos (soft delete) y de tiendas/refugios activos.
+    query = (
+        db.query(Producto)
+        .outerjoin(Tienda, Tienda.id == Producto.tienda_id)
+        .outerjoin(Refugio, Refugio.id == Producto.refugio_id)
+        .filter(Producto.activo == True)  # noqa: E712
+        .filter(or_(Tienda.id.is_(None), Tienda.activo.is_(True)))
+        .filter(or_(Refugio.id.is_(None), Refugio.activo.is_(True)))
+    )
     if categoria and categoria != "all":
         cat_id = id_por_codigo(db, CategoriaProducto, categoria)
         if cat_id:
@@ -68,7 +80,7 @@ def listar_productos(
 
 @router.get("/mios", response_model=List[ProductoResponse])
 def mis_productos(
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
     db: Session = Depends(get_db),
 ):
     """Productos del refugio autenticado."""
@@ -106,7 +118,9 @@ async def buscar_por_barcode(
 
 @router.get("/{producto_id}", response_model=ProductoResponse)
 def obtener_producto(producto_id: int, db: Session = Depends(get_db)):
-    producto = db.query(Producto).filter(Producto.id == producto_id).first()
+    producto = db.query(Producto).filter(
+        Producto.id == producto_id, Producto.activo == True  # noqa: E712
+    ).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return serialize_producto(producto)
@@ -115,13 +129,11 @@ def obtener_producto(producto_id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=ProductoResponse, status_code=status.HTTP_201_CREATED)
 def crear_producto(
     payload: ProductoCreate,
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
     db: Session = Depends(get_db),
 ):
     """Crea un producto asociado al refugio autenticado."""
-    refugio = db.query(Refugio).filter(Refugio.usuario_id == current_user.id).first()
-    if not refugio:
-        raise HTTPException(status_code=404, detail="Refugio no encontrado")
+    refugio = _refugio_de(current_user, db)
     producto = Producto(
         nombre=payload.nombre,
         categoria_id=id_por_codigo(db, CategoriaProducto, payload.categoria),
@@ -157,7 +169,7 @@ def _producto_del_refugio(producto_id: int, current_user: Usuario, db: Session) 
 def actualizar_producto(
     producto_id: int,
     payload: ProductoUpdate,
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
     db: Session = Depends(get_db),
 ):
     producto = _producto_del_refugio(producto_id, current_user, db)
@@ -174,12 +186,12 @@ def actualizar_producto(
 @router.delete("/{producto_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_producto(
     producto_id: int,
-    current_user: Usuario = Depends(get_current_refugio),
+    current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
     db: Session = Depends(get_db),
 ):
     producto = _producto_del_refugio(producto_id, current_user, db)
-    db.delete(producto)
-    db.commit()
+    # Soft delete: desactiva el producto conservando reseñas, favoritos y kardex.
+    soft_delete(db, producto)
     return None
 
 

@@ -1,14 +1,16 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
-  ArrowLeft, Save, X, Package, Edit3, Upload, Trash2,
+  ArrowLeft, Save, X, Package, Edit3,
   DollarSign, ChevronDown, Info, Tag, AlertCircle,
-  Shirt, Bone, Stethoscope, Droplets, Dog, Scissors,
-  ArrowUp, ArrowDown, Camera, Sparkles
+  Shirt, Bone, Stethoscope, Droplets, Dog, Scissors, Sparkles
 } from "lucide-react";
 import { categoryIcons, categoryColors } from "../../data/products";
 import { actualizarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
+import ImageUploader from "../../components/ImageUploader";
+import FieldError from "../../components/FieldError";
+import { claseInput, limpiarEspacios } from "../../utils/validaciones";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -34,55 +36,6 @@ const categoryFields = {
   Higiene: { sizes: true, material: false, colors: false, sizeOptions: ["250ml", "500ml", "1L"], label: "Producto de higiene" },
 };
 
-const ImageUploadSection = ({ images, onUpload, onRemove, onMove, label }) => {
-  const inputRef = useRef(null);
-  const count = images?.length || 0;
-  const remaining = MAX_IMAGES - count;
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-        {label} ({count}/{MAX_IMAGES})
-      </label>
-      <div className="grid grid-cols-5 gap-2">
-        {(images || []).map((img, index) => (
-          <div key={img.id} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border">
-            <img src={img.src} alt={`Imagen ${index + 1}`} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
-              <button type="button" onClick={() => onRemove(img.id)}
-                className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors" title="Eliminar">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-              {index > 0 && (
-                <button type="button" onClick={() => onMove(index, -1)}
-                  className="p-1.5 bg-white/90 text-gray-700 rounded-lg hover:bg-white transition-colors" title="Mover izquierda">
-                  <ArrowUp className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {index < count - 1 && (
-                <button type="button" onClick={() => onMove(index, 1)}
-                  className="p-1.5 bg-white/90 text-gray-700 rounded-lg hover:bg-white transition-colors" title="Mover derecha">
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-            <span className="absolute bottom-1 right-1 text-[10px] font-medium bg-black/50 text-white px-1.5 py-0.5 rounded-md">
-              {index + 1}
-            </span>
-          </div>
-        ))}
-        {remaining > 0 && (
-          <button type="button" onClick={() => inputRef.current?.click()}
-            className="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-rose-400 dark:hover:border-rose-500 flex flex-col items-center justify-center gap-1 transition-all hover:bg-rose-50/50 dark:hover:bg-rose-500/5">
-            <Upload className="w-5 h-5 text-gray-400" />
-            <span className="text-[10px] text-gray-400 font-medium">{remaining}</span>
-          </button>
-        )}
-      </div>
-      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} />
-    </div>
-  );
-};
 
 const CategorySpecificFields = ({ data, setData, category }) => {
   const fields = categoryFields[category];
@@ -162,6 +115,8 @@ export default function ShelterEditProduct() {
   const [isSaving, setIsSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
 
   if (!productData) {
     return (
@@ -181,38 +136,45 @@ export default function ShelterEditProduct() {
     );
   }
 
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const remaining = MAX_IMAGES - (productData.images?.length || 0);
-    const toAdd = files.slice(0, remaining);
-    toAdd.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const newImg = { id: Date.now() + Math.random(), src: ev.target.result, file, label: "" };
-        setProductData(prev => ({ ...prev, images: [...(prev.images || []), newImg] }));
-        setHasChanges(true);
-      };
-      reader.readAsDataURL(file);
-    });
+  // Validación por tipo de campo (mensajes específicos, sin iconos).
+  const validarCampo = (campo, valor) => {
+    switch (campo) {
+      case "name":
+        if (!limpiarEspacios(valor)) return "El nombre del producto es obligatorio.";
+        return "";
+      case "price": {
+        if (valor === "" || valor == null) return "El precio es obligatorio.";
+        const precio = parseFloat(valor);
+        if (isNaN(precio) || precio <= 0) return "El precio debe ser un número mayor a 0.";
+        return "";
+      }
+      case "stock": {
+        if (valor === "" || valor == null) return "El stock es obligatorio.";
+        const stock = parseInt(valor, 10);
+        if (isNaN(stock) || stock < 0) return "El stock debe ser un número mayor o igual a 0.";
+        return "";
+      }
+      case "description":
+        if (!limpiarEspacios(valor)) return "La descripción es obligatoria.";
+        return "";
+      default:
+        return "";
+    }
   };
 
-  const removeImage = (imgId) => {
-    setProductData(prev => ({ ...prev, images: (prev.images || []).filter(img => img.id !== imgId) }));
-    setHasChanges(true);
-  };
-
-  const moveImage = (index, direction) => {
-    const imgs = [...(productData.images || [])];
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= imgs.length) return;
-    [imgs[index], imgs[newIndex]] = [imgs[newIndex], imgs[index]];
-    setProductData(prev => ({ ...prev, images: imgs }));
+  // Sube las imágenes a Cloudinary con el flujo unificado y guarda su URL.
+  const handleImagesChange = (newImages) => {
+    setProductData(prev => ({ ...prev, images: newImages }));
     setHasChanges(true);
   };
 
   const handleChange = (field, value) => {
     setProductData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
+    if (["name", "price", "stock", "description"].includes(field)) {
+      setErrors(prev => ({ ...prev, [field]: validarCampo(field, value) }));
+      setSubmitError("");
+    }
   };
 
   const handleCategoryChange = (cat) => {
@@ -222,12 +184,25 @@ export default function ShelterEditProduct() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError("");
+    const nuevosErrores = {
+      name: validarCampo("name", productData.name),
+      price: validarCampo("price", productData.price),
+      stock: validarCampo("stock", productData.stock),
+      description: validarCampo("description", productData.description),
+    };
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some(Boolean)) return;
+
     setIsSaving(true);
     try {
       await actualizarProducto(productData.id, toPayload(productData));
       navigate("/refugio/tienda", { state: { updatedProduct: true } });
     } catch (err) {
       setIsSaving(false);
+      setSubmitError(
+        err?.message || "No se pudo guardar el producto. Revisa los datos e inténtalo de nuevo."
+      );
     }
   };
 
@@ -271,8 +246,9 @@ export default function ShelterEditProduct() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Nombre del Producto *</label>
-                <input type="text" required value={productData.name} onChange={(e) => handleChange("name", e.target.value)}
-                  className={InputClass} placeholder="Ej: Collar Premium Ajustable" />
+                <input type="text" value={productData.name} onChange={(e) => handleChange("name", e.target.value)}
+                  className={claseInput(InputClass, !!errors.name)} placeholder="Ej: Collar Premium Ajustable" />
+                <FieldError mensaje={errors.name} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Categoría</label>
@@ -293,17 +269,19 @@ export default function ShelterEditProduct() {
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Precio ($) *</label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="number" step="0.01" min="0" required value={productData.price}
+                  <input type="number" step="0.01" min="0" value={productData.price}
                     onChange={(e) => handleChange("price", e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                    className={claseInput("w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.price)}
                     placeholder="0.00" />
                 </div>
+                <FieldError mensaje={errors.price} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Stock *</label>
-                <input type="number" min="0" required value={productData.stock}
+                <input type="number" min="0" value={productData.stock}
                   onChange={(e) => handleChange("stock", e.target.value)}
-                  className={InputClass} placeholder="0" />
+                  className={claseInput(InputClass, !!errors.stock)} placeholder="0" />
+                <FieldError mensaje={errors.stock} />
               </div>
             </div>
           </FormSection>
@@ -340,10 +318,11 @@ export default function ShelterEditProduct() {
           <FormSection icon={Tag} title="Descripción y Características" color="text-emerald-500">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Descripción *</label>
-              <textarea rows={3} required value={productData.description}
+              <textarea rows={3} value={productData.description}
                 onChange={(e) => handleChange("description", e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none"
+                className={claseInput("w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none", !!errors.description)}
                 placeholder="Describe el producto y sus beneficios..." />
+              <FieldError mensaje={errors.description} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Características (separado por comas)</label>
@@ -352,16 +331,26 @@ export default function ShelterEditProduct() {
             </div>
           </FormSection>
 
-          {/* Images */}
+          {/* Images (Cloudinary unificado) */}
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border p-5">
-            <ImageUploadSection
-              images={productData.images}
-              onUpload={handleImageUpload}
-              onRemove={removeImage}
-              onMove={moveImage}
-              label="Imágenes del Producto"
+            <ImageUploader
+              tipo="producto"
+              multiple
+              maxFiles={MAX_IMAGES}
+              label={`Imágenes del Producto (Máx. ${MAX_IMAGES})`}
+              value={productData.images || []}
+              onChange={handleImagesChange}
             />
           </div>
+
+          {/* General submit error */}
+          {submitError && (
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl px-4 py-3">
+              <p className="text-xs font-medium text-red-500 leading-snug">
+                <span className="font-bold">*</span> {submitError}
+              </p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 dark:border-dark-border">

@@ -29,6 +29,9 @@ class Usuario(Base):
     instagram = Column(String(120))
     verificado = Column(Boolean, nullable=False, default=False)
     perfil_completo = Column(Boolean, nullable=False, default=False)
+    # Soft delete: 'activo' ya existía para desactivar cuentas; 'eliminado_en'
+    # registra cuándo se desactiva la cuenta de forma definitiva.
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     rol = relationship("Rol", lazy="joined")
@@ -38,6 +41,15 @@ class Usuario(Base):
         back_populates="usuario",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+    # Si este usuario es empleado de un refugio (rol 'empleado_refugio').
+    # 'foreign_keys' desambigua: refugio_empleados tiene dos FKs a usuarios
+    # (usuario_id y creado_por); este lado usa usuario_id.
+    refugio_empleado = relationship(
+        "RefugioEmpleado",
+        back_populates="usuario",
+        uselist=False,
+        foreign_keys="RefugioEmpleado.usuario_id",
     )
     solicitudes = relationship("SolicitudAdopcion", back_populates="usuario")
 

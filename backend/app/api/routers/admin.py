@@ -15,20 +15,30 @@ from typing import Optional, List
 from app.db.database import get_db
 from app.core.security import get_current_admin, get_password_hash
 from app.core.lookups import id_por_codigo
+from app.core.softdelete import soft_delete, soft_delete_no_commit, liberar_slug, liberar_email
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.mascota import Mascota
 from app.models.solicitud import SolicitudAdopcion
 from app.models.producto import Producto
-from app.models.tienda import Tienda
-from app.models.catalogos import Rol, TipoDocumento, EstadoMascota
+from app.models.tienda import Tienda, TiendaUsuario
+from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdjunto
+from app.models.catalogos import Rol, TipoDocumento, EstadoMascota, TipoMascota, TamanoMascota, GeneroMascota
 from app.models.foro import ForoPost
 from app.models.interaccion import Resena
-from app.core.notificaciones import registrar_auditoria
+from app.core.notificaciones import registrar_auditoria, crear_notificacion
 from app.schemas.admin import (
     AdminUsuarioCreate, AdminUsuarioUpdate, AdminUsuarioResponse,
     TiendaCreate, TiendaUpdate, TiendaEstadoUpdate, TiendaResponse, TiendaResumen,
 )
+from app.schemas.tienda_extra import (
+    AdminTiendaPqrsEstadoUpdate,
+    AdminTiendaPqrsRespuestaCreate,
+)
+from app.schemas.mascota import MascotaUpdate
+from app.schemas.serializers import serialize_mascota
+from app.api.routers.mascotas import _sincronizar_imagenes_mascota, _componer_edad_valores
+from app.services.cloudinary_service import subir_imagen_producto
 
 router = APIRouter()
 
@@ -151,8 +161,8 @@ def eliminar_producto_admin(
     p = db.query(Producto).filter(Producto.id == producto_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    db.delete(p)
-    db.commit()
+    # Soft delete: desactiva el producto conservando reseñas, favoritos y kardex.
+    soft_delete(db, p)
     return None
 
 
@@ -162,10 +172,12 @@ def listar_mascotas_admin(
     db: Session = Depends(get_db),
     limite: int = Query(200, ge=1, le=1000, description="Maximo de mascotas a devolver"),
 ):
-    """Lista mascotas (de todos los refugios) para supervision del admin.
+    """Lista mascotas activas (de todos los refugios) para supervision del admin.
+    Las mascotas desactivadas por soft delete no aparecen en el listado normal.
     Con paginación (max 1000) y joinedload para evitar N+1 queries."""
     mascotas = (
         db.query(Mascota)
+        .filter(Mascota.activo == True)  # noqa: E712
         .options(joinedload(Mascota.tipo), joinedload(Mascota.estado), joinedload(Mascota.refugio))
         .order_by(Mascota.creado_en.desc())
         .limit(limite)
@@ -196,9 +208,62 @@ def eliminar_mascota_admin(
     m = db.query(Mascota).filter(Mascota.id == mascota_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
-    db.delete(m)
-    db.commit()
+    # Soft delete: desactiva la mascota conservando su historial de adopción.
+    soft_delete(db, m)
     return None
+
+
+@router.get("/mascotas/{mascota_id}")
+def obtener_mascota_admin(
+    mascota_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Detalle completo de una mascota para el panel admin. Incluye las imágenes
+    y también los registros desactivados por soft delete (activo=False)."""
+    m = db.query(Mascota).filter(Mascota.id == mascota_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+    return serialize_mascota(m)
+
+
+@router.put("/mascotas/{mascota_id}")
+def actualizar_mascota_admin(
+    mascota_id: int,
+    payload: MascotaUpdate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Actualiza los datos de una mascota desde el panel admin (misma lógica y
+    validaciones que la actualización del refugio)."""
+    mascota = db.query(Mascota).filter(Mascota.id == mascota_id).first()
+    if not mascota:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+
+    datos = payload.model_dump(exclude_unset=True)
+    # Las imágenes se sincronizan aparte (relación mascota_imagenes).
+    imagenes = datos.pop("imagenes", None)
+    # Resuelve los campos de catálogo (código/nombre -> id)
+    if "tipo" in datos:
+        mascota.tipo_id = id_por_codigo(db, TipoMascota, datos.pop("tipo"), requerido=True)
+    if "tamano" in datos:
+        mascota.tamano_id = id_por_codigo(db, TamanoMascota, datos.pop("tamano"))
+    if "genero" in datos:
+        mascota.genero_id = id_por_codigo(db, GeneroMascota, datos.pop("genero"))
+    if "estado" in datos:
+        mascota.estado_id = id_por_codigo(db, EstadoMascota, datos.pop("estado"), requerido=True)
+    # Compone la edad estructurada (valor + unidad) en texto antes de asignar.
+    if "edad_valor" in datos or "edad_unidad" in datos:
+        edad_valor = datos.pop("edad_valor", None)
+        edad_unidad = datos.pop("edad_unidad", None)
+        mascota.edad = _componer_edad_valores(edad_valor, edad_unidad)
+    for campo, valor in datos.items():
+        setattr(mascota, campo, valor)
+
+    _sincronizar_imagenes_mascota(db, mascota, imagenes)
+    db.commit()
+    db.refresh(mascota)
+    return serialize_mascota(mascota)
 
 
 @router.get("/usuarios", response_model=List[AdminUsuarioResponse])
@@ -292,10 +357,9 @@ def actualizar_usuario(
     if "password" in update_data:
         update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
 
-    for campo, valor in update_data.items():
-        setattr(user, campo, valor)
-
-    # Si se actualiza el email, verificar que no esté duplicado
+    # Si se actualiza el email, verificar que no esté duplicado ANTES de
+    # sobrescribir el valor en memoria (si se hace después, la comparación
+    # `update_data["email"] != user.email` siempre es False y no se detecta).
     if "email" in update_data and update_data["email"] != user.email:
         existe = db.query(Usuario).filter(
             Usuario.email == update_data["email"],
@@ -303,6 +367,9 @@ def actualizar_usuario(
         ).first()
         if existe:
             raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado")
+
+    for campo, valor in update_data.items():
+        setattr(user, campo, valor)
 
     db.commit()
     db.refresh(user)
@@ -322,8 +389,9 @@ def eliminar_usuario(
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if user.rol_codigo == "administrador_principal":
         raise HTTPException(status_code=400, detail="No se puede eliminar al administrador principal")
-    db.delete(user)
-    db.commit()
+    # Soft delete: libera el email (unicidad) y desactiva la cuenta.
+    liberar_email(db, user)
+    soft_delete(db, user)
     return None
 
 
@@ -407,9 +475,13 @@ def listar_tiendas(
     """Lista tiendas aliadas con filtros, búsqueda, ordenamiento y paginación."""
     query = db.query(Tienda).options(joinedload(Tienda.usuario))
 
-    # Filtro por estado
+    # Filtro por estado. Por defecto (sin filtro) SOLO se muestran tiendas aprobadas
+    # (activa/suspendida); las solicitudes pendientes viven en "Solicitudes de Tienda"
+    # y no deben aparecer aquí como tienda activa.
     if estado and estado in ("activa", "pendiente", "suspendida"):
         query = query.filter(Tienda.estado == estado)
+    else:
+        query = query.filter(Tienda.estado.in_(["activa", "suspendida"]))
 
     # Búsqueda por texto (solo columnas existentes)
     if busqueda:
@@ -605,19 +677,21 @@ def eliminar_tienda(
     _admin: Usuario = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Elimina una tienda aliada y su usuario de acceso."""
+    """Elimina (soft delete) una tienda aliada y desactiva su usuario de acceso."""
     tienda = db.query(Tienda).filter(Tienda.id == tienda_id).first()
     if not tienda:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
 
-    # Eliminar usuario asociado si existe
+    # Soft delete del usuario asociado si existe (libera el email para unicidad)
     if tienda.usuario_id:
         user = db.query(Usuario).filter(Usuario.id == tienda.usuario_id).first()
         if user:
-            db.delete(user)
+            liberar_email(db, user)
+            soft_delete_no_commit(db, user)
 
-    db.delete(tienda)
-    db.commit()
+    # Soft delete de la tienda (libera el slug y desactiva la tienda)
+    liberar_slug(db, tienda)
+    soft_delete(db, tienda)
     return None
 
 
@@ -688,6 +762,206 @@ def eliminar_producto_tienda(
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado en esta tienda")
 
-    db.delete(producto)
-    db.commit()
+    # Soft delete: desactiva el producto conservando pedidos, donaciones y kardex.
+    soft_delete(db, producto)
     return None
+
+
+# ============================================================
+# PQRS de Tiendas Aliadas (gestion por Administradores de Adoptify)
+# ============================================================
+def _subir_adjuntos_admin(adjuntos):
+    """Sube a Cloudinary los adjuntos de las respuestas de PQRS."""
+    resultados = []
+    for adj in (adjuntos or []):
+        if getattr(adj, "imagen_base64", None):
+            try:
+                subido = subir_imagen_producto(adj.imagen_base64, etiqueta="pqrs-adjunto")
+                resultados.append({
+                    "nombre_archivo": adj.nombre_archivo or "adjunto.jpg",
+                    "url": subido["url"],
+                })
+            except Exception as exc:
+                print(f"[admin] No se pudo subir adjunto PQRS: {exc}")
+        elif getattr(adj, "url", None):
+            resultados.append({
+                "nombre_archivo": adj.nombre_archivo or "adjunto",
+                "url": adj.url,
+            })
+    return resultados
+
+
+def _serialize_pqrs_admin(p: TiendaPqrs) -> dict:
+    return {
+        "id": p.id,
+        "tienda_id": p.tienda_id,
+        "tienda_nombre": p.tienda_nombre,
+        "usuario_id": p.usuario_id,
+        "tipo": p.tipo,
+        "asunto": p.asunto,
+        "descripcion": p.descripcion,
+        "estado": p.estado,
+        "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        "actualizado_en": p.actualizado_en.isoformat() if p.actualizado_en else None,
+        "mensajes": [
+            {
+                "id": m.id,
+                "usuario_id": m.usuario_id,
+                "nombre_remitente": m.nombre_remitente,
+                "rol_remitente": m.rol_remitente,
+                "mensaje": m.mensaje,
+                "creado_en": m.creado_en.isoformat() if m.creado_en else None,
+            }
+            for m in p.mensajes
+        ],
+        "adjuntos": [
+            {
+                "id": a.id,
+                "nombre_archivo": a.nombre_archivo,
+                "url": a.url,
+                "creado_en": a.creado_en.isoformat() if a.creado_en else None,
+            }
+            for a in p.adjuntos
+        ],
+    }
+
+
+def _notificar_miembros_tienda(db: Session, tienda_id: int, tipo: str, mensaje: str, enlace: str = None):
+    """Notifica a todos los miembros activos de una tienda aliada."""
+    ids = (
+        db.query(TiendaUsuario.usuario_id)
+        .filter(TiendaUsuario.tienda_id == tienda_id, TiendaUsuario.activo == True)  # noqa: E712
+        .all()
+    )
+    for (uid,) in ids:
+        crear_notificacion(db, uid, tipo=tipo, mensaje=mensaje, enlace=enlace)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+@router.get("/pqrs-tiendas")
+def listar_pqrs_tiendas(
+    estado: Optional[str] = Query(None, description="Filtrar por estado: pendiente, en_revision, finalizado"),
+    busqueda: Optional[str] = Query(None),
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Lista las PQRS creadas por las Tiendas Aliadas."""
+    q = db.query(TiendaPqrs)
+    if estado:
+        q = q.filter(TiendaPqrs.estado == estado)
+    if busqueda:
+        termino = f"%{busqueda.strip()}%"
+        q = q.filter(
+            TiendaPqrs.asunto.ilike(termino)
+            | TiendaPqrs.tienda_nombre.ilike(termino)
+            | TiendaPqrs.descripcion.ilike(termino)
+        )
+    filas = q.order_by(TiendaPqrs.creado_en.desc()).all()
+    return [_serialize_pqrs_admin(p) for p in filas]
+
+
+@router.get("/pqrs-tiendas/{pqrs_id}")
+def detalle_pqrs_tienda_admin(
+    pqrs_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Detalle completo de una PQRS de tienda (mensajes + adjuntos)."""
+    pqrs = db.query(TiendaPqrs).filter(TiendaPqrs.id == pqrs_id).first()
+    if not pqrs:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada")
+    return _serialize_pqrs_admin(pqrs)
+
+
+@router.patch("/pqrs-tiendas/{pqrs_id}/estado")
+def cambiar_estado_pqrs_tienda_admin(
+    pqrs_id: int,
+    payload: AdminTiendaPqrsEstadoUpdate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """El Administrador de Adoptify cambia el estado de una PQRS de tienda.
+
+    Notifica a la tienda del cambio de estado.
+    """
+    pqrs = db.query(TiendaPqrs).filter(TiendaPqrs.id == pqrs_id).first()
+    if not pqrs:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada")
+    pqrs.estado = payload.estado
+    pqrs.actualizado_en = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pqrs)
+
+    _notificar_miembros_tienda(
+        db, pqrs.tienda_id,
+        tipo="pqrs_tienda",
+        mensaje=f"El estado de tu PQRS '{pqrs.asunto}' cambió a '{payload.estado}'.",
+        enlace="/tienda/pqrs",
+    )
+    registrar_auditoria(
+        db, _admin.id,
+        accion="cambio_estado_pqrs_tienda",
+        entidad="tienda_pqrs",
+        entidad_id=pqrs.id,
+        detalle=f"Estado -> {payload.estado}",
+    )
+    return _serialize_pqrs_admin(pqrs)
+
+
+@router.post("/pqrs-tiendas/{pqrs_id}/responder")
+def responder_pqrs_tienda_admin(
+    pqrs_id: int,
+    payload: AdminTiendaPqrsRespuestaCreate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """El Administrador de Adoptify responde una PQRS de tienda y opcionalmente
+    actualiza su estado. Notifica a la tienda.
+    """
+    pqrs = db.query(TiendaPqrs).filter(TiendaPqrs.id == pqrs_id).first()
+    if not pqrs:
+        raise HTTPException(status_code=404, detail="PQRS no encontrada")
+
+    nombre_admin = f"{_admin.nombre} {_admin.apellido or ''}".strip()
+    mensaje = TiendaPqrsMensaje(
+        pqrs_id=pqrs.id,
+        usuario_id=_admin.id,
+        nombre_remitente=nombre_admin,
+        rol_remitente="admin",
+        mensaje=payload.mensaje,
+    )
+    db.add(mensaje)
+    db.flush()
+
+    adjuntos = _subir_adjuntos_admin(payload.adjuntos)
+    for adj in adjuntos:
+        db.add(TiendaPqrsAdjunto(
+            pqrs_id=pqrs.id,
+            mensaje_id=mensaje.id,
+            nombre_archivo=adj["nombre_archivo"],
+            url=adj["url"],
+        ))
+
+    if payload.estado:
+        pqrs.estado = payload.estado
+    pqrs.actualizado_en = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pqrs)
+
+    _notificar_miembros_tienda(
+        db, pqrs.tienda_id,
+        tipo="pqrs_tienda",
+        mensaje=f"Adoptify respondió tu PQRS '{pqrs.asunto}'.",
+        enlace="/tienda/pqrs",
+    )
+    registrar_auditoria(
+        db, _admin.id,
+        accion="responder_pqrs_tienda",
+        entidad="tienda_pqrs",
+        entidad_id=pqrs.id,
+        detalle=payload.estado or "respuesta",
+    )
+    return _serialize_pqrs_admin(pqrs)

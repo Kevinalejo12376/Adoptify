@@ -1,20 +1,31 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  ClipboardList, Search, Calendar, Clock, User, Dog, Cat,
+  ClipboardList, Search, Calendar, Clock, User, Dog, Cat, Filter,
   ChevronDown, Eye, MessageSquare, CheckCircle, XCircle, AlertCircle,
   ChevronRight, Phone, Mail, MapPin, Heart, ArrowLeft,
-  Shield, Star, Home, Users, Activity, X, RefreshCw, Sparkles, Loader2
+  Shield, Star, Home, Users, Activity, X, RefreshCw, Sparkles, Loader2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import ConfirmModal from "../../components/ConfirmModal";
 import { solicitudesRecibidas, actualizarEstado } from "../../api/solicitudes";
 
-const statuses = ["todas", "pendiente", "en revisión", "contactado", "finalizada", "cerrada"];
+const statuses = ["todas", "pendiente", "en_revision", "contactado", "finalizada", "cerrada"];
+
+// Etiquetas legibles para cada estado (los valores internos son los códigos del backend).
+const STATUS_LABELS = {
+  pendiente: "Pendiente",
+  en_revision: "En revisión",
+  contactado: "Contactado",
+  finalizada: "Finalizada",
+  cerrada: "Cerrada",
+};
+
+const statusLabel = (s) => STATUS_LABELS[s] || (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const getStatusConfig = (status) => {
   const config = {
     "pendiente": { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400", icon: Clock, bg: "bg-yellow-50 dark:bg-yellow-500/5", ring: "ring-yellow-500/30" },
-    "en revisión": { color: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400", icon: AlertCircle, bg: "bg-blue-50 dark:bg-blue-500/5", ring: "ring-blue-500/30" },
+    "en_revision": { color: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400", icon: AlertCircle, bg: "bg-blue-50 dark:bg-blue-500/5", ring: "ring-blue-500/30" },
     "contactado": { color: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400", icon: MessageSquare, bg: "bg-purple-50 dark:bg-purple-500/5", ring: "ring-purple-500/30" },
     "cerrada": { color: "bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400", icon: XCircle, bg: "bg-gray-50 dark:bg-gray-500/5", ring: "ring-gray-500/30" },
     "finalizada": { color: "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400", icon: Heart, bg: "bg-green-50 dark:bg-green-500/5", ring: "ring-green-500/30" },
@@ -28,7 +39,7 @@ const StatusBadge = ({ status }) => {
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${c.color} shadow-sm`}>
       <Icon className="w-3.5 h-3.5" />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {statusLabel(status)}
     </span>
   );
 };
@@ -46,7 +57,7 @@ const StatsCard = ({ status, count, isActive, onClick }) => {
       </div>
       <p className={`text-xl font-bold font-display ${c.color.split(' ')[1]}`}>{count}</p>
       <p className={`text-[11px] font-medium mt-0.5 ${c.color.split(' ')[1]}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {statusLabel(status)}
       </p>
     </button>
   );
@@ -74,7 +85,7 @@ export default function ShelterRequests() {
         phone: s.telefono_contacto || "",
         pet: s.mascota_nombre || `Mascota #${s.mascota_id}`,
         petType: s.mascota_tipo || "Perro",
-        status: (s.estado || "pendiente").replace("_", " "),
+        status: s.estado || "pendiente",
         date: s.creada_en ? new Date(s.creada_en).toLocaleDateString("es-CO") : "",
         time: s.creada_en ? new Date(s.creada_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
         message: s.mensaje || "",
@@ -99,10 +110,8 @@ export default function ShelterRequests() {
   });
 
   const updateStatus = async (id, newStatus) => {
-    // Normaliza el estado para el backend (quita espacios, usa guion bajo)
-    const estadoBackend = newStatus.replace(" ", "_");
     try {
-      await actualizarEstado(id, estadoBackend);
+      await actualizarEstado(id, newStatus);
       setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: newStatus } : r));
       if (selectedRequest?.id === id) {
         setSelectedRequest((prev) => ({ ...prev, status: newStatus }));
@@ -217,7 +226,7 @@ export default function ShelterRequests() {
                 className="w-full px-4 py-2.5 pl-10 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white appearance-none cursor-pointer">
                 <option value="todas">Todos los estados</option>
                 {statuses.filter(s => s !== "todas").map(s => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                  <option key={s} value={s}>{statusLabel(s)}</option>
                 ))}
               </select>
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -229,7 +238,7 @@ export default function ShelterRequests() {
             <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-dark-border">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400">
                 <Filter className="w-3 h-3" />
-                {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+                {statusLabel(statusFilter)}
                 <button onClick={() => setStatusFilter("todas")} className="ml-1 hover:text-rose-500">
                   <X className="w-3 h-3" />
                 </button>
@@ -265,7 +274,7 @@ export default function ShelterRequests() {
               {searchTerm
                 ? "No se encontraron solicitudes con los criterios de búsqueda."
                 : statusFilter !== "todas"
-                  ? `No hay solicitudes en estado "${statusFilter}".`
+                  ? `No hay solicitudes en estado "${statusLabel(statusFilter)}".`
                   : "Aún no has recibido solicitudes de adopción."}
             </p>
             {(searchTerm || statusFilter !== "todas") && (
@@ -343,7 +352,7 @@ export default function ShelterRequests() {
                                 <div className={`w-6 h-6 rounded-lg ${sc.bg} flex items-center justify-center`}>
                                   <SIcon className={`w-3.5 h-3.5 ${sc.color.split(' ')[1]}`} />
                                 </div>
-                                {s.charAt(0).toUpperCase() + s.slice(1)}
+                                {statusLabel(s)}
                               </button>
                             );
                           })}

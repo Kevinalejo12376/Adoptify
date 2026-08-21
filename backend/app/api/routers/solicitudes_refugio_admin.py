@@ -21,6 +21,7 @@ from typing import Optional
 from app.db.database import get_db
 from app.core.security import get_current_admin
 from app.core.notificaciones import registrar_auditoria
+from app.core.softdelete import soft_delete_no_commit, liberar_slug, liberar_email
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.mascota import Mascota
@@ -226,13 +227,17 @@ def eliminar_refugio_admin(
     if not refugio:
         raise HTTPException(status_code=404, detail="Refugio no encontrado")
 
-    # Eliminar usuario asociado (refugio se elimina en cascada)
+    # Soft delete: desactiva el usuario asociado si existe (libera el email)
     if refugio.usuario_id:
         user = db.query(Usuario).filter(Usuario.id == refugio.usuario_id).first()
         if user:
-            db.delete(user)
-    else:
-        db.delete(refugio)
+            liberar_email(db, user)
+            soft_delete_no_commit(db, user)
+
+    # Soft delete: libera el slug y desactiva el refugio conservando sus
+    # mascotas, empleados, productos y donaciones.
+    liberar_slug(db, refugio)
+    soft_delete_no_commit(db, refugio)
 
     registrar_auditoria(
         db, _admin.id, "eliminar_refugio", "refugios", refugio_id,

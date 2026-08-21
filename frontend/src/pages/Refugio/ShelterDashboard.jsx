@@ -6,46 +6,73 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ScrollToTop from "../../components/ScrollToTop";
-import { misEstadisticas } from "../../api/refugios";
+import { miPerfil, misEstadisticas } from "../../api/refugios";
 import { solicitudesRecibidas } from "../../api/solicitudes";
 
 export default function ShelterDashboard() {
-  const { user } = useAuth();
+  const { user, tienePermisoRefugio } = useAuth();
   const [stats, setStats] = useState(null);
   const [recentRequests, setRecentRequests] = useState([]);
+  const [storeEnabled, setStoreEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Permisos del usuario en su refugio (valores estables para las dependencias).
+  const puedeMascotas = tienePermisoRefugio("mascotas");
+  const puedeSolicitudes = tienePermisoRefugio("solicitudes");
+  const puedeAdopciones = tienePermisoRefugio("adopciones");
+  const puedeForo = tienePermisoRefugio("foro");
+  const puedeMarketplace = tienePermisoRefugio("marketplace");
+  const puedeEstadisticas = tienePermisoRefugio("estadisticas");
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [est, sols] = await Promise.all([misEstadisticas(), solicitudesRecibidas()]);
+      const [perfil, est] = await Promise.all([miPerfil(), misEstadisticas()]);
       setStats(est);
-      setRecentRequests(sols.slice(0, 5).map((s) => ({
-        id: s.id,
-        user: s.nombre_contacto,
-        pet: s.mascota_nombre || `Mascota #${s.mascota_id}`,
-        type: s.mascota_tipo || "Perro",
-        status: (s.estado || "pendiente").replace("_", " "),
-        date: s.creada_en ? new Date(s.creada_en).toLocaleDateString("es-CO") : "",
-        time: s.creada_en ? new Date(s.creada_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
-      })));
+      setStoreEnabled(!!perfil?.tienda_habilitada);
+      // Las solicitudes recientes solo si el usuario tiene permiso de
+      // gestionar solicitudes; de lo contrario se omiten sin romper el tablero.
+      if (puedeSolicitudes) {
+        try {
+          const sols = await solicitudesRecibidas();
+          setRecentRequests(sols.slice(0, 5).map((s) => ({
+            id: s.id,
+            user: s.nombre_contacto,
+            pet: s.mascota_nombre || `Mascota #${s.mascota_id}`,
+            type: s.mascota_tipo || "Perro",
+            status: (s.estado || "pendiente").replace("_", " "),
+            date: s.creada_en ? new Date(s.creada_en).toLocaleDateString("es-CO") : "",
+            time: s.creada_en ? new Date(s.creada_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
+          })));
+        } catch {
+          setRecentRequests([]);
+        }
+      } else {
+        setRecentRequests([]);
+      }
     } catch (e) {
       setError(e?.message || "No se pudieron cargar los datos");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [puedeSolicitudes]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const isStoreEnabled = user?.settings?.storeEnabled ?? false;
+  const isStoreEnabled = storeEnabled;
 
   const quickActions = [
-    { icon: PawPrint, label: "Registrar Mascota", to: "/refugio/mascotas", color: "from-rose-500 to-pink-500" },
-    { icon: ClipboardList, label: "Ver Solicitudes", to: "/refugio/solicitudes", color: "from-emerald-500 to-teal-500" },
-    { icon: FileText, label: "Nueva Publicación", to: "/refugio/foro", color: "from-amber-500 to-orange-500" },
-    ...(isStoreEnabled ? [
+    ...(puedeMascotas ? [
+      { icon: PawPrint, label: "Registrar Mascota", to: "/refugio/mascotas", color: "from-rose-500 to-pink-500" },
+    ] : []),
+    ...(puedeSolicitudes ? [
+      { icon: ClipboardList, label: "Ver Solicitudes", to: "/refugio/solicitudes", color: "from-emerald-500 to-teal-500" },
+    ] : []),
+    ...(puedeForo ? [
+      { icon: FileText, label: "Nueva Publicación", to: "/refugio/foro", color: "from-amber-500 to-orange-500" },
+    ] : []),
+    ...(isStoreEnabled && puedeMarketplace ? [
       { icon: ShoppingBag, label: "Agregar Producto", to: "/refugio/tienda", color: "from-blue-500 to-cyan-500" },
     ] : []),
   ];
@@ -77,11 +104,21 @@ export default function ShelterDashboard() {
     );
   }
 
+  // Las tarjetas de estadísticas se muestran únicamente según los permisos
+  // del empleado (el representante siempre tiene todos los permisos).
   const statCards = stats ? [
-    { icon: PawPrint, label: "Mascotas Registradas", value: String(stats.mascotas), color: "from-rose-500 to-pink-500", textColor: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-500/10", progress: Math.min((stats.mascotas / 50) * 100, 100) },
-    { icon: Users, label: "Solicitudes Recibidas", value: String(stats.solicitudes), color: "from-amber-500 to-orange-500", textColor: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-500/10", progress: Math.min((stats.solicitudes / 30) * 100, 100) },
-    { icon: Heart, label: "Adopciones Exitosas", value: String(stats.exitosas), color: "from-emerald-500 to-teal-500", textColor: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-500/10", progress: stats.solicitudes > 0 ? Math.round((stats.exitosas / stats.solicitudes) * 100) : 0 },
-    { icon: ClipboardList, label: "Solicitudes Pendientes", value: String(stats.pendientes), color: "from-violet-500 to-purple-500", textColor: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-500/10", progress: stats.solicitudes > 0 ? Math.round((stats.pendientes / stats.solicitudes) * 100) : 0 },
+    ...(puedeMascotas ? [
+      { icon: PawPrint, label: "Mascotas Registradas", value: String(stats.mascotas), color: "from-rose-500 to-pink-500", textColor: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-500/10", progress: Math.min((stats.mascotas / 50) * 100, 100) },
+    ] : []),
+    ...(puedeSolicitudes ? [
+      { icon: Users, label: "Solicitudes Recibidas", value: String(stats.solicitudes), color: "from-amber-500 to-orange-500", textColor: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-500/10", progress: Math.min((stats.solicitudes / 30) * 100, 100) },
+    ] : []),
+    ...(puedeAdopciones ? [
+      { icon: Heart, label: "Adopciones Exitosas", value: String(stats.exitosas), color: "from-emerald-500 to-teal-500", textColor: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-500/10", progress: stats.solicitudes > 0 ? Math.round((stats.exitosas / stats.solicitudes) * 100) : 0 },
+    ] : []),
+    ...(puedeSolicitudes ? [
+      { icon: ClipboardList, label: "Solicitudes Pendientes", value: String(stats.pendientes), color: "from-violet-500 to-purple-500", textColor: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-500/10", progress: stats.solicitudes > 0 ? Math.round((stats.pendientes / stats.solicitudes) * 100) : 0 },
+    ] : []),
   ] : [];
 
   return (
@@ -137,7 +174,8 @@ export default function ShelterDashboard() {
           </div>
         </div>
 
-        {/* Solicitudes recientes (reales) */}
+        {/* Solicitudes recientes (reales) - solo si tiene permiso */}
+        {puedeSolicitudes && (
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-dark-border">
             <h3 className="text-sm font-bold text-gray-900 dark:text-white">Solicitudes Recientes</h3>
@@ -150,7 +188,7 @@ export default function ShelterDashboard() {
               <div className="p-6 text-center text-sm text-gray-400">No hay solicitudes recientes</div>
             ) : (
               recentRequests.map((req) => (
-                <div key={req.id} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-dark-bg/50 transition-colors">
+                <div key={req.id} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-[#20202c] transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-amber-500 flex items-center justify-center text-white text-xs font-bold">
                       {req.user?.[0]?.toUpperCase() || "?"}
@@ -166,6 +204,7 @@ export default function ShelterDashboard() {
             )}
           </div>
         </div>
+        )}
       </div>
       <ScrollToTop />
     </div>

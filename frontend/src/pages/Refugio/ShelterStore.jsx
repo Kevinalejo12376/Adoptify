@@ -13,6 +13,8 @@ import { useAuth } from "../../context/AuthContext";
 import { categoryIcons, categoryColors } from "../../data/products";
 import { misProductos, crearProducto, actualizarProducto, eliminarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
+import FieldError from "../../components/FieldError";
+import { claseInput, limpiarEspacios } from "../../utils/validaciones";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -79,7 +81,7 @@ const ImageUploadSection = ({ images, onUpload, onRemove, onMove, label }) => {
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
         {label} ({count}/{MAX_IMAGES})
       </label>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {(images || []).map((img, index) => (
           <div key={img.id} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border">
             <img src={img.src} alt={`Imagen ${index + 1}`} className="w-full h-full object-cover" />
@@ -173,6 +175,58 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
   const [selectedCat, setSelectedCat] = useState(category);
   const [newProductImages] = useState(null);
   const [editProductImages] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
+
+  const baseInputCls = "w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white";
+
+  // Validación por tipo de campo (mensajes específicos, sin iconos).
+  const validarCampo = (campo, valor) => {
+    switch (campo) {
+      case "name":
+        if (!limpiarEspacios(valor)) return "El nombre del producto es obligatorio.";
+        return "";
+      case "price": {
+        if (valor === "" || valor == null) return "El precio es obligatorio.";
+        const precio = parseFloat(valor);
+        if (isNaN(precio) || precio <= 0) return "El precio debe ser un número mayor a 0.";
+        return "";
+      }
+      case "stock": {
+        if (valor === "" || valor == null) return "El stock es obligatorio.";
+        const stock = parseInt(valor, 10);
+        if (isNaN(stock) || stock < 0) return "El stock debe ser un número mayor o igual a 0.";
+        return "";
+      }
+      case "description":
+        if (!limpiarEspacios(valor)) return "La descripción es obligatoria.";
+        return "";
+      default:
+        return "";
+    }
+  };
+
+  const handleChange = (campo, valor) => {
+    setData((prev) => ({ ...prev, [campo]: valor }));
+    if (["name", "price", "stock", "description"].includes(campo)) {
+      setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, valor) }));
+      setSubmitError("");
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setSubmitError("");
+    const nuevosErrores = {
+      name: validarCampo("name", data.name),
+      price: validarCampo("price", data.price),
+      stock: validarCampo("stock", data.stock),
+      description: validarCampo("description", data.description),
+    };
+    setErrors(nuevosErrores);
+    if (Object.values(nuevosErrores).some(Boolean)) return;
+    onSubmit(e);
+  };
 
   const handleNewProductImages = (e, setDataFn) => {
     const files = Array.from(e.target.files);
@@ -201,13 +255,14 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Producto</label>
-          <input type="text" required value={data.name} onChange={(e) => setData({...data, name: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Producto *</label>
+          <input type="text" value={data.name} onChange={(e) => handleChange("name", e.target.value)}
+            className={claseInput(baseInputCls, !!errors.name)}
             placeholder="Ej: Collar Premium Ajustable" />
+          <FieldError mensaje={errors.name} />
         </div>
 
         <div>
@@ -233,30 +288,33 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio ($)</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio ($) *</label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="number" step="0.01" min="0" required value={data.price}
-              onChange={(e) => setData({...data, price: e.target.value})}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+            <input type="number" step="0.01" min="0" value={data.price}
+              onChange={(e) => handleChange("price", e.target.value)}
+              className={claseInput(baseInputCls + " pl-10 pr-4", !!errors.price)}
               placeholder="0.00" />
           </div>
+          <FieldError mensaje={errors.price} />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock</label>
-          <input type="number" min="0" required value={data.stock}
-            onChange={(e) => setData({...data, stock: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock *</label>
+          <input type="number" min="0" value={data.stock}
+            onChange={(e) => handleChange("stock", e.target.value)}
+            className={claseInput(baseInputCls, !!errors.stock)}
             placeholder="0" />
+          <FieldError mensaje={errors.stock} />
         </div>
 
         <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción</label>
-          <textarea rows={3} required value={data.description}
-            onChange={(e) => setData({...data, description: e.target.value})}
-            className="w-full px-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none"
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción *</label>
+          <textarea rows={3} value={data.description}
+            onChange={(e) => handleChange("description", e.target.value)}
+            className={claseInput(baseInputCls + " resize-none", !!errors.description)}
             placeholder="Describe el producto y sus beneficios..." />
+          <FieldError mensaje={errors.description} />
         </div>
 
         {["Ropa", "Accesorios", "Alimentos", "Juguetes", "Salud", "Higiene"].includes(selectedCat) && (
@@ -325,6 +383,12 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
           label="Imágenes del Producto"
         />
       </div>
+
+      {submitError && (
+        <p className="text-xs font-medium text-red-500 leading-snug">
+          <span className="font-bold">*</span> {submitError}
+        </p>
+      )}
 
       <div className="flex gap-3 pt-2">
         <button type="submit"

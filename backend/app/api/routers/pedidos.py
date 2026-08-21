@@ -1,13 +1,21 @@
 """Pedidos del comprador (usuario autenticado): checkout y consulta."""
 # pyrefly: ignore [missing-import]
+import logging
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from decimal import Decimal
 
+logger = logging.getLogger(__name__)
+
 from app.db.database import get_db
-from app.core.security import get_current_user
+from app.core.security import (
+    get_current_user,
+    get_refugio_de_usuario,
+    require_permiso_refugio,
+)
 from app.core.lookups import id_por_codigo
 from app.models.usuario import Usuario
 from app.models.producto import Producto
@@ -18,6 +26,7 @@ from app.models.catalogos import EstadoPedido
 from app.schemas.pedido import PedidoCreate
 from app.schemas.serializers import serialize_pedido
 from app.core.notificaciones import crear_notificacion
+from app.api.routers.ia import crear_tarea_ia
 
 router = APIRouter()
 
@@ -73,7 +82,9 @@ def crear_pedido(
     subtotal = Decimal("0")
     vendedores = {}  # (tipo, entidad_id) -> lista de "cantidad x nombre"
     for item in payload.items:
-        producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
+        producto = db.query(Producto).filter(
+            Producto.id == item.producto_id, Producto.activo == True  # noqa: E712
+        ).first()
         if not producto:
             raise HTTPException(status_code=404, detail=f"Producto {item.producto_id} no encontrado")
         cantidad = max(1, int(item.cantidad or 1))
@@ -129,6 +140,26 @@ def crear_pedido(
 
     db.commit()
     db.refresh(pedido)
+
+    # n8n (WF-1): entrega de notificaciones externas (WhatsApp opt-in, etc.).
+    try:
+        crear_tarea_ia(db, "notificar_externo", {
+            "evento": "pedido_nuevo",
+            "pedido_id": pedido.id,
+            "numero": numero,
+            "comprador_id": current_user.id,
+            "vendedores": [
+                {"tipo": tipo, "entidad_id": ent_id, "detalle": detalle}
+                for (tipo, ent_id), detalle in [
+                    (t, e, ", ".join(lineas))
+                    for (t, e), lineas in vendedores.items()
+                ]
+            ],
+            "total": float(pedido.total) if pedido.total is not None else 0,
+        })
+    except Exception as exc:
+        logger.warning("[pedidos] No se pudo encolar notificacion externa: %s", exc)
+
     return serialize_pedido(pedido)
 
 
@@ -140,6 +171,26 @@ def mis_pedidos(current_user: Usuario = Depends(get_current_user), db: Session =
         .order_by(Pedido.creado_en.desc())
         .all()
     )
+    return [serialize_pedido(p) for p in pedidos]
+
+
+@router.get("/refugio")
+def pedidos_refugio(current_user: Usuario = Depends(require_permiso_refugio("pedidos")), db: Session = Depends(get_db)):
+    """Pedidos que contienen productos de la tienda del refugio autenticado."""
+    refugio = get_refugio_de_usuario(db, current_user)
+    if not refugio:
+        return []
+    ids = (
+        db.query(PedidoItem.pedido_id)
+        .join(Producto, Producto.id == PedidoItem.producto_id)
+        .filter(Producto.refugio_id == refugio.id)
+        .distinct()
+        .all()
+    )
+    ids = [r[0] for r in ids]
+    if not ids:
+        return []
+    pedidos = db.query(Pedido).filter(Pedido.id.in_(ids)).order_by(Pedido.creado_en.desc()).all()
     return [serialize_pedido(p) for p in pedidos]
 
 

@@ -70,6 +70,82 @@ body {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
+/* Texto y superficies adicionales para dark mode (modales, tablas, cards) */
+.dark .text-gray-800 {
+  color: #d8d8e4;
+}
+.dark .text-gray-400 {
+  color: #8a8aa0;
+}
+.dark .border-gray-300 {
+  border-color: #33334a;
+}
+.dark .bg-gray-100 {
+  background-color: #1f1f2e;
+}
+.dark .bg-gray-200 {
+  background-color: #2a2a3a;
+}
+.dark .bg-gray-50\/30 {
+  background-color: rgba(21, 21, 31, 0.3);
+}
+.dark .bg-gray-50\/40 {
+  background-color: rgba(21, 21, 31, 0.4);
+}
+.dark .bg-gray-50\/50 {
+  background-color: #15151f;
+}
+.dark .bg-gray-50\/60 {
+  background-color: rgba(21, 21, 31, 0.6);
+}
+.dark .bg-gray-50\/70 {
+  background-color: rgba(21, 21, 31, 0.7);
+}
+.dark .bg-white\/50 {
+  background-color: rgba(26, 26, 35, 0.5);
+}
+.dark .bg-white\/60 {
+  background-color: rgba(26, 26, 35, 0.6);
+}
+.dark .bg-white\/70 {
+  background-color: rgba(26, 26, 35, 0.7);
+}
+.dark .bg-white\/80 {
+  background-color: rgba(26, 26, 35, 0.8);
+}
+.dark .bg-white\/90 {
+  background-color: rgba(26, 26, 35, 0.9);
+}
+
+/* Colores semánticos de mensajes para dark mode */
+.dark .text-red-600 {
+  color: #f87171;
+}
+.dark .text-red-700 {
+  color: #fca5a5;
+}
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.12);
+}
+.dark .text-blue-600 {
+  color: #60a5fa;
+}
+.dark .text-blue-700 {
+  color: #93c5fd;
+}
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+.dark .border-red-100 {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.dark .border-blue-100 {
+  border-color: rgba(59, 130, 246, 0.2);
+}
+.dark .border-blue-200 {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
 /* Gradient backgrounds in dark mode */
 .dark .bg-gradient-to-br.from-rose-50 {
   background: linear-gradient(to bottom right, #1a0a0f, var(--color-dark-bg), #1a1208);
@@ -580,6 +656,51 @@ body {
   animation: modal-overlay-in 0.3s ease-out forwards;
 }
 
+/* ========================================================
+   MODALES — Jerarquía de capas y bloqueo de scroll
+   --------------------------------------------------------
+   Los overlays de los modales del Panel Admin usan
+   `fixed inset-0 z-[100]` (y z-[110] para los apilados), lo
+   que los coloca por encima del navbar (z-40) y del sidebar
+   (z-50). El backdrop (bg-black/* + backdrop-blur) oscurece y
+   desenfoca todo lo que está detrás (navbar + sidebar + página)
+   mientras el panel del modal permanece nítido.
+
+   FIX GLOBAL DE STACKING CONTEXT
+   -------------------------------
+   Los modales del Admin que NO usan portal se renderizan dentro
+   de los contenedores de página con `.animate-fade-in*` (el
+   <main> del AdminLayout y el contenedor raíz de cada página).
+   Esas animaciones modifican `opacity` y, mientras están en
+   curso, `opacity < 1` crea un stacking context anidado que
+   "atrapa" al overlay del modal (z-[100]/z-[110]) por debajo
+   del navbar (z-40) y del sidebar (z-50), que sí están en el
+   contexto raíz.
+
+   La solución: mientras exista un modal del Admin abierto,
+   forzar `opacity: 1` en esos contenedores animados (solo en
+   los que contienen el modal, vía `:has()`). Así desaparece el
+   stacking context intermedio y el overlay del modal compite
+   directamente en el contexto raíz, quedando SIEMPRE por encima
+   del navbar y del sidebar. Se aplica de forma automática a
+   todos los modales del Admin (no requiere modificar ninguno) y
+   al cerrar el modal todo vuelve a su estado exacto.
+   ======================================================== */
+
+/* Bloquea el scroll del fondo mientras haya un modal abierto */
+body:has(.z-\[100\]),
+body:has(.z-\[110\]) {
+  overflow: hidden;
+}
+
+/* Elimina el stacking context de los contenedores animados que envuelven
+   un modal del Admin abierto, para que el overlay quede por encima de
+   navbar (z-40) y sidebar (z-50). */
+[class*="animate-fade-in"]:has(.z-\[100\]),
+[class*="animate-fade-in"]:has(.z-\[110\]) {
+  opacity: 1 !important;
+}
+
 .animate-modal-content {
   animation: modal-content-in 0.3s ease-out forwards;
 }
@@ -1031,19 +1152,22 @@ body {
 /*  Shared component styles for both auth views                     */
 /* ================================================================ */
 
-/* --- Page Container: fixed 100vh, centered, gradient background --- */
+/* --- Page Container: full viewport height, centered, gradient background --- */
+/* Se usa min-height + overflow-y:auto para permitir scroll vertical cuando el
+   contenido es más alto que la pantalla (importante en móviles y pantallas bajas).
+   El centrado se consigue con `margin: auto` en .auth-card para que el contenido
+   superior nunca quede recortado e inaccesible. */
 .auth-page {
   position: relative;
   min-height: 100vh;
-  width: 100vw;
-  overflow: hidden;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: linear-gradient(135deg, #fff5f5 0%, #fffaf0 50%, #fff5f5 100%);
   background-size: 200% 200%;
   animation: auth-gradient-move 15s ease infinite;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
+  padding: clamp(0.75rem, 3vw, 2rem);
 }
 
 @keyframes auth-gradient-move {
@@ -1184,39 +1308,73 @@ body {
   animation: auth-loading-bar 2s ease-in-out;
 }
 
+/* --- Barra de carga indeterminada (formularios, ej. "Agregar mascota") --- */
+@keyframes progress-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+.animate-progress {
+  position: relative;
+  width: 40%;
+  animation: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
 /* --- Main Card Container --- */
+/* Altura automática (sin valor rígido) para que ningún contenido se corte.
+   `margin: auto` centra la tarjeta y permite scroll sin recortar el inicio.
+   En pantallas grandes el ancho máximo mantiene el contenido cómodo y centrado. */
 .auth-card {
   width: 100%;
-  max-width: 1000px;
-  height: min(680px, 90vh);
+  max-width: min(1000px, 100%);
+  height: auto;
+  min-height: 0;
+  margin: auto;
   background: #ffffff;
-  border-radius: 36px;
+  border-radius: clamp(20px, 4vw, 36px);
   box-shadow:
     0 20px 60px rgba(255, 77, 122, 0.12),
     0 8px 24px rgba(0, 0, 0, 0.06),
     0 0 0 1px rgba(255, 255, 255, 0.5) inset;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   position: relative;
   z-index: 10;
 }
 
+/* --- Desktop: dos columnas --- */
+/* La altura se ajusta al viewport (100vh menos el padding de la página) para que
+   la tarjeta quede fija y la página NO muestre barra de desplazamiento externa.
+   El contenido sobrante lo gestiona el scroll interno del panel (Login/Register). */
+@media (min-width: 1024px) {
+  .auth-card {
+    flex-direction: row;
+    height: min(720px, calc(100vh - 4.5rem));
+  }
+}
+
 /* --- Left/Right Decorative Panel --- */
+/* La sección de imagen SIEMPRE es visible (nunca se oculta en móviles).
+   En móvil/tablet va arriba como bloque; en desktop ocupa el 50% de la tarjeta. */
 .auth-decorative-panel {
-  display: none;
+  display: flex;
   position: relative;
   background: linear-gradient(135deg, #fff5f5 0%, #ffffff 50%, #fffaf0 100%);
-  padding: 2rem 2.5rem;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  /* Espacio extra arriba en móvil para el botón "Volver al inicio" */
+  padding-top: clamp(2.75rem, 9vw, 2.5rem);
   flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  order: 0;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .auth-decorative-panel {
-    display: flex;
     width: 50%;
+    order: 0;
   }
 }
 
@@ -1289,12 +1447,21 @@ body {
 }
 
 /* --- Image Wrapper with Gradient Border --- */
+/* La imagen es 100% responsive: mantiene su relación de aspecto (height auto),
+   se adapta al ancho disponible con un máximo razonable y un mínimo cómodo. */
 .auth-image-wrapper {
   width: 100%;
-  max-width: 22rem;
+  max-width: min(20rem, 82vw);
+  min-width: 0;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 640px) {
+  .auth-image-wrapper {
+    max-width: 22rem;
+  }
+}
+
+@media (min-width: 1024px) {
   .auth-image-wrapper {
     max-width: 24rem;
   }
@@ -1324,11 +1491,19 @@ body {
   background: #ffffff;
 }
 
-.auth-image-container img {
+/* Imágenes del carrusel (AutoFadingImage): llenan el contenedor con
+   object-fit para que "quepan y queden bien" sin deformarse. */
+.auth-image-container img[data-carousel-idx] {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s ease;
+}
+
+.auth-image-container img:not([data-carousel-idx]) {
   width: 100%;
   height: auto;
   display: block;
-  transition: transform 0.6s ease;
 }
 
 .auth-image-container:hover img {
@@ -1336,9 +1511,10 @@ body {
 }
 
 /* --- Three Circular Gradient Icons --- */
+/* Tamaño adaptable (clamp) para que nunca se salgan ni se amontonen. */
 .auth-icon-circle {
-  width: 3.5rem;
-  height: 3.5rem;
+  width: clamp(2.75rem, 6vw, 3.5rem);
+  height: clamp(2.75rem, 6vw, 3.5rem);
   border-radius: 9999px;
   background: linear-gradient(135deg, #FF4D7A, #FFA726);
   display: flex;
@@ -1351,6 +1527,16 @@ body {
   cursor: pointer;
   transition: all 0.3s ease;
   animation: auth-scale-in 0.5s ease-out backwards;
+}
+
+/* Contenedor de los tres círculos: centrado y con separación uniforme */
+.auth-icon-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.875rem, 3vw, 1.25rem);
+  margin-top: clamp(1rem, 4vh, 2rem);
+  flex-shrink: 0;
 }
 
 .auth-icon-circle:hover {
@@ -1410,20 +1596,85 @@ body {
 }
 
 /* --- Form Panel --- */
+/* En móvil/tablet va debajo de la sección de imagen; en desktop ocupa el 50%. */
 .auth-form-panel {
   width: 100%;
-  padding: 2rem 1.75rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
   display: flex;
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
+  order: 1;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .auth-form-panel {
     width: 50%;
+    order: 0;
     padding: 2.25rem 2.5rem;
   }
+}
+
+/* --- Login: columna de formulario que nunca corta el contenido inferior --- */
+/* Se centra con `margin: auto` (en lugar de justify-content: center) para que,
+   si el contenido es más alto que la tarjeta, se alinee arriba y el panel permita
+   scroll en vez de recortar el botón Google por el borde inferior. */
+.auth-form-panel--login {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 77, 122, 0.55) transparent;
+}
+
+.auth-form-panel--login .auth-form-container {
+  margin: auto;
+}
+
+/* Barra de desplazamiento interna del Login: delgada y rosada (estética Adoptify) */
+.auth-form-panel--login::-webkit-scrollbar {
+  width: 4px;
+}
+
+.auth-form-panel--login::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.auth-form-panel--login::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #FF4D7A, #FFA726);
+  border-radius: 9999px;
+}
+
+.auth-form-panel--login::-webkit-scrollbar-thumb:hover {
+  background: #FF4D7A;
+}
+
+/* --- Register: columna de formulario con scroll interno y botón fijo --- */
+.auth-form-panel--register {
+  justify-content: flex-start;
+}
+
+.auth-form-panel--register .auth-form-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 24rem;
+  margin: 0 auto;
+}
+
+.auth-form-panel--register form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Botón de envío: fijo al pie de la columna, fuera del área de scroll */
+.auth-form-submit {
+  flex-shrink: 0;
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 77, 122, 0.12);
 }
 
 .auth-form-container {
@@ -1434,14 +1685,8 @@ body {
 
 /* --- Logo --- */
 .auth-logo {
-  width: 11rem;
+  width: clamp(9rem, 24vw, 12rem);
   height: auto;
-}
-
-@media (min-width: 640px) {
-  .auth-logo {
-    width: 12rem;
-  }
 }
 
 /* --- Titles & Subtitles --- */
@@ -1705,19 +1950,21 @@ body {
   content: "";
   flex: 1;
   height: 1px;
-  background: linear-gradient(to right, transparent, #e5e7eb, transparent);
+  background: linear-gradient(to right, transparent, rgba(255, 77, 122, 0.4), rgba(255, 167, 38, 0.4), transparent);
 }
 
 .auth-divider-text {
   padding: 0 1rem;
   font-size: 0.8125rem;
-  color: #9ca3af;
-  font-weight: 500;
+  color: #b06a5a;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
 /* --- Social Buttons --- */
 .auth-social-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1731,23 +1978,125 @@ body {
   font-weight: 600;
   color: #4b5563;
   cursor: pointer;
-  transition: all 0.25s ease;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Brillo que barre el botón al pasar el cursor */
+.auth-social-btn::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.35),
+    transparent
+  );
+  transform: skewX(-20deg);
+  pointer-events: none;
 }
 
 .auth-social-btn:hover {
-  background: #f9fafb;
-  border-color: #d1d5db;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #fff5f7 0%, #fff8ef 100%);
+  border-color: rgba(255, 77, 122, 0.4);
+  color: #e04060;
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 26px rgba(255, 77, 122, 0.22),
+    0 6px 16px rgba(255, 167, 38, 0.18);
+}
+
+.auth-social-btn:hover::after {
+  animation: auth-social-shimmer 0.75s ease forwards;
 }
 
 .auth-social-btn:active {
   transform: translateY(0);
+  box-shadow:
+    0 4px 10px rgba(255, 77, 122, 0.14),
+    0 2px 6px rgba(255, 167, 38, 0.1);
+}
+
+@keyframes auth-social-shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* --- Google Button (limpio y elegante) --- */
+/* Botón compacto con ícono oficial de Google + texto "Google".
+   Estado normal: fondo blanco, borde fino con tono Adoptify, sombra ligera.
+   Hover: fondo azul muy claro, borde con más contraste y pequeña elevación.
+   El logo de Google conserva SIEMPRE sus colores originales. */
+.auth-google-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  max-width: 22rem;
+  padding: 0.6875rem 1.25rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid rgba(255, 77, 122, 0.35);
+  border-radius: 14px;
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.25s ease;
+}
+
+.auth-google-btn:hover:not(:disabled) {
+  background: #eef6ff;
+  border-color: rgba(66, 133, 244, 0.55);
+  color: #1f2937;
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 18px rgba(66, 133, 244, 0.16),
+    0 2px 6px rgba(66, 133, 244, 0.08);
+}
+
+.auth-google-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(66, 133, 244, 0.12);
+}
+
+.auth-google-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.auth-google-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+/* Zona "o continúa con" + botón Google (Register: panel decorativo) */
+.auth-google-zone {
+  width: 100%;
+  max-width: 24rem;
+  margin-top: clamp(1rem, 4vh, 2rem);
+  flex-shrink: 0;
 }
 
 /* --- Scrollable Form Area (Register) --- */
+/* Contenido desplazable: campos + términos + "o continúa con" + Google.
+   En desktop el scroll es interno (flex) y el botón de envío queda fijo abajo,
+   fuera de esta área. En móvil/tablet el formulario fluye y la página scrollea,
+   pero el botón de envío siempre queda fuera de esta zona. */
 .auth-form-scroll {
-  max-height: calc(100vh - 360px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -1864,18 +2213,49 @@ body {
   color: #c8c8d8;
 }
 
+.dark .auth-social-btn::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+}
+
 .dark .auth-social-btn:hover {
-  background: #22222f;
-  border-color: #3a3a4a;
+  background: linear-gradient(135deg, rgba(255, 77, 122, 0.14) 0%, rgba(255, 167, 38, 0.14) 100%);
+  border-color: rgba(255, 167, 38, 0.5);
+  color: #ffb3c1;
+  box-shadow:
+    0 10px 26px rgba(255, 77, 122, 0.28),
+    0 6px 16px rgba(255, 167, 38, 0.22);
+}
+
+.dark .auth-google-btn {
+  background: rgba(26, 26, 35, 0.9);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e4e4ec;
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.dark .auth-google-btn:hover:not(:disabled) {
+  background: rgba(66, 133, 244, 0.16);
+  border-color: rgba(66, 133, 244, 0.5);
+  color: #eef6ff;
+  box-shadow:
+    0 6px 18px rgba(66, 133, 244, 0.2),
+    0 2px 6px rgba(66, 133, 244, 0.1);
 }
 
 .dark .auth-divider::before,
 .dark .auth-divider::after {
-  background: linear-gradient(to right, transparent, #2a2a3a, transparent);
+  background: linear-gradient(to right, transparent, rgba(255, 77, 122, 0.35), rgba(255, 167, 38, 0.35), transparent);
 }
 
 .dark .auth-divider-text {
-  color: #7a7a95;
+  color: #9a7a6a;
 }
 
 .dark .auth-message-icon {

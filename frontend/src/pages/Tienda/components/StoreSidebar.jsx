@@ -1,29 +1,82 @@
-import React from "react";
+import { useRef, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, BarChart3, Bell, Settings,
-  ChevronLeft, ChevronRight, LogOut, PawPrint as LogoIcon, Star,
+  ChevronLeft, ChevronRight, LogOut, PawPrint as LogoIcon, Star, ClipboardList,
+  History, HeartHandshake, Pin, PinOff,
 } from "lucide-react";
+import { useStore } from "../../../context/StoreContext";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard" },
   { icon: Package, label: "Productos", path: "/tienda/productos" },
+  { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
   { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos" },
   { icon: Store, label: "Perfil Tienda", path: "/tienda/perfil" },
   { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas" },
   { icon: Bell, label: "Notificaciones", path: "/tienda/notificaciones" },
   { icon: Settings, label: "Configuración", path: "/tienda/configuracion" },
 ];
+// El menu lateral se simplifica a las opciones principales de trabajo.
+// Las demas funcionalidades (perfil, administradores, notificaciones, PQRS,
+// configuracion y cerrar sesion) se acceden desde el menu del perfil.
+function useMenuItems() {
+  const { tienePermiso } = useStore();
 
-export default function StoreSidebar({ collapsed, onToggle, storeNombre, onLogout }) {
+  const items = [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard", permiso: "dashboard.ver" },
+    { icon: Package, label: "Productos", path: "/tienda/productos", permiso: "productos.ver" },
+    { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
+    { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos", permiso: "pedidos.ver" },
+    { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas", permiso: "reportes.ver_estadisticas" },
+    { icon: History, label: "Historial de actividad", path: "/tienda/actividad", permiso: "historial.ver" },
+    { icon: HeartHandshake, label: "Donaciones", path: "/tienda/donaciones", permiso: "donaciones.ver" },
+  ];
+
+  return items.filter((item) => {
+    if (item.permiso) return tienePermiso(item.permiso);
+    return true;
+  });
+}
+
+export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, storeLogo, onLogout }) {
   const location = useLocation();
+  const menuItems = useMenuItems();
+  const sidebarRef = useRef(null);
+  // "Fijar" mantiene el menú lateral abierto (no se colapsa al salir el mouse).
+  const [fijado, setFijado] = useState(false);
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + "/");
 
+  const expandir = () => setCollapsed(false);
+  const colapsar = () => { if (!fijado) setCollapsed(true); };
+
+  // Fijar/desfijar: solo cambia el estado abierto/cerrado del menú lateral.
+  const toggleFijar = () => {
+    const nuevo = !fijado;
+    setFijado(nuevo);
+    if (nuevo) setCollapsed(false);
+    else setCollapsed(true);
+  };
+
+  // Se colapsa al hacer click fuera de la barra lateral (salvo si está fijado).
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(e.target)) {
+        if (!fijado) setCollapsed(true);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [setCollapsed, fijado]);
+
   return (
     <>
-      {/* Sidebar Desktop */}
+      {/* Sidebar Desktop: se expande al entrar el mouse y se colapsa al salir */}
       <aside
+        ref={sidebarRef}
+        onMouseEnter={expandir}
+        onMouseLeave={colapsar}
         className={`
           fixed left-0 top-0 h-full z-50
           bg-white dark:bg-dark-card
@@ -33,34 +86,27 @@ export default function StoreSidebar({ collapsed, onToggle, storeNombre, onLogou
           ${collapsed ? "w-[72px]" : "w-[260px]"}
         `}
       >
-        {/* Logo */}
-        <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} px-4 h-16 border-b border-gray-100 dark:border-dark-border`}>
-          <NavLink to="/tienda/dashboard" className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0">
-              <LogoIcon size={16} className="text-white" />
+        {/* Logo + nombre de la tienda */}
+        <div className={`flex items-center ${collapsed ? "justify-center" : ""} px-4 h-16 border-b border-gray-100 dark:border-dark-border flex-shrink-0`}>
+          <NavLink to="/tienda/dashboard" onClick={colapsar} className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {storeLogo ? (
+                <img src={storeLogo} alt={storeNombre || "Tienda"} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white font-bold text-sm">{storeNombre?.[0] || "T"}</span>
+              )}
             </div>
             {!collapsed && (
               <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">
-                  {storeNombre || "Tienda"}
-                </p>
-                <p className="text-[10px] font-medium text-gray-400 dark:text-dark-text-secondary truncate leading-tight">
-                  Panel Tienda
+                  {storeNombre || "Mi Tienda"}
                 </p>
               </div>
             )}
           </NavLink>
-          {!collapsed && (
-            <button
-              onClick={onToggle}
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
-            >
-              <ChevronLeft size={14} />
-            </button>
-          )}
         </div>
 
-        {/* Menú */}
+        {/* Menu dinamico segun permisos */}
         <nav className="flex-1 overflow-y-auto scrollbar-hide py-3 px-2 space-y-0.5">
           {menuItems.map((item) => {
             const active = isActive(item.path);
@@ -68,6 +114,7 @@ export default function StoreSidebar({ collapsed, onToggle, storeNombre, onLogou
               <NavLink
                 key={item.path}
                 to={item.path}
+                onClick={colapsar}
                 className={`
                   group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative
                   ${collapsed ? "justify-center" : ""}
@@ -97,47 +144,38 @@ export default function StoreSidebar({ collapsed, onToggle, storeNombre, onLogou
           })}
         </nav>
 
-        {/* Info Tienda + Cerrar sesión */}
-        <div className="border-t border-gray-100 dark:border-dark-border p-3">
-          {!collapsed ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2.5 px-3 py-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400 flex-shrink-0">
-                  {storeNombre?.[0] || "T"}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-dark-text truncate">
-                    {storeNombre || "Tienda"}
-                  </p>
-                  <p className="text-[10px] text-gray-400 dark:text-dark-text-secondary truncate">
-                    Tienda Aliada
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={onLogout}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-              >
-                <LogOut size={16} />
-                Cerrar sesión
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={onToggle}
-              className="w-full flex items-center justify-center px-3 py-2.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
-              title="Expandir"
-            >
-              <ChevronRight size={16} />
-            </button>
-          )}
+        {/* Acciones inferiores: fijar menú y cerrar sesión */}
+        <div className="border-t border-gray-100 dark:border-dark-border p-3 flex-shrink-0 space-y-0.5">
+          <button
+            type="button"
+            onClick={toggleFijar}
+            title={fijado ? "Menú fijado (clic para desfijar)" : "Fijar menú"}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${collapsed ? "justify-center px-0" : ""} ${
+              fijado
+                ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
+                : "text-gray-500 dark:text-dark-text-secondary hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
+            }`}
+          >
+            {fijado ? <PinOff size={16} className="flex-shrink-0" /> : <Pin size={16} className="flex-shrink-0" />}
+            {!collapsed && (fijado ? "Menú fijado" : "Fijar menú")}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { onLogout?.(); colapsar(); }}
+            title="Cerrar sesión"
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors ${collapsed ? "justify-center px-0" : ""}`}
+          >
+            <LogOut size={16} className="flex-shrink-0" />
+            {!collapsed && "Cerrar sesión"}
+          </button>
         </div>
       </aside>
 
       {/* Sidebar Mobile */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-dark-card border-t border-gray-100 dark:border-dark-border safe-area-bottom">
         <div className="flex overflow-x-auto scrollbar-hide px-1 py-1">
-          {menuItems.slice(0, 5).map((item) => {
+          {menuItems.map((item) => {
             const active = isActive(item.path);
             return (
               <NavLink

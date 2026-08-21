@@ -1,17 +1,32 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import {
-  Package, ArrowLeft, Edit3, Eye, EyeOff, Star, DollarSign, ShoppingCart,
-  Calendar, BarChart3, Loader2,
+  Package, ArrowLeft, Eye, EyeOff, Star, DollarSign, ShoppingCart,
+  Calendar, BarChart3, Loader2, Plus, Minus, Check, Trash2,
 } from "lucide-react";
-import { obtenerMiProducto, actualizarMiProducto } from "../../api/tienda";
+import {
+  obtenerMiProducto, actualizarMiProducto, actualizarStockMiProducto, eliminarMiProducto,
+} from "../../api/tienda";
 import { listarResenas } from "../../api/productos";
+import { useStore } from "../../context/StoreContext";
+import ConfirmModal from "../../components/ConfirmModal";
 
 export default function StoreProductDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { tienePermiso } = useStore();
+
+  const puedeEliminar = tienePermiso("productos.eliminar");
+  const puedeStock = tienePermiso("inventario.actualizar_stock");
+  const puedeActivar = tienePermiso("productos.activar");
+  const puedeDesactivar = tienePermiso("productos.desactivar");
+
   const [product, setProduct] = useState(null);
   const [resenas, setResenas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stockDraft, setStockDraft] = useState(null);
+  const [stockSaving, setStockSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const cargar = async () => {
     try {
@@ -25,6 +40,7 @@ export default function StoreProductDetail() {
         colores: p.colores ? String(p.colores).split(",").map((s) => s.trim()).filter(Boolean) : [],
         precio: Number(p.precio) || 0,
       });
+      setStockDraft(p.stock ?? 0);
       const rs = await listarResenas(id).catch(() => []);
       setResenas(rs || []);
     } catch (e) {
@@ -40,6 +56,34 @@ export default function StoreProductDetail() {
     const nuevoActivo = !product.activo;
     setProduct((prev) => ({ ...prev, activo: nuevoActivo, estado: nuevoActivo ? "visible" : "oculto" }));
     try { await actualizarMiProducto(id, { activo: nuevoActivo }); } catch (e) { cargar(); }
+  };
+
+  const ajustarStock = (delta) => {
+    setStockDraft((prev) => Math.max(0, (prev ?? product.stock) + delta));
+  };
+
+  const guardarStock = async () => {
+    if (!puedeStock || stockSaving || stockDraft === product.stock) return;
+    if (!Number.isInteger(stockDraft) || stockDraft < 0) return;
+    setStockSaving(true);
+    try {
+      const actualizado = await actualizarStockMiProducto(id, stockDraft);
+      setProduct((prev) => ({ ...prev, stock: actualizado?.stock ?? stockDraft }));
+      setStockDraft(actualizado?.stock ?? stockDraft);
+    } catch (e) {
+      cargar();
+    } finally {
+      setStockSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await eliminarMiProducto(id);
+      navigate("/tienda/productos");
+    } catch (e) {
+      setConfirmDelete(false);
+    }
   };
 
   if (loading) {
@@ -72,6 +116,9 @@ export default function StoreProductDetail() {
     { label: "Fecha publicación", value: product.creado_en ? new Date(product.creado_en).toLocaleDateString("es-CO") : "-" },
   ];
 
+  const colorStock = (stock) =>
+    stock === 0 ? "text-red-500" : stock <= 5 ? "text-amber-500" : "text-emerald-600";
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -85,10 +132,6 @@ export default function StoreProductDetail() {
             <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">{product.categoria}</p>
           </div>
         </div>
-        <Link to={`/tienda/productos/editar/${product.id}`}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-dark-border transition-all">
-          <Edit3 size={16} /> Editar
-        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -111,7 +154,7 @@ export default function StoreProductDetail() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">Stock</p>
-                    <p className={`text-lg font-bold ${product.stock === 0 ? "text-red-500" : product.stock <= 5 ? "text-amber-500" : "text-emerald-600"}`}>
+                    <p className={`text-lg font-bold ${colorStock(product.stock)}`}>
                       {product.stock} unidades
                     </p>
                   </div>
@@ -222,19 +265,67 @@ export default function StoreProductDetail() {
           <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5">
             <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Acciones</h3>
             <div className="space-y-2">
-              <Link to={`/tienda/productos/editar/${product.id}`}
-                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
-                <Edit3 size={16} /> Editar producto
-              </Link>
-              <button onClick={toggleVisible}
-                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors">
-                {product.estado === "visible" ? <EyeOff size={16} /> : <Eye size={16} />}
-                {product.estado === "visible" ? "Ocultar producto" : "Mostrar producto"}
-              </button>
+              {(puedeActivar || puedeDesactivar) && (
+                <button onClick={toggleVisible}
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors">
+                  {product.estado === "visible" ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {product.estado === "visible" ? "Ocultar producto" : "Mostrar producto"}
+                </button>
+              )}
+              {puedeEliminar && (
+                <button onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                  <Trash2 size={16} /> Eliminar producto
+                </button>
+              )}
             </div>
+
+            {puedeStock && (
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-dark-border">
+                <p className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-2">Ajustar stock</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => ajustarStock(-1)}
+                    disabled={stockSaving || (stockDraft ?? 0) <= 0}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 dark:border-dark-border text-gray-500 hover:text-white hover:bg-rose-500 hover:border-rose-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors"
+                    title="Disminuir stock"
+                  >
+                    <Minus size={15} />
+                  </button>
+                  <span className={`flex-1 text-center text-base font-bold tabular-nums ${colorStock(stockDraft ?? 0)}`}>{stockDraft ?? 0}</span>
+                  <button
+                    onClick={() => ajustarStock(1)}
+                    disabled={stockSaving}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 dark:border-dark-border text-gray-500 hover:text-white hover:bg-emerald-500 hover:border-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-500 transition-colors"
+                    title="Aumentar stock"
+                  >
+                    <Plus size={15} />
+                  </button>
+                  <button
+                    onClick={guardarStock}
+                    disabled={stockSaving || stockDraft === product.stock}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Guardar stock"
+                  >
+                    {stockSaving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Confirmación de eliminación */}
+      <ConfirmModal
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        type="danger"
+        title="Eliminar producto"
+        message={`¿Seguro que deseas eliminar "${product.nombre}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+      />
     </div>
   );
 }

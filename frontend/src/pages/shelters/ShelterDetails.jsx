@@ -3,12 +3,28 @@ import { Link, useParams } from "react-router-dom";
 import {
   ArrowLeft, MapPin, Phone, Mail, Star, Heart, Clock, PawPrint,
   CheckCircle, Store, Eye, X, ShoppingBag, ChevronRight, ChevronLeft,
-  Package, Sparkles, Shield, Award
+  Package, Sparkles, Shield, Award, Dog, Shirt, Bone, Stethoscope, Droplets
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useFavorites } from "../../context/FavoritesContext";
 import { obtenerRefugio } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
+
+const categoryIcons = {
+  Alimentos: Dog,
+  Accesorios: Shirt,
+  Juguetes: Bone,
+  Salud: Stethoscope,
+  Higiene: Droplets,
+};
+
+const categoryColors = {
+  Alimentos: "from-emerald-500 to-teal-500",
+  Accesorios: "from-violet-500 to-purple-500",
+  Juguetes: "from-amber-500 to-orange-500",
+  Salud: "from-blue-500 to-cyan-500",
+  Higiene: "from-rose-500 to-pink-500",
+};
 
 export default function ShelterDetails() {
   const { id } = useParams();
@@ -64,7 +80,7 @@ export default function ShelterDetails() {
           verified: r.verificado,
           rating: 0,
           totalRatings: 0,
-          logo: null,
+          logo: r.logo_url || null,
           description: r.descripcion || "Refugio comprometido con el bienestar animal.",
           availablePets: pets.length,
           adoptionsThisMonth: null,
@@ -74,7 +90,7 @@ export default function ShelterDetails() {
           phone: r.telefono || "",
           email: r.email || "",
           address: r.direccion || r.ubicacion || "",
-          gallery: [],
+          gallery: (r.imagenes || []).map((img) => ({ id: img.id, image: img.url })),
           pets,
         });
       } catch (e) {

@@ -5,7 +5,7 @@ import {
   Building2, CheckCircle, Clock, AlertTriangle, ShoppingBag, TrendingUp,
   ChevronLeft, ChevronRight, Image as ImageIcon, ExternalLink, MapPin,
   Globe, Phone, Mail as MailIcon, User, Calendar, Shield,
-  Filter,
+  Filter, ClipboardList,
 } from "lucide-react";
 import {
   getResumenTiendas, listarTiendas, obtenerTienda,
@@ -13,6 +13,9 @@ import {
   restablecerPasswordTienda, eliminarTienda,
   listarProductosTienda, ocultarProductoTienda, eliminarProductoTienda,
 } from "../../api/tiendas";
+import SolicitudesTiendas from "./SolicitudesTiendas";
+import AdminModal from "../../components/admin/AdminModal";
+import AdminModalPortal from "../../components/admin/AdminModalPortal";
 
 // ========================================================
 // COLORES PASTEL PARA TARJETAS DE RESUMEN
@@ -61,8 +64,10 @@ function StoreAvatar({ nombre, logoUrl, size = "md" }) {
 function StatusBadge({ estado }) {
   const config = {
     activa: { bg: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", dot: "bg-emerald-500", label: "Activa" },
+    verificada: { bg: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400", dot: "bg-emerald-500", label: "Verificada" },
     pendiente: { bg: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", dot: "bg-amber-500", label: "Pendiente" },
     suspendida: { bg: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400", dot: "bg-red-500", label: "Suspendida" },
+    inactiva: { bg: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400", dot: "bg-red-500", label: "Inactiva" },
   };
   const c = config[estado] || config.pendiente;
   return (
@@ -133,45 +138,10 @@ function StatCard({ titulo, valor, icono: Icono, color = "rose" }) {
 // COMPONENTE: Modal genérico (reutilizable)
 // ========================================================
 function Modal({ isOpen, onClose, title, children, size = "md", icon: Icono }) {
-  if (!isOpen) return null;
-  const sizes = {
-    sm: "max-w-md",
-    md: "max-w-2xl",
-    lg: "max-w-4xl",
-    xl: "max-w-6xl",
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
-      <div
-        className={`relative w-full ${sizes[size] || sizes.md} bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content max-h-[90vh] flex flex-col`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border flex-shrink-0">
-          <div className="flex items-center gap-3">
-            {Icono && (
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
-                <Icono size={18} className="text-rose-500" />
-              </div>
-            )}
-            <h2 className="text-lg font-bold text-gray-900 dark:text-dark-text">{title}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body scrollable */}
-        <div className="overflow-y-auto p-5 flex-1 scrollbar-hide">
-          {children}
-        </div>
-      </div>
-    </div>
+    <AdminModal open={isOpen} onClose={onClose} title={title} icon={Icono} size={size}>
+      {children}
+    </AdminModal>
   );
 }
 
@@ -187,10 +157,11 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message, icon: Icono,
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className={`relative w-full max-w-md bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content p-6 text-center`}
+        className={`relative w-full max-w-md max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content p-6 text-center`}
         onClick={(e) => e.stopPropagation()}
       >
         {Icono && (
@@ -218,6 +189,7 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message, icon: Icono,
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -1189,6 +1161,8 @@ export default function GestionTiendas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalRegistros, setTotalRegistros] = useState(0);
+  // Pestaña activa: 'tiendas' (registradas) o 'solicitudes' (por aprobar)
+  const [tab, setTab] = useState("tiendas");
 
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState("");
@@ -1475,6 +1449,30 @@ export default function GestionTiendas() {
         </div>
       </div>
 
+      {/* ========== PESTAÑAS: Tiendas | Solicitudes ========== */}
+      <div className="flex flex-wrap gap-2 animate-fade-in">
+        <button
+          onClick={() => setTab("tiendas")}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+            ${tab === "tiendas"
+              ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
+              : "bg-white dark:bg-dark-card text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 hover:text-rose-600"}`}
+        >
+          <Store size={16} /> Tiendas Aliadas
+        </button>
+        <button
+          onClick={() => setTab("solicitudes")}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
+            ${tab === "solicitudes"
+              ? "bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm shadow-rose-500/20"
+              : "bg-white dark:bg-dark-card text-gray-600 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border hover:border-rose-300 hover:text-rose-600"}`}
+        >
+          <ClipboardList size={16} /> Solicitudes de Tienda
+        </button>
+      </div>
+
+      {tab === "tiendas" ? (
+        <>
       {/* ========== TARJETAS DE RESUMEN ========== */}
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1687,6 +1685,10 @@ export default function GestionTiendas() {
             onPageChange={setPagina}
           />
         </>
+      )}
+        </>
+      ) : (
+        <SolicitudesTiendas />
       )}
 
       {/* ========== MODALES ========== */}

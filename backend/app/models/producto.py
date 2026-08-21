@@ -29,12 +29,17 @@ class Producto(Base):
     rating = Column(Numeric(2, 1), nullable=False, default=0)
     refugio_id = Column(Integer, ForeignKey("refugios.id", ondelete="SET NULL"))
     tienda_id = Column(Integer, ForeignKey("tiendas.id", ondelete="SET NULL"))
+    # Soft delete: 'activo' ya existía para publicar/ocultar; 'eliminado_en'
+    # registra cuándo se desactiva definitivamente conservando reseñas,
+    # favoritos, kardex y snapshots de pedidos/donaciones.
+    eliminado_en = Column(DateTime(timezone=True))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     categoria = relationship("CategoriaProducto", lazy="joined")
     tienda = relationship("Tienda", back_populates="productos")
     resenas = relationship("Resena", lazy="select", cascade="all, delete-orphan")
     imagenes = relationship("ProductoImagen", lazy="select", cascade="all, delete-orphan", back_populates="producto")
+    movimientos_kardex = relationship("MovimientoKardex", back_populates="producto", cascade="all, delete-orphan")
 
 
 class ProductoImagen(Base):

@@ -39,6 +39,8 @@ Arquitectura:
 
 Utiliza exclusivamente el SDK oficial de Cloudinary para Python.
 """
+import base64
+import binascii
 import logging
 import uuid
 from typing import List, Optional
@@ -61,19 +63,58 @@ logger = logging.getLogger("cloudinary_service")
 # Todas las rutas se definen AQUÍ. Ningún router debe conocerlas.
 # Si necesitas agregar una nueva carpeta, agrégala aquí y crea su función.
 CLOUDINARY_FOLDERS = {
-    # --- Temporales (Gemini) ---
+    # --- Temporales (usadas por IA, análisis, escaneos, previews) ---
+    # Estas imágenes NO se guardan en la BD y se eliminan automáticamente.
     "TEMP_PRODUCTO": "temp/producto-ia",
     "TEMP_MASCOTA": "temp/mascotas-ia",
-    # --- Permanentes ---
+    "TEMP_PREVIEW": "temp/previews",
+    "TEMP_ESCANEO": "temp/escaneos",
+    "TEMP_GENERAL": "temp/general",
+    # --- Permanentes (se guarda SOLO la secure_url en la BD) ---
     "PRODUCTOS": "productos/imagenes",
     "USUARIOS": "usuarios/perfil",
     "TIENDAS_LOGOS": "tiendas/logos",
     "TIENDAS_PORTADAS": "tiendas/portadas",
     "REFUGIOS_LOGOS": "refugios/logos",
     "REFUGIOS_PORTADAS": "refugios/portadas",
+    "REFUGIOS_GALERIA": "refugios/galeria",
     "MASCOTAS": "mascotas/adopcion",
+    "FORO": "foro/publicaciones",
+    "SOLICITUDES_REFUGIO": "solicitudes-refugio/logos",
     "BANNERS": "banners",
 }
+
+# ---------------------------------------------------------------------------
+# Mapeo de TIPOS de imagen → carpeta permanente en Cloudinary.
+# ---------------------------------------------------------------------------
+# Es la ÚNICA fuente de verdad para el endpoint unificado /api/upload/imagen.
+# Agrega aquí un nuevo tipo y automáticamente queda disponible en toda la app.
+TIPOS_IMAGEN = {
+    "usuario": "USUARIOS",
+    "refugio_logo": "REFUGIOS_LOGOS",
+    "refugio_portada": "REFUGIOS_PORTADAS",
+    "refugio_galeria": "REFUGIOS_GALERIA",
+    "mascota": "MASCOTAS",
+    "producto": "PRODUCTOS",
+    "tienda_logo": "TIENDAS_LOGOS",
+    "tienda_portada": "TIENDAS_PORTADAS",
+    "foro": "FORO",
+    "solicitud_refugio": "SOLICITUDES_REFUGIO",
+    "banner": "BANNERS",
+}
+
+# Mime types permitidos para imágenes (validación unificada).
+MIME_IMAGENES_PERMITIDOS = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/avif": "avif",
+    "image/svg+xml": "svg",
+}
+
+# Tamaño máximo por imagen en bytes (10 MB).
+TAMANO_MAXIMO_IMAGEN_BYTES = 10 * 1024 * 1024
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +176,135 @@ _inicializar()
 
 
 # ---------------------------------------------------------------------------
+# Validación de imágenes (base64)
+# ---------------------------------------------------------------------------
+def _extraer_base64_limpio(imagen_base64: str) -> tuple:
+    """
+    Extrae la parte base64 pura de una cadena que puede incluir prefijo
+    ``data:image/...;base64,``.
+
+    Args:
+        imagen_base64: Cadena base64 (con o sin prefijo data URI).
+
+    Returns:
+        Tupla ``(mime_type, datos_base64)``.
+
+    Raises:
+        ValueError: Si la cadena no tiene formato de imagen base64 válido.
+    """
+    contenido = (imagen_base64 or "").strip()
+    if not contenido:
+        raise ValueError("La imagen no puede estar vacía")
+
+    mime_type = None
+    if "," in contenido and contenido.lstrip().startswith("data:"):
+        prefijo, datos = contenido.split(",", 1)
+        mime_type = prefijo.replace("data:", "").split(";")[0] or None
+        contenido = datos
+
+    return mime_type, contenido
+
+
+def validar_imagen_base64(
+    imagen_base64: str,
+    max_bytes: int = TAMANO_MAXIMO_IMAGEN_BYTES,
+) -> dict:
+    """
+    Valida una imagen en base64 y devuelve su tipo MIME y datos limpios.
+
+    - Verifica que el base64 sea decodificable.
+    - Verifica que el tipo MIME esté en ``MIME_IMAGENES_PERMITIDOS``.
+    - Verifica el tamaño máximo.
+
+    Args:
+        imagen_base64: Cadena base64 de la imagen (con o sin prefijo data:).
+        max_bytes: Tamaño máximo permitido en bytes (por defecto 10 MB).
+
+    Returns:
+        dict con ``mime_type`` y ``data_base64`` (sin prefijo).
+
+    Raises:
+        ValueError: Con un mensaje claro si la imagen no es válida.
+    """
+    mime_type, datos = _extraer_base64_limpio(imagen_base64)
+
+    # Estimar tamaño real (base64 ≈ 4/3 del tamaño original).
+    size_bytes = int(len(datos) * 3 / 4)
+    if size_bytes > max_bytes:
+        raise ValueError(
+            f"La imagen supera el tamaño máximo permitido "
+            f"({max_bytes // (1024 * 1024)} MB)"
+        )
+
+    # Verificar MIME.
+    if mime_type and mime_type not in MIME_IMAGENES_PERMITIDOS:
+        raise ValueError(
+            f"El tipo de imagen '{mime_type}' no está permitido. "
+            f"Usa: {', '.join(sorted(MIME_IMAGENES_PERMITIDOS))}"
+        )
+
+    # Verificar que sea base64 decodificable.
+    try:
+        base64.b64decode(datos, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("La imagen no tiene un formato base64 válido") from exc
+
+    return {"mime_type": mime_type, "data_base64": datos}
+
+
+def _detectar_mime(data_base64: str) -> str:
+    """
+    Detecta el MIME de una imagen a partir de sus primeros bytes (magic number).
+
+    Se usa cuando la imagen llega SIN prefijo ``data:image/...;base64,`` para
+    poder construir un data URI válido para el SDK de Cloudinary.
+
+    Args:
+        data_base64: Cadena base64 sin prefijo.
+
+    Returns:
+        str: MIME detectado (por defecto "image/png").
+    """
+    try:
+        header = base64.b64decode(data_base64[:64])
+        if header.startswith(b"\xff\xd8\xff"):
+            return "image/jpeg"
+        if header.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        if header.startswith(b"GIF8"):
+            return "image/gif"
+        if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
+            return "image/webp"
+        if header.startswith(b"\x00\x00\x00\x1cftypavif"):
+            return "image/avif"
+        if header.lstrip().startswith(b"<svg") or b"<svg" in header[:128]:
+            return "image/svg+xml"
+    except Exception:
+        pass
+    return "image/png"
+
+
+def _a_data_uri(imagen_base64: str) -> str:
+    """
+    Convierte una imagen base64 a un data URI válido para Cloudinary.
+
+    El SDK oficial de Cloudinary espera que la cadena comience con ``data:``
+    para interpretarla como contenido base64 (si no, la trata como ruta de
+    archivo local). Esta función garantiza el formato correcto siempre.
+
+    Args:
+        imagen_base64: Cadena base64 (con o sin prefijo data:image/...;base64,).
+
+    Returns:
+        str: Data URI completo (data:<mime>;base64,<datos>).
+    """
+    mime_type, datos = _extraer_base64_limpio(imagen_base64)
+    if not mime_type:
+        mime_type = _detectar_mime(datos)
+    return f"data:{mime_type};base64,{datos}"
+
+
+# ---------------------------------------------------------------------------
 # Función interna compartida
 # ---------------------------------------------------------------------------
 def _subir_a_cloudinary(
@@ -156,11 +326,18 @@ def _subir_a_cloudinary(
     Raises:
         RuntimeError: Si la subida a Cloudinary falla.
     """
+    # Validar antes de subir (consistencia en toda la app).
+    try:
+        validar_imagen_base64(imagen_base64)
+    except ValueError as exc:
+        raise RuntimeError(f"Imagen inválida: {exc}") from exc
+
     public_id = f"{carpeta}/{uuid.uuid4().hex}"
 
     try:
+        # El SDK necesita un data URI (data:<mime>;base64,<datos>) para subir.
         respuesta = cloudinary.uploader.upload(
-            imagen_base64,
+            _a_data_uri(imagen_base64),
             public_id=public_id,
             overwrite=False,
             resource_type="image",
@@ -182,10 +359,10 @@ def _subir_a_cloudinary(
 
 
 # ===================================================================
-# FAMILIA 1: FUNCIONES TEMPORALES (para Gemini)
+# FAMILIA 1: FUNCIONES TEMPORALES (IA, análisis, escaneos, previews)
 # ===================================================================
 # Estas funciones suben imágenes a la carpeta ``temp/`` de Cloudinary.
-# Las imágenes se eliminan automáticamente después del análisis de IA.
+# Las imágenes se eliminan automáticamente después del flujo temporal.
 # Nunca deben guardarse en la base de datos.
 # ===================================================================
 
@@ -210,7 +387,7 @@ def subir_imagen_temporal(
     Returns:
         dict con ``public_id``, ``url`` y ``etiqueta``.
     """
-    folder = CLOUDINARY_FOLDERS.get(carpeta_temp, CLOUDINARY_FOLDERS["TEMP_PRODUCTO"])
+    folder = CLOUDINARY_FOLDERS.get(carpeta_temp, CLOUDINARY_FOLDERS["TEMP_GENERAL"])
     return _subir_a_cloudinary(imagen_base64, folder, etiqueta)
 
 
@@ -405,6 +582,90 @@ def subir_imagen_mascota(imagen_base64: str, etiqueta: Optional[str] = None) -> 
     return _subir_a_cloudinary(
         imagen_base64,
         CLOUDINARY_FOLDERS["MASCOTAS"],
+        etiqueta,
+    )
+
+
+def subir_imagen(
+    tipo: str,
+    imagen_base64: str,
+    etiqueta: Optional[str] = None,
+) -> dict:
+    """
+    Función PERMANENTE GENÉRICA: sube una imagen según su TIPO.
+
+    Es la puerta de entrada única del endpoint ``/api/upload/imagen``.
+
+    Args:
+        tipo: Clave de ``TIPOS_IMAGEN`` (ej: "usuario", "mascota", "foro").
+        imagen_base64: Cadena base64 de la imagen.
+        etiqueta: Identificador opcional.
+
+    Returns:
+        dict con ``public_id``, ``url``, ``etiqueta`` y ``tipo``.
+
+    Raises:
+        ValueError: Si el tipo no está registrado en ``TIPOS_IMAGEN``.
+        RuntimeError: Si la subida a Cloudinary falla.
+    """
+    clave_carpeta = TIPOS_IMAGEN.get(tipo)
+    if not clave_carpeta:
+        raise ValueError(
+            f"Tipo de imagen '{tipo}' no soportado. "
+            f"Válidos: {', '.join(sorted(TIPOS_IMAGEN))}"
+        )
+    carpeta = CLOUDINARY_FOLDERS[clave_carpeta]
+    resultado = _subir_a_cloudinary(imagen_base64, carpeta, etiqueta)
+    resultado["tipo"] = tipo
+    return resultado
+
+
+def subir_imagenes(
+    tipo: str,
+    imagenes_base64: List[str],
+    etiquetas: Optional[List[str]] = None,
+) -> List[dict]:
+    """
+    Sube MÚLTIPLES imágenes PERMANENTES del mismo tipo a Cloudinary.
+
+    Args:
+        tipo: Clave de ``TIPOS_IMAGEN`` (ej: "mascota", "producto", "foro").
+        imagenes_base64: Lista de cadenas base64.
+        etiquetas: Lista opcional de etiquetas.
+
+    Returns:
+        List[dict]: Lista con ``public_id`` y ``url`` por imagen.
+
+    Raises:
+        ValueError: Si el tipo no está registrado.
+    """
+    if etiquetas is None:
+        etiquetas = [f"vista_{i+1}" for i in range(len(imagenes_base64))]
+
+    resultados: List[dict] = []
+    for i, img_b64 in enumerate(imagenes_base64):
+        etiqueta = etiquetas[i] if i < len(etiquetas) else f"vista_{i+1}"
+        resultados.append(subir_imagen(tipo, img_b64, etiqueta))
+
+    return resultados
+
+
+def subir_imagen_foro(imagen_base64: str, etiqueta: Optional[str] = None) -> dict:
+    """
+    Sube una imagen PERMANENTE de publicación del foro a Cloudinary.
+
+    Carpeta: ``foro/publicaciones/``.
+
+    Args:
+        imagen_base64: Cadena base64 de la imagen.
+        etiqueta: Identificador opcional.
+
+    Returns:
+        dict con ``public_id`` y ``url`` de la imagen.
+    """
+    return _subir_a_cloudinary(
+        imagen_base64,
+        CLOUDINARY_FOLDERS["FORO"],
         etiqueta,
     )
 

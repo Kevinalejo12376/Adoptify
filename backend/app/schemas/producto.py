@@ -1,7 +1,9 @@
 # pyrefly: ignore [missing-import]
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 # pyrefly: ignore [missing-import]
 from typing import Optional, List
+
+from app.core.validadores import validar_nombre_comercial
 
 
 class ProductoCreate(BaseModel):
@@ -12,7 +14,7 @@ class ProductoCreate(BaseModel):
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None
-    stock: int = 0
+    stock: int = Field(0, ge=0, description="Cantidad disponible (no puede ser negativa)")
     marca: Optional[str] = None
     material: Optional[str] = None
     tallas: Optional[str] = None
@@ -29,6 +31,25 @@ class ProductoCreate(BaseModel):
     registro_sanitario: Optional[str] = None
     advertencias: Optional[str] = None
     informacion_adicional: Optional[str] = None
+
+    @field_validator("nombre")
+    @classmethod
+    def _validar_nombre(cls, v):
+        return validar_nombre_comercial(v, "nombre")
+
+    @field_validator("precio")
+    @classmethod
+    def _validar_precio(cls, v):
+        if v is None or v <= 0:
+            raise ValueError("El precio debe ser mayor a 0")
+        return v
+
+    @field_validator("categoria")
+    @classmethod
+    def _validar_categoria(cls, v):
+        if v is None or str(v).strip() == "":
+            raise ValueError("Debes seleccionar una categoría")
+        return v
 
 
 class AnalisisRequest(BaseModel):
@@ -53,7 +74,7 @@ class ProductoUpdate(BaseModel):
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None
-    stock: Optional[int] = None
+    stock: Optional[int] = Field(None, ge=0)
     marca: Optional[str] = None
     material: Optional[str] = None
     tallas: Optional[str] = None
@@ -63,6 +84,23 @@ class ProductoUpdate(BaseModel):
     ingredientes_activos: Optional[str] = None
     aroma: Optional[str] = None
     instrucciones_cuidado: Optional[str] = None
+
+    @field_validator("nombre")
+    @classmethod
+    def _validar_nombre(cls, v):
+        return validar_nombre_comercial(v, "nombre")
+
+    @field_validator("precio")
+    @classmethod
+    def _validar_precio(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("El precio debe ser mayor a 0")
+        return v
+
+
+class ProductoStockUpdate(BaseModel):
+    """Actualiza únicamente el stock de un producto. No admite valores negativos."""
+    stock: int = Field(..., ge=0)
 
 
 class ProductoResponse(BaseModel):

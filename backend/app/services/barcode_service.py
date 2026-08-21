@@ -25,7 +25,13 @@ logger = logging.getLogger("barcode_service")
 # Constantes
 # ---------------------------------------------------------------------------
 OPENFOODFACTS_URL = "https://world.openfoodfacts.org/api/v2/product/{codigo}.json"
-UPCITEMDB_URL = "https://api.upcitemdb.com/prod/trial/lookup?upc={codigo}"
+# UPCitemDB usa DOS endpoints distintos:
+# - Trial (sin API key): https://api.upcitemdb.com/prod/trial/lookup
+#   Limite: ~100 consultas/dia por IP. No requiere autenticacion.
+# - Produccion (con API key): https://api.upcitemdb.com/prod/lookup
+#   Requiere el header "x-api-key: TU_CLAVE" (NO "Authorization: Bearer").
+UPCITEMDB_TRIAL_URL = "https://api.upcitemdb.com/prod/trial/lookup?upc={codigo}"
+UPCITEMDB_PROD_URL = "https://api.upcitemdb.com/prod/lookup?upc={codigo}"
 
 # ---------------------------------------------------------------------------
 # Modelo de respuesta unificada
@@ -153,6 +159,12 @@ def _parsear_upcitemdb(data: dict, codigo: str) -> Optional[ProductoBarcode]:
     Para uso en producción, obtener API Key en:
     https://upcitemdb.com/
 
+    IMPORTANTE: El endpoint trial de UPCitemDB a veces devuelve resultados
+    "falsos" para códigos inexistentes (devuelve un producto cualquiera con
+    marca "N/A" y un código distinto al buscado). Aquí filtramos:
+    - Items cuyo codigo (ean/upc) no coincida con el buscado.
+    - Items con marca "N/A" o titulos genericos (resultados no fiables).
+
     Returns:
         ProductoBarcode si el producto fue encontrado, None en caso contrario.
     """
@@ -162,8 +174,32 @@ def _parsear_upcitemdb(data: dict, codigo: str) -> Optional[ProductoBarcode]:
             logger.info("[barcode] UPCitemDB: producto no encontrado para %s", codigo)
             return None
 
-        item = items[0]
+        # Buscar el primer item cuyo codigo coincida con el buscado.
+        item = None
+        for candidato in items:
+            if not candidato:
+                continue
+            codigo_item = (
+                candidato.get("ean")
+                or candidato.get("upc")
+                or candidato.get("isbn")
+                or ""
+            )
+            codigo_item = re.sub(r"[^0-9]", "", str(codigo_item))
+            # Normalizar: si el buscado tiene 13 digitos (EAN) y el item 12 (UPC),
+            # intentar normalizar agregando o quitando el digito de control.
+            if codigo_item and (
+                codigo_item == codigo
+                or _codigos_equivalentes(codigo_item, codigo)
+            ):
+                item = candidato
+                break
+
         if not item:
+            logger.info(
+                "[barcode] UPCitemDB: item no coincide con el codigo %s (falso positivo descartado)",
+                codigo,
+            )
             return None
 
         nombre = item.get("title") or item.get("description")
@@ -172,11 +208,17 @@ def _parsear_upcitemdb(data: dict, codigo: str) -> Optional[ProductoBarcode]:
         descripcion = item.get("description")
         presentacion = None  # UPCitemDB no suele tener presentación
 
+        # Descartar resultados no fiables: marca "N/A" o nombre generico.
+        marca_limpia = _limpiar_str(marca)
+        nombre_limpio = _limpiar_str(nombre)
+        if marca_limpia and marca_limpia.lower() in ("n/a", "na", "none", "unknown"):
+            logger.info("[barcode] UPCitemDB: marca no fiable (%s) para %s, descartado", marca_limpia, codigo)
+            return None
+
         # Imagen: tomar la primera si existe
         images = item.get("images") or []
         imagen_url = images[0] if images else None
 
-        # UPCitemDB puede tener "ean" u otros códigos
         ingredientes = None
         fabricante = item.get("manufacturer")
         peso = item.get("weight")
@@ -186,8 +228,8 @@ def _parsear_upcitemdb(data: dict, codigo: str) -> Optional[ProductoBarcode]:
 
         return ProductoBarcode(
             codigo_barras=codigo,
-            nombre=_limpiar_str(nombre),
-            marca=_limpiar_str(marca),
+            nombre=nombre_limpio,
+            marca=marca_limpia,
             categoria=_limpiar_str(categoria),
             descripcion=_limpiar_str(descripcion),
             presentacion=_limpiar_str(presentacion),
@@ -200,6 +242,19 @@ def _parsear_upcitemdb(data: dict, codigo: str) -> Optional[ProductoBarcode]:
     except Exception as exc:
         logger.warning("[barcode] Error parseando UPCitemDB: %s", exc)
         return None
+
+
+def _codigos_equivalentes(a: str, b: str) -> bool:
+    """
+    Verifica si dos codigos (UPC/EAN) son equivalentes.
+
+    UPC-A tiene 12 digitos; EAN-13 tiene 13 digitos. Un EAN-13 valido que
+    empieza con 0 tiene el mismo producto que el UPC-A (12 digitos) sin el
+    primer 0. Aqui comparamos normalizando a 12 o 13 digitos.
+    """
+    a = a.zfill(12)
+    b = b.zfill(12)
+    return a == b or a.zfill(13) == b.zfill(13)
 
 
 # ===================================================================
@@ -237,19 +292,43 @@ async def _consultar_upcitemdb(codigo: str) -> Optional[ProductoBarcode]:
     """
     Consulta UPCitemDB y parsea la respuesta.
 
-    Nota: La API trial (sin API Key) tiene un límite de ~100 consultas/día.
-    Para producción, obtener API Key en https://upcitemdb.com/ y configurar
-    UPCITEMDB_API_KEY en .env
+    - Si hay API key configurada (UPCITEMDB_API_KEY en .env):
+        usa el endpoint de produccion /prod/lookup con el header "x-api-key".
+    - Si no hay API key:
+        usa el endpoint trial /prod/trial/lookup (limite ~100 consultas/dia por IP).
+
+    Obtener API Key gratuita en: https://upcitemdb.com/
     """
-    url = UPCITEMDB_URL.format(codigo=codigo)
-    headers = {"Accept": "application/json"}
-    api_key = settings.UPCITEMDB_API_KEY
+    api_key = settings.UPCITEMDB_API_KEY.strip() if settings.UPCITEMDB_API_KEY else ""
+
+    # Elegir endpoint segun haya o no API key.
     if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+        url = UPCITEMDB_PROD_URL.format(codigo=codigo)
+        headers = {"Accept": "application/json", "x-api-key": api_key}
+        logger.info("[barcode] UPCitemDB: usando endpoint de PRODUCCION (con API key)")
+    else:
+        url = UPCITEMDB_TRIAL_URL.format(codigo=codigo)
+        headers = {"Accept": "application/json"}
+        logger.info("[barcode] UPCitemDB: usando endpoint TRIAL (sin API key)")
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(url, headers=headers, follow_redirects=True)
+            # Si la key es invalida o el limite de cuota se agoto, la API
+            # puede devolver 401/403/429. Registramos el codigo para diagnosticar.
+            if response.status_code in (401, 403):
+                logger.warning(
+                    "[barcode] UPCitemDB: API key rechazada (HTTP %s) para %s. "
+                    "Verifica UPCITEMDB_API_KEY en .env",
+                    response.status_code, codigo,
+                )
+                return None
+            if response.status_code == 429:
+                logger.warning(
+                    "[barcode] UPCitemDB: limite de consultas agotado (HTTP 429) para %s",
+                    codigo,
+                )
+                return None
             response.raise_for_status()
             data = response.json()
             resultado = _parsear_upcitemdb(data, codigo)
