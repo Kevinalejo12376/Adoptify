@@ -1,8 +1,8 @@
 """
 Descarga de reportes descargables (PDF / Excel) para administradores.
 
-Los archivos se generan en memoria (sin escribir en el servidor) usando el
-modulo ``app.services.reportes`` y se devuelven como respuesta de descarga.
+Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
+servidor, y se devuelven como respuesta de descarga directa.
 """
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, Query

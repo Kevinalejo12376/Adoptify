@@ -33,7 +33,7 @@ export async function obtenerTiposReportes() {
  * @param {string} codigo  Código del tipo de reporte.
  * @param {"pdf"|"excel"} formato  Formato de salida.
  */
-export async function descargarReporte(codigo, formato) {
+export async function descargarReporte(codigo, formato = "pdf") {
   const res = await fetch(`${API_URL}${base}/${codigo}?formato=${formato}`, {
     headers: _authedHeaders(),
   });
@@ -65,7 +65,11 @@ export async function descargarReporte(tipo, formato = "pdf") {
   }
 
   const blob = await res.blob();
-  const nombre = nombreArchivoDesdeDisposition(res.headers.get("Content-Disposition"));
+  const ext = formato === "excel" ? "xlsx" : "pdf";
+  const nombre = nombreArchivoDesdeDisposition(
+    res.headers.get("Content-Disposition"),
+    `reporte_${codigo}.${ext}`
+  );
   descargarBlob(blob, nombre);
 
   return { nombre };

@@ -41,6 +41,25 @@ def _a_texto(valor):
     return valor
 
 
+def _a_lista(valor):
+    """Normaliza un valor a lista de textos (para 'personalidad').
+
+    Si la BD lo guarda como array (text[]) se mantiene como lista; si lo guardo
+    como texto separado por comas (formato anterior), se divide. Devuelve None
+    si no hay rasgos. Asi la respuesta cumple el contrato de MascotaResponse
+    (personalidad: Optional[List[str]]).
+    """
+    if valor is None or str(valor).strip() == "":
+        return None
+    if isinstance(valor, str):
+        items = [p.strip() for p in valor.split(",") if p.strip()]
+        return items or None
+    if isinstance(valor, (list, tuple)):
+        items = [str(p).strip() for p in valor if str(p).strip()]
+        return items or None
+    return [str(valor).strip()]
+
+
 def serialize_mascota(m):
     return {
         "id": m.id,
@@ -51,7 +70,7 @@ def serialize_mascota(m):
         "peso": m.peso,
         "color": m.color,
         "descripcion": m.descripcion,
-        "personalidad": _a_texto(m.personalidad),
+        "personalidad": _a_lista(m.personalidad),
         "salud": _a_texto(m.salud),
         "requisitos": _a_texto(m.requisitos),
         "vacunado": m.vacunado,
