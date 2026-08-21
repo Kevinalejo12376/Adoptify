@@ -38,7 +38,6 @@ function BarChart({ items, height = 200, color = "from-rose-500 to-amber-500", u
   if (items.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-8">Sin datos suficientes</p>;
   }
-  const max = Math.max(...items.map((i) => i.value), 1);
   const step = calcStep(max);
   const ticks = [];
   for (let i = 0; ; i += 1) {

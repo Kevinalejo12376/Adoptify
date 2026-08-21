@@ -228,7 +228,7 @@ def construir_pdf(
     columnas: List[Columna],
     filas: List[Dict[str, Any]],
 ) -> bytes:
-    "Construye un PDF tabular en memoria con la identidad visual de Adoptify".
+    """Construye un PDF tabular en memoria con la identidad visual de Adoptify.
 
     Args:
         titulo: Titulo del reporte.
@@ -352,36 +352,4 @@ def _estilo_tabla(columnas: List[Columna], n_filas: int) -> TableStyle:
     for r in range(1, n_filas + 1):
         color_zebra = COLOR_ROSA_50 if r % 2 == 1 else COLOR_AMBAR_50
         commands.append(("BACKGROUND", (0, r), (-1, r), color_zebra))
-def _estilo_tabla(n_filas: int) -> TableStyle:
-    """Construye el estilo visual profesional de la tabla.
-
-    Nota: la alineacion de cada celda (Paragraph) se define en su propio
-    ParagraphStyle; aqui NO se usan comandos ALIGN.
-    """
-    commands = [
-        # Encabezado con fondo de color primario
-        ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARIO),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 8.5),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 1), (-1, -1), 8),
-        ("TEXTCOLOR", (0, 1), (-1, -1), COLOR_TEXTO),
-        # Bordes
-        ("GRID", (0, 0), (-1, -1), 0.4, COLOR_BORDE),
-        ("BOX", (0, 0), (-1, -1), 0.8, COLOR_PRIMARIO),
-        # Espaciado interno
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        # Encabezado con borde inferior resaltado
-        ("LINEBELOW", (0, 0), (-1, 0), 1.2, COLOR_ACENTO),
-    ]
-
-    # Alternancia de filas (zebra) para mejor lectura
-    for r in range(1, n_filas + 1):
-        if r % 2 == 0:
-            commands.append(("BACKGROUND", (0, r), (-1, r), COLOR_ZEBRA))
-
     return TableStyle(commands)
