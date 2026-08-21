@@ -18,7 +18,7 @@ router = APIRouter()
 CAMPOS_BOOL = [
     "notif_email", "notif_push", "notif_adopciones", "notif_respuestas_foro",
     "notif_nuevos_animales", "notif_nuevas_solicitudes", "notif_cambios_estado",
-    "notif_mensajes_foro",
+    "notif_mensajes_foro", "notif_whatsapp",
 ]
 
 
@@ -31,6 +31,7 @@ class ConfiguracionUpdate(BaseModel):
     notif_nuevas_solicitudes: Optional[bool] = None
     notif_cambios_estado: Optional[bool] = None
     notif_mensajes_foro: Optional[bool] = None
+    notif_whatsapp: Optional[bool] = None
     tema: Optional[str] = None
     idioma: Optional[str] = None
 
@@ -45,6 +46,7 @@ def _serialize(c: Configuracion) -> dict:
         "notif_nuevas_solicitudes": c.notif_nuevas_solicitudes,
         "notif_cambios_estado": c.notif_cambios_estado,
         "notif_mensajes_foro": c.notif_mensajes_foro,
+        "notif_whatsapp": c.notif_whatsapp,
         "tema": c.tema,
         "idioma": c.idioma,
     }

@@ -34,6 +34,7 @@ function calcStep(max) {
 // Cada barra usa su propio color: si el item trae `color` lo usa,
 // si no, usa el color por defecto del componente.
 function BarChart({ items, height = 200, color = "from-rose-500 to-amber-500", unit = "" }) {
+  const max = Math.max(...items.map((i) => i.value), 1);
   if (items.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-8">Sin datos suficientes</p>;
   }

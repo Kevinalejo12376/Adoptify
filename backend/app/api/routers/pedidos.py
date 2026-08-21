@@ -1,10 +1,14 @@
 """Pedidos del comprador (usuario autenticado): checkout y consulta."""
 # pyrefly: ignore [missing-import]
+import logging
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from app.db.database import get_db
 from app.core.security import (
@@ -22,6 +26,7 @@ from app.models.catalogos import EstadoPedido
 from app.schemas.pedido import PedidoCreate
 from app.schemas.serializers import serialize_pedido
 from app.core.notificaciones import crear_notificacion
+from app.api.routers.ia import crear_tarea_ia
 
 router = APIRouter()
 
@@ -135,6 +140,26 @@ def crear_pedido(
 
     db.commit()
     db.refresh(pedido)
+
+    # n8n (WF-1): entrega de notificaciones externas (WhatsApp opt-in, etc.).
+    try:
+        crear_tarea_ia(db, "notificar_externo", {
+            "evento": "pedido_nuevo",
+            "pedido_id": pedido.id,
+            "numero": numero,
+            "comprador_id": current_user.id,
+            "vendedores": [
+                {"tipo": tipo, "entidad_id": ent_id, "detalle": detalle}
+                for (tipo, ent_id), detalle in [
+                    (t, e, ", ".join(lineas))
+                    for (t, e), lineas in vendedores.items()
+                ]
+            ],
+            "total": float(pedido.total) if pedido.total is not None else 0,
+        })
+    except Exception as exc:
+        logger.warning("[pedidos] No se pudo encolar notificacion externa: %s", exc)
+
     return serialize_pedido(pedido)
 
 

@@ -22,9 +22,16 @@ export async function misMascotas() {
   return apiFetch(`${base}/mias`);
 }
 
-/** Crea una mascota (refugio). */
-export async function crearMascota(payload) {
-  return apiFetch(`${base}/`, { method: "POST", body: payload });
+/**
+ * Crea una mascota (refugio).
+ * @param {object} payload datos de la mascota.
+ * @param {string} [idempotencyKey] clave única por envío; si se reutiliza
+ *   (p.ej. doble clic/Enter con la misma solicitud), el backend evita duplicar
+ *   el registro y devuelve la mascota ya creada.
+ */
+export async function crearMascota(payload, idempotencyKey) {
+  const headers = idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : {};
+  return apiFetch(`${base}/`, { method: "POST", body: payload, headers });
 }
 
 /** Actualiza una mascota (refugio). */

@@ -33,6 +33,7 @@ from app.schemas.solicitud_refugio import (
     CrearPasswordRequest,
 )
 from app.services import solicitudes_refugio as svc
+from app.api.routers.ia import crear_tarea_ia
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +202,19 @@ def crear_solicitud(payload: SolicitudRefugioCreate, db: Session = Depends(get_d
             detail="Ya existe una solicitud pendiente con este correo. Verifica tu bandeja de correo o el enlace que recibiste.",
         )
     db.refresh(solicitud)
+
+    # n8n (WF-1): aviso externo a administradores (correo/Telegram/WhatsApp).
+    try:
+        crear_tarea_ia(db, "notificar_externo", {
+            "evento": "nueva_solicitud_refugio",
+            "solicitud_id": solicitud.id,
+            "nombre_refugio": solicitud.nombre_refugio,
+            "ciudad": solicitud.ciudad or solicitud.municipio,
+            "email_contacto": solicitud.email_contacto or solicitud.representante_email,
+        })
+    except Exception as exc:
+        logger.warning("[solicitudes_refugio] No se pudo encolar aviso externo: %s", exc)
+
     data = svc.serialize_solicitud(solicitud, db)
     if errores_subida:
         data["mensaje"] = (

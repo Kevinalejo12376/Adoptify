@@ -1,6 +1,19 @@
 """Convierte objetos ORM (con FKs a catalogos) en diccionarios legibles para la API."""
 
 
+def _personalidad_a_lista(v):
+    """Normaliza la personalidad a una lista de textos.
+
+    Nuevo formato: columna text[] (ya es una lista). Por compatibilidad, si
+    llega una cadena separada por comas (formato anterior), la convierte.
+    """
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        return [p.strip() for p in v.split(",") if p.strip()]
+    return None
+
+
 def serialize_usuario(u):
     return {
         "id": u.id,
@@ -16,6 +29,18 @@ def serialize_usuario(u):
     }
 
 
+def _a_texto(valor):
+    """Normaliza un valor a texto plano.
+
+    Si el valor es una lista/tupla (por ejemplo, la personalidad se guardo como
+    array en la BD), la une con ", " para cumplir el contrato de los schemas y
+    del frontend, que esperan un string.
+    """
+    if isinstance(valor, (list, tuple)):
+        return ", ".join(str(v) for v in valor)
+    return valor
+
+
 def serialize_mascota(m):
     return {
         "id": m.id,
@@ -26,12 +51,14 @@ def serialize_mascota(m):
         "peso": m.peso,
         "color": m.color,
         "descripcion": m.descripcion,
-        "personalidad": m.personalidad,
-        "salud": m.salud,
-        "requisitos": m.requisitos,
+        "personalidad": _a_texto(m.personalidad),
+        "salud": _a_texto(m.salud),
+        "requisitos": _a_texto(m.requisitos),
         "vacunado": m.vacunado,
         "esterilizado": m.esterilizado,
         "desparasitado": m.desparasitado,
+        "fecha_ingreso": m.fecha_ingreso.isoformat() if m.fecha_ingreso else None,
+        "creado_en": m.creado_en.isoformat() if m.creado_en else None,
         "refugio_nombre": m.refugio.nombre if m.refugio else None,
         "refugio_telefono": m.refugio.telefono if m.refugio else None,
         "refugio_direccion": m.refugio.direccion if m.refugio else None,
@@ -46,6 +73,11 @@ def serialize_mascota(m):
         "tamano_id": m.tamano_id,
         "genero_id": m.genero_id,
         "estado_id": m.estado_id,
+        # Imágenes de Cloudinary (secure_url) almacenadas en mascota_imagenes.
+        "imagenes": [
+            {"id": img.id, "url": img.url, "public_id": img.public_id}
+            for img in (m.imagenes or [])
+        ],
     }
 
 

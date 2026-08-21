@@ -38,6 +38,43 @@ cloudinary.config(
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 FRONTEND_ASSETS = BASE_DIR / "frontend" / "src" / "assets"
 
+IMAGENES = [
+    {
+        "ruta": FRONTEND_ASSETS / "logo.png",
+        "carpeta": "frontend-assets/logo",
+        "nombre": "logo",
+    },
+    {
+        "ruta": FRONTEND_ASSETS / "daycare.png",
+        "carpeta": "frontend-assets/daycare",
+        "nombre": "daycare",
+    },
+    {
+        "ruta": FRONTEND_ASSETS / "loginDog.jpg",
+        "carpeta": "frontend-assets/login-dog",
+        "nombre": "loginDog",
+    },
+    {
+        "ruta": FRONTEND_ASSETS / "Mascotas.jpg",
+        "carpeta": "frontend-assets/mascotas",
+        "nombre": "mascotas",
+    },
+    {
+        "ruta": FRONTEND_ASSETS / "assets extras" / "collaje-mascotas-muy-bonito-aislado_23-2150007407.avif",
+        "carpeta": "frontend-assets/carrusel",
+        "nombre": "carrusel1",
+    },
+    {
+        "ruta": FRONTEND_ASSETS / "assets extras" / "images.jpg",
+        "carpeta": "frontend-assets/carrusel",
+        "nombre": "carrusel2",
+    },
+    {
+        "ruta": FRONTEND_ASSETS / "assets extras" / "Perro-sosteniendo-un-plano-y-un-gato-sonriendo.jpg",
+        "carpeta": "frontend-assets/carrusel",
+        "nombre": "carrusel3",
+    },
+]
 CARPETA_EXTRAS = FRONTEND_ASSETS / "assets extras"
 
 # Mapas de nombres para las imágenes conocidas de "assets extras".

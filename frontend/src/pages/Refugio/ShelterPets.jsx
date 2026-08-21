@@ -10,8 +10,14 @@ import {
 import ConfirmModal from "../../components/ConfirmModal";
 import { Loader2 } from "lucide-react";
 import { misMascotas, crearMascota, eliminarMascota } from "../../api/mascotas";
+import { getRazasMascota } from "../../api/catalogos";
+import { subirImagen } from "../../api/upload";
+import { readAndValidateImage } from "../../utils/imageUtils";
 import FieldError from "../../components/FieldError";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
+import BreedSelector from "../../components/BreedSelector";
+import PersonalitySelector from "../../components/PersonalitySelector";
+import Toast from "../../components/Toast";
 
 // Mapea las etiquetas del formulario a los codigos de catalogo del backend.
 const TIPO_MAP = { Perro: "perro", Gato: "gato" };
@@ -85,6 +91,54 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
   const inputRef = useRef(null);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false); // bloqueo síncrono contra doble envío
+
+  // Razas según el tipo de mascota (perro/gato). Se recargan al cambiar el tipo.
+  const [razas, setRazas] = useState([]);
+  useEffect(() => {
+    let activo = true;
+    const tipo = petData.type === "Gato" ? "gato" : "perro";
+    getRazasMascota(tipo)
+      .then((data) => { if (activo) setRazas(data); })
+      .catch(() => { if (activo) setRazas([]); });
+    return () => { activo = false; };
+  }, [petData.type]);
+
+  // Clave de idempotencia estable por apertura del modal: si la misma solicitud
+  // se repite (doble clic/Enter/reintento), el backend detecta la clave y no
+  // crea una mascota duplicada. Se genera de forma perezosa en el envío.
+  const idempotencyKeyRef = useRef(null);
+  const obtenerClaveIdempotencia = () => {
+    if (idempotencyKeyRef.current) return idempotencyKeyRef.current;
+    idempotencyKeyRef.current =
+      (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `key-${Date.now()}-${Math.random()}`;
+    return idempotencyKeyRef.current;
+  };
+  // Raza: texto (una raza de la BD) + indicador de modo personalizado ("Otro").
+  const inicializarBreed = () => {
+    const actual = (isEdit && petData.breed) ? String(petData.breed) : "";
+    if (!actual) return { valor: "", custom: false };
+    const enLista = (razas || []).some(
+      (r) => r.nombre.toLowerCase() === actual.toLowerCase()
+    );
+    return { valor: actual, custom: !enLista };
+  };
+  const [breedInit] = useState(inicializarBreed);
+  const [breedValue, setBreedValue] = useState(breedInit.valor);
+  const [breedCustom, setBreedCustom] = useState(breedInit.custom);
+
+  // Edad: valor numérico + unidad (meses/años).
+  const inicializarEdad = () => {
+    if (!isEdit || !petData.age) return { val: "", unit: "meses" };
+    const m = String(petData.age).match(/^(\d+)\s+(meses|años|mes|año)$/i);
+    return m ? { val: m[1], unit: /mes/i.test(m[2]) ? "meses" : "años" } : { val: "", unit: "meses" };
+  };
+  const [edadInit] = useState(inicializarEdad);
+  const [edadValor, setEdadValor] = useState(edadInit.val);
+  const [edadUnidad, setEdadUnidad] = useState(edadInit.unit);
 
   // Validación por tipo de campo (mensajes específicos, sin iconos).
   const validarCampo = (campo, valor) => {
@@ -92,14 +146,6 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
       case "name":
         if (!limpiarEspacios(valor)) return "El nombre de la mascota es obligatorio.";
         if (limpiarEspacios(valor).length > 60) return "El nombre no puede superar los 60 caracteres.";
-        return "";
-      case "breed":
-        if (!limpiarEspacios(valor)) return "La raza es obligatoria.";
-        if (limpiarEspacios(valor).length > 60) return "La raza no puede superar los 60 caracteres.";
-        return "";
-      case "age":
-        if (!limpiarEspacios(valor)) return "La edad es obligatoria.";
-        if (limpiarEspacios(valor).length > 20) return "La edad no puede superar los 20 caracteres.";
         return "";
       case "description":
         if (!valor) return "";
@@ -110,26 +156,118 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
     }
   };
 
+  const validarRaza = (valor) => {
+    if (!limpiarEspacios(valor)) return "La raza es obligatoria.";
+    if (limpiarEspacios(valor).length > 60) return "La raza no puede superar los 60 caracteres.";
+    return "";
+  };
+
+  const validarEdadCon = (valor, unidad) => {
+    const v = (valor || "").toString().trim();
+    if (!v) return "La edad es obligatoria.";
+    if (!/^\d+$/.test(v)) return "La edad debe ser un número entero.";
+    if (Number(v) <= 0) return "La edad debe ser mayor que 0.";
+    if (Number(v) > 999) return "La edad no puede superar 999.";
+    if (!unidad) return "La unidad de edad es obligatoria.";
+    return "";
+  };
+
+  const validarEdad = () => validarEdadCon(edadValor, edadUnidad);
+
   const handleChange = (campo, valor) => {
     setPetData((prev) => ({ ...prev, [campo]: valor }));
-    if (["name", "breed", "age", "description"].includes(campo)) {
+    if (["name", "description"].includes(campo)) {
       setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, valor) }));
       setSubmitError("");
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  // Al cambiar el tipo (perro/gato) se limpia la raza seleccionada, porque la
+  // lista de razas cambia (el useEffect de razas recarga según petData.type).
+  const handleTypeChange = (valor) => {
+    setBreedValue("");
+    setBreedCustom(false);
+    setErrors((prev) => ({ ...prev, breed: "" }));
+    handleChange("type", valor);
+  };
+
+  // Elegir una raza de la lista (cierra el modo "Otro").
+  const handleBreedSelect = (nombre) => {
+    setBreedValue(nombre);
+    setBreedCustom(false);
+    setErrors((prev) => ({ ...prev, breed: validarRaza(nombre) }));
     setSubmitError("");
+  };
+
+  // Activar "Otro": el campo pasa a modo editable para escribir la raza propia.
+  const handleBreedOtro = () => {
+    setBreedValue("");
+    setBreedCustom(true);
+    setErrors((prev) => ({ ...prev, breed: validarRaza("") }));
+    setSubmitError("");
+  };
+
+  // Escribir la raza personalizada en el modo "Otro" (el valor se conserva).
+  const handleBreedTyped = (valor) => {
+    setBreedValue(valor);
+    setErrors((prev) => ({ ...prev, breed: validarRaza(valor) }));
+    setSubmitError("");
+  };
+
+  // Input de edad: solo números enteros (filtra letras y caracteres especiales).
+  const handleEdadValorChange = (valor) => {
+    const limpio = (valor || "").replace(/[^\d]/g, "").slice(0, 3);
+    setEdadValor(limpio);
+    setErrors((prev) => ({ ...prev, age: validarEdadCon(limpio, edadUnidad) }));
+    setSubmitError("");
+  };
+
+  const handleEdadUnidadChange = (valor) => {
+    setEdadUnidad(valor);
+    setErrors((prev) => ({ ...prev, age: validarEdadCon(edadValor, valor) }));
+    setSubmitError("");
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    // Bloqueo síncrono: ignora doble clic / Enter repetido mientras se procesa.
+    if (submittingRef.current) return;
+    setSubmitError("");
+
+    const razaFinal = limpiarEspacios(breedValue);
+    // Si el texto coincide con una raza de la BD se usa esa; si no, es personalizada.
+    const esRazaLista = (razas || []).some(
+      (r) => r.nombre.toLowerCase() === razaFinal.toLowerCase()
+    );
     const nuevosErrores = {
       name: validarCampo("name", petData.name),
-      breed: validarCampo("breed", petData.breed),
-      age: validarCampo("age", petData.age),
+      breed: validarRaza(breedValue),
+      age: validarEdad(),
       description: validarCampo("description", petData.description),
     };
     setErrors(nuevosErrores);
     if (Object.values(nuevosErrores).some(Boolean)) return;
-    onSubmit(e);
+
+    const payload = {
+      ...petData,
+      breed: razaFinal,
+      breedEsOtro: !esRazaLista,
+      breedOtro: esRazaLista ? "" : razaFinal,
+      edadValor: edadValor ? Number(edadValor) : null,
+      edadUnidad,
+    };
+
+    // Bloqueo inmediato al primer clic, antes de esperar la respuesta del backend.
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      await onSubmit(payload, obtenerClaveIdempotencia());
+    } catch (err) {
+      setSubmitError(err?.message || "No se pudo registrar la mascota. Inténtalo de nuevo.");
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const handleImageUpload = (e) => {
@@ -166,7 +304,7 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
           </FormField>
           <FormField label="Tipo">
             <div className="relative">
-              <select value={petData.type} onChange={(e) => handleChange("type", e.target.value)} className={SelectClass}>
+              <select value={petData.type} onChange={(e) => handleTypeChange(e.target.value)} className={SelectClass}>
                 <option>Perro</option>
                 <option>Gato</option>
               </select>
@@ -174,14 +312,41 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
             </div>
           </FormField>
           <FormField label="Raza *">
-            <input type="text" value={petData.breed} onChange={(e) => handleChange("breed", e.target.value)}
-              className={claseInput(InputClass, !!errors.breed)} placeholder="Ej: Golden Retriever" />
+            <BreedSelector
+              razas={razas}
+              value={breedValue}
+              isCustom={breedCustom}
+              error={errors.breed}
+              onSelect={handleBreedSelect}
+              onOtro={handleBreedOtro}
+              onTyped={handleBreedTyped}
+            />
             <FieldError mensaje={errors.breed} />
           </FormField>
           <FormField label="Edad *">
-            <input type="text" value={petData.age} onChange={(e) => handleChange("age", e.target.value)}
-              className={claseInput(InputClass, !!errors.age)} placeholder="Ej: 2 años" />
+            <div className="flex gap-2">
+              <div className="flex-1 min-w-[3.5rem]">
+                <input type="text" inputMode="numeric" autoComplete="off" value={edadValor}
+                  onChange={(e) => handleEdadValorChange(e.target.value)} placeholder="Ej: 2"
+                  className={claseInput(InputClass, !!errors.age)} />
+              </div>
+              <div className="relative w-24 flex-shrink-0">
+                <select value={edadUnidad} onChange={(e) => handleEdadUnidadChange(e.target.value)} className={SelectClass}>
+                  <option value="meses">Meses</option>
+                  <option value="años">Años</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
             <FieldError mensaje={errors.age} />
+          </FormField>
+          <FormField label="Peso">
+            <input type="text" value={petData.weight || ""} onChange={(e) => handleChange("weight", e.target.value)}
+              className={InputClass} placeholder="Ej: 30 kg" />
+          </FormField>
+          <FormField label="Color">
+            <input type="text" value={petData.color || ""} onChange={(e) => handleChange("color", e.target.value)}
+              className={InputClass} placeholder="Ej: Dorado" />
           </FormField>
         </FormSection>
 
@@ -243,7 +408,23 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
               )}
             </div>
           </FormField>
+          <FormField label="Información adicional de salud" span="col-span-3">
+            <input type="text" value={petData.health || ""} onChange={(e) => handleChange("health", e.target.value)}
+              className={InputClass} placeholder="Ej: Vacunado, esterilizado, desparasitado" />
+          </FormField>
         </FormSection>
+
+        <div className="col-span-3">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100 dark:border-dark-border">
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Personalidad</span>
+          </div>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Rasgos de personalidad (puedes elegir varios)</label>
+          <PersonalitySelector
+            value={petData.personality || []}
+            onChange={(rasgos) => handleChange("personality", rasgos)}
+          />
+        </div>
 
         <div className="col-span-3">
           <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-dark-border">
@@ -264,6 +445,18 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
         />
       </div>
 
+      {isSubmitting && (
+        <div className="pt-1">
+          <div className="h-1.5 w-full bg-gray-100 dark:bg-dark-border rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full animate-progress" />
+          </div>
+          <p className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
+            Registrando la mascota, esto puede tomar unos segundos...
+          </p>
+        </div>
+      )}
+
       {submitError && (
         <p className="text-xs font-medium text-red-500 leading-snug">
           <span className="font-bold">*</span> {submitError}
@@ -271,10 +464,13 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
       )}
 
       <div className="flex gap-3 pt-3 border-t border-gray-100 dark:border-dark-border">
-        <button type="submit"
-          className="flex-1 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-500/20 flex items-center justify-center gap-2 text-sm">
-          {isEdit ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {title}
+        <button type="submit" disabled={isSubmitting}
+          className="flex-1 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-500/20 flex items-center justify-center gap-2 text-sm disabled:opacity-70 disabled:cursor-not-allowed">
+          {isSubmitting ? (
+            <><Loader2 className="w-4 h-4 animate-spin" />Agregando mascota...</>
+          ) : (
+            <>{isEdit ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}{title}</>
+          )}
         </button>
         <button type="button" onClick={onCancel}
           className="px-6 py-2.5 text-gray-600 dark:text-gray-400 font-medium rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg transition-all text-sm">
@@ -301,6 +497,7 @@ export default function ShelterPets() {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // Carga las mascotas del refugio desde la base de datos.
   const cargarPets = React.useCallback(async () => {
@@ -318,9 +515,22 @@ export default function ShelterPets() {
         gender: m.genero || "",
         status: (m.estado || "disponible").replace("_", " "),
         description: m.descripcion || "",
+        weight: m.peso || "",
+        color: m.color || "",
+        health: m.salud || "",
+        personality: Array.isArray(m.personalidad)
+          ? m.personalidad
+          : (m.personalidad ? m.personalidad.split(",").map((t) => t.trim()).filter(Boolean) : []),
         vaccinated: m.vacunado,
         sterilized: m.esterilizado,
         image: null,
+        // Imágenes desde Cloudinary (secure_url) guardadas en la BD.
+        imagenes: m.imagenes || [],
+        images: (m.imagenes || []).map((img) => ({
+          id: img.id,
+          url: img.url,
+          publicId: img.public_id,
+        })),
       })));
     } catch (e) {
       setError(e?.message || "No se pudieron cargar las mascotas");
@@ -332,8 +542,10 @@ export default function ShelterPets() {
   useEffect(() => { cargarPets(); }, [cargarPets]);
 
   const emptyPet = {
-    name: "", type: "Perro", breed: "", age: "", size: "Mediano",
+    name: "", type: "Perro", breed: "", breedEsOtro: false, breedOtro: "",
+    edadValor: "", edadUnidad: "meses", age: "", size: "Mediano",
     gender: "Macho", status: "disponible", description: "",
+    weight: "", color: "", health: "", personality: [],
     vaccinated: false, sterilized: false, images: []
   };
 
@@ -362,28 +574,50 @@ export default function ShelterPets() {
     );
   };
 
-  const handleAddPet = async (e) => {
-    e.preventDefault();
+  const handleAddPet = async (payload, idempotencyKey) => {
     setError(null);
-    try {
-      await crearMascota({
-        nombre: newPet.name,
-        tipo: TIPO_MAP[newPet.type] || "perro",
-        tamano: TAMANO_MAP[newPet.size] || null,
-        genero: GENERO_MAP[newPet.gender] || null,
-        estado: ESTADO_MAP[newPet.status] || "disponible",
-        raza: newPet.breed,
-        edad: newPet.age,
-        descripcion: newPet.description,
-        vacunado: !!newPet.vaccinated,
-        esterilizado: !!newPet.sterilized,
-      });
-      setShowAddModal(false);
-      setNewPet({ ...emptyPet });
-      await cargarPets();
-    } catch (err) {
-      setError(err?.message || "No se pudo registrar la mascota");
+
+    // Sube las imágenes seleccionadas a Cloudinary (permanentes) y guarda las
+    // secure_url para almacenarlas en la base de datos (mascota_imagenes).
+    const imagenesSubidas = [];
+    const archivos = payload.images || [];
+    for (const img of archivos) {
+      if (!img.file) continue;
+      const lectura = await readAndValidateImage(img.file);
+      if (!lectura.ok) {
+        throw new Error(lectura.error || "Una de las imágenes no es válida.");
+      }
+      const res = await subirImagen("mascota", lectura.base64, `mascota-${payload.name}`);
+      if (res && res.url) {
+        imagenesSubidas.push({ url: res.url, public_id: res.public_id });
+      }
     }
+
+    await crearMascota({
+      nombre: payload.name,
+      tipo: TIPO_MAP[payload.type] || "perro",
+      tamano: TAMANO_MAP[payload.size] || null,
+      genero: GENERO_MAP[payload.gender] || null,
+      estado: ESTADO_MAP[payload.status] || "disponible",
+      raza: payload.breed,
+      edad_valor: payload.edadValor,
+      edad_unidad: payload.edadUnidad,
+      peso: payload.weight || null,
+      color: payload.color || "",
+      salud: payload.health || "",
+      personalidad: Array.isArray(payload.personality) ? payload.personality : [],
+      descripcion: payload.description,
+      vacunado: !!payload.vaccinated,
+      esterilizado: !!payload.sterilized,
+      imagenes: imagenesSubidas,
+    }, idempotencyKey);
+
+    // Éxito: cierra el modal, limpia el formulario, refresca la lista y muestra
+    // un toast independiente (NO usa la campana de notificaciones).
+    setShowAddModal(false);
+    setNewPet({ ...emptyPet });
+    await cargarPets();
+    setToast({ message: "Mascota creada exitosamente", type: "success" });
   };
 
   const handleDeletePet = async () => {
@@ -406,9 +640,15 @@ export default function ShelterPets() {
     navigate(`/refugio/mascotas/editar/${pet.id}`, { state: { pet: { ...pet, images: pet.images || [] } } });
   };
 
-  // Al volver de editar/eliminar en otra pagina, recarga desde la BD.
+  // Al volver de editar/eliminar en otra pagina, recarga desde la BD y muestra
+  // el toast de éxito si viene de la página de edición.
   useEffect(() => {
-    if (location.state?.updatedPet || location.state?.deletedPetId) {
+    if (location.state?.updatedPet || location.state?.deletedPetId || location.state?.successToast) {
+      if (location.state?.successToast) {
+        // Toast de una sola vez derivado del estado de navegación al volver de editar.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setToast({ message: location.state.successToast, type: "success" });
+      }
       cargarPets();
       window.history.replaceState({}, document.title);
     }
@@ -480,9 +720,13 @@ export default function ShelterPets() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {filteredPets.map((pet, idx) => (
-              <div key={pet.id} className="group bg-white dark:bg-dark-card rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-[1.02] border border-gray-100 dark:border-dark-border overflow-hidden animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
+              <div key={pet.id} className="group bg-white dark:bg-dark-card rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-[1.02] border border-gray-100 dark:border-dark-border hover:border-blue-200 dark:hover:border-blue-500/40 overflow-hidden animate-fade-in-up" style={{ animationDelay: `${idx * 0.05}s` }}>
                 <div className="relative h-44 bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/20 dark:to-amber-500/20 flex items-center justify-center overflow-hidden">
-                  {pet.type === "Perro" ? (
+                  {pet.imagenes && pet.imagenes[0] ? (
+                    <img src={pet.imagenes[0].url} alt={pet.name}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500"
+                      onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                  ) : pet.type === "Perro" ? (
                     <Dog className="w-24 h-24 text-rose-400/50 dark:text-rose-400/30 transition-transform group-hover:scale-110 duration-500" />
                   ) : (
                     <Cat className="w-24 h-24 text-amber-400/50 dark:text-amber-400/30 transition-transform group-hover:scale-110 duration-500" />
@@ -574,6 +818,9 @@ export default function ShelterPets() {
         cancelText="Cancelar"
         type="danger"
       />
+
+      {/* Toast independiente (no usa la campana de notificaciones) */}
+      <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
     </div>
   );
 }

@@ -1,34 +1,82 @@
 # Adoptify
 
-Plataforma para facilitar la adopcion de mascotas.con dos partes:
+Plataforma web para facilitar el proceso de adopción responsable de mascotas mediante la conexión entre refugios, tiendas y adoptantes.
 
-- **`backend/`** — API REST con FastAPI + SQLAlchemy (PostgreSQL/Supabase o SQLite en local).
-- **`frontend/`** — Aplicación React (Vite) + Tailwind CSS.
+El proyecto está dividido en tres componentes principales:
+
+- **backend/** — API REST desarrollada con FastAPI.
+- **frontend/** — Aplicación web desarrollada con React.
+- **n8n/** — Plataforma de automatización para flujos de trabajo, notificaciones e integraciones.
 
 ---
+
+## Tecnologías utilizadas
+
+### Backend
+
+- FastAPI
+- SQLAlchemy
+- Pydantic
+
+### Frontend
+
+- React
+- Vite
+- Tailwind CSS
+
+### Base de datos
+
+- PostgreSQL
+- Supabase
+
+### Automatización
+
+- n8n
+
+### Contenedores
+
+- Docker
+- Docker Compose
+
+### Control de versiones
+
+- Git
+- GitHub
+- Git Flow
+
+```
 
 ## Estructura del proyecto
 
 ```
 Adoptify-proyect/
-├── backend/                  API FastAPI
+├── backend/                          API REST desarrollada con FastAPI
 │   ├── app/
-│   │   ├── main.py           Punto de entrada (crea la app + rutas)
-│   │   ├── api/routers/      Endpoints (auth, mascotas, refugios, solicitudes, productos)
-│   │   ├── core/             Configuracion y seguridad (JWT, hashing)
-│   │   ├── db/               Conexion a la base de datos
-│   │   ├── models/           Tablas (SQLAlchemy)
-│   │   └── schemas/          Validacion (Pydantic)
-│   ├── requirements.txt      Dependencias del backend
-│   ├── supabase_schema.sql   Script SQL para crear la BD en Supabase
-│   ├── .env                  Variables reales (NO se sube a git)
-│   └── .env.example          Plantilla de variables
-├── frontend/                 App React (Vite + Tailwind)
-│   ├── src/                  Paginas, componentes, contexts y cliente API (src/api)
-│   ├── package.json
-│   └── .env                  URL del backend (VITE_API_URL)
-├── .gitignore                Unico, cubre backend y frontend
-└── README.md
+│   │   ├── api/
+│   │   │   └── routers/              Endpoints (auth, mascotas, refugios, solicitudes, productos, etc.)
+│   │   ├── core/                     Configuración, seguridad y autenticación (JWT, hashing)
+│   │   ├── db/                       Conexión y configuración de la base de datos
+│   │   ├── models/                   Modelos de la base de datos (SQLAlchemy)
+│   │   ├── schemas/                  Esquemas y validaciones (Pydantic)
+│   │   └── main.py                   Punto de entrada de la aplicación
+│   ├── requirements.txt              Dependencias del backend
+│   ├── supabase_schema.sql           Script para crear la base de datos en Supabase
+│   ├── .env                          Variables de entorno (NO se sube a Git)
+│   └── .env.example                  Plantilla de variables de entorno
+│
+├── frontend/                         Aplicación web desarrollada con React + Vite + Tailwind CSS
+│   ├── src/                          Páginas, componentes, contextos, hooks y cliente API
+│   ├── package.json                  Dependencias y scripts del frontend
+│   └── .env                          Variables de entorno del frontend
+│
+├── n8n/                              Automatizaciones e integraciones del proyecto
+│   ├── docker-compose.yml            Configuración del contenedor Docker
+│   ├── .env                          Variables de entorno locales (NO se sube a Git)
+│   ├── .env.example                  Plantilla de variables de entorno
+│   └── data/                         Datos locales de n8n (SQLite, credenciales, historial)
+│
+├── .gitignore                        Reglas para excluir archivos del control de versiones
+└── README.md                         Documentación principal del proyecto
 ```
 
 ---
@@ -37,6 +85,8 @@ Adoptify-proyect/
 
 - Python 3.11+ (probado con 3.14)
 - Node.js 18+ (probado con 24) y npm
+- Docker Desktop
+- Git
 
 ---
 
@@ -90,6 +140,44 @@ VITE_API_URL=http://127.0.0.1:8000
 
 ---
 
+## Automatizaciones (n8n)
+
+El proyecto utiliza **n8n** para ejecutar automatizaciones, integraciones y flujos de trabajo entre los diferentes servicios.
+
+### Requisitos
+
+- Docker Desktop
+- WSL2 (Windows)
+
+### Instalación
+
+Desde la carpeta `n8n/`:
+
+```bash
+copy .env.example .env
+docker compose up -d
+```
+Nota: La primera vez Docker descargará automáticamente la imagen de n8n. Este proceso puede tardar algunos minutos dependiendo de la velocidad de Internet.
+
+### Acceso
+
+Abrir en el navegador:
+
+```
+http://localhost:5678
+```
+
+### Comandos útiles
+
+```bash
+docker compose up -d      # Iniciar n8n
+docker compose down       # Detener n8n
+docker compose restart    # Reiniciar n8n
+docker ps                 # Ver contenedores activos
+docker compose logs -f    # Ver los registros del contenedor en tiempo real.
+```
+---
+
 ## Base de datos con Supabase
 
 1. En Supabase: **SQL Editor → New query**.
@@ -103,7 +191,7 @@ VITE_API_URL=http://127.0.0.1:8000
 
 ---
 
-## Arranque rapido (dos terminales)
+## Arranque rapido (tres terminales)
 
 ```bash
 # Terminal 1 - backend
@@ -114,8 +202,11 @@ uvicorn app.main:app --reload
 # Terminal 2 - frontend
 cd frontend
 npm run dev
-```
 
+# Terminal 3 - n8n
+cd n8n
+docker compose up -d
+```
 ---
 
 ## Despliegue (producción)
@@ -148,3 +239,10 @@ Plataformas recomendadas: **Vercel** o **Netlify**.
 1. Despliega el backend y copia su URL pública.
 2. Pon esa URL en `VITE_API_URL` del frontend y despliega el frontend.
 3. Pon la URL del frontend en `CORS_ORIGINS` del backend y redepliega el backend.
+
+## Buenas prácticas para desarrolladores
+
+- No subir archivos `.env` al repositorio.
+- Crear una nueva rama para cada funcionalidad siguiendo Git Flow.
+- Mantener actualizado este README cuando se agreguen nuevas funcionalidades.
+- Ejecutar pruebas antes de realizar un Pull Request.

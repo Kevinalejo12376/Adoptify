@@ -10,6 +10,7 @@ import StoreRoute from "./components/StoreRoute";
 import StorePermisoRuta from "./components/StorePermisoRuta";
 import ShelterPermisoRuta from "./components/ShelterPermisoRuta";
 import CompleteProfileModal from "./components/CompleteProfileModal";
+import ChatBot from "./components/ChatBot";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { StoreProvider } from "./context/StoreContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -104,6 +105,7 @@ import AdminMarketplace from "./pages/Admin/Marketplace";
 import AdminPedidos from "./pages/Admin/Pedidos";
 import AdminForo from "./pages/Admin/Foro";
 import AdminReportes from "./pages/Admin/Reportes";
+import AdminReportesDescargables from "./pages/Admin/ReportesDescargables";
 import AdminPQRS from "./pages/Admin/PQRS";
 import AdminAdministradores from "./pages/Admin/Administradores";
 import AdminEstadisticas from "./pages/Admin/Estadisticas";
@@ -156,6 +158,7 @@ function AppContent() {
             <Route path="pedidos" element={<AdminPedidos />} />
             <Route path="foro" element={<AdminForo />} />
             <Route path="reportes" element={<AdminReportes />} />
+            <Route path="reportes-descargables" element={<AdminReportesDescargables />} />
             <Route path="pqrs" element={<AdminPQRS />} />
             <Route path="administradores" element={<AdminAdministradores />} />
             <Route path="estadisticas" element={<AdminEstadisticas />} />
@@ -272,6 +275,9 @@ function AppContent() {
           onComplete={markProfileCompleted}
         />
       )}
+
+      {/* Chatbot flotante (IA via n8n) — en todas las vistas EXCEPTO Login y Register */}
+      {location.pathname !== "/login" && location.pathname !== "/register" && <ChatBot />}
     </div>
   );
 }

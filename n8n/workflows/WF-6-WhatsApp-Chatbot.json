@@ -1,0 +1,271 @@
+{
+  "name": "WF-6 WhatsApp Chatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp_in",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000060",
+      "name": "Webhook whatsapp_in",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "5f3f8a1e-0000-4000-8000-000000000060"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza el mensaje entrante de WhatsApp (soporta Twilio y Meta).\nconst raw = $input.first().json || {};\nlet telefono = '';\nlet mensaje = '';\n// Meta Cloud API\nconst m0 = raw.entry && raw.entry[0] && raw.entry[0].changes && raw.entry[0].changes[0] && raw.entry[0].changes[0].value && raw.entry[0].changes[0].value.messages && raw.entry[0].changes[0].value.messages[0];\nif (m0) {\n  telefono = m0.from || '';\n  mensaje = (m0.text && m0.text.body) || '';\n}\n// Twilio\nif (!telefono) telefono = raw.from || raw.From || '';\nif (!mensaje) mensaje = raw.body || raw.Body || '';\nreturn [{ json: { telefono, mensaje } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000061",
+      "name": "Extraer mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/whatsapp/contexto?telefono={{ encodeURIComponent($json.telefono) }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000062",
+      "name": "Obtener identidad",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construye el prompt del chatbot de WhatsApp con el contexto de la persona.\nconst ctx = $input.first().json; // respuesta del backend (whatsapp/contexto)\nconst datos = $('Extraer mensaje').first().json;\nlet contextoTexto;\nif (ctx && ctx.autenticado) {\n  const rolNombre = { usuario: 'usuario adoptante', refugio: 'representante de refugio', empleado_refugio: 'empleado de refugio', tienda_aliada: 'miembro de tienda aliada', administrador: 'administrador' }[ctx.rol] || ctx.rol;\n  contextoTexto = 'Persona AUTENTICADA por su telefono WhatsApp. Rol: ' + rolNombre + '. Nombre: ' + (ctx.usuario ? (ctx.usuario.nombre || '') : '') + '.\\n';\n  const pedidos = Array.isArray(ctx.pedidos) ? ctx.pedidos : [];\n  contextoTexto += (pedidos.length ? 'Sus pedidos:\\n' + pedidos.map((p) => '- ' + (p.numero || p.id) + ': ' + (p.estado_nombre || p.estado || '?')).join('\\n') + '\\n' : 'Sus pedidos: (sin pedidos)\\n');\n  const adop = Array.isArray(ctx.adopciones) ? ctx.adopciones : [];\n  contextoTexto += (adop.length ? 'Sus adopciones:\\n' + adop.map((a) => '- ' + a.mascota + ': ' + a.estado).join('\\n') + '\\n' : 'Sus adopciones: (sin adopciones)\\n');\n  if (ctx.tienda) contextoTexto += 'Su tienda: ' + ctx.tienda.nombre + '\\n';\n  if (ctx.refugio) contextoTexto += 'Su refugio: ' + ctx.refugio.nombre + '\\n';\n} else {\n  contextoTexto = 'Persona NO identificada (su numero WhatsApp no esta registrado en Adoptify). Puede hacer preguntas generales (que es la pagina, cuidados de mascotas, como adoptar, refugios, tienda, foro). Si pide datos personales (estado de pedidos, adopciones) o de su tienda/refugio, pidele que use el numero de telefono con el que se registro en la pagina, o que se registre en la web e ingrese ese numero. No inventes datos.';\n}\nconst instruccion = 'Eres el asistente por WhatsApp de Adoptify, una plataforma de adopcion de mascotas que conecta refugios, tiendas aliadas y adoptantes. Respondes en espanol, de forma clara y amable, con texto plano (sin markdown). Puedes responder dudas generales sobre la plataforma, el proceso de adopcion, cuidados de mascotas, refugios, tienda, foro y dar sugerencias utiles sobre mascotas. IMPORTANTE ROL: Conoces el rol de la persona por el CONTEXTO. Si es una tienda y pregunta por pedidos o productos, responde con base al contexto de su tienda (y aclara que los detalles de stock se ven en su panel). Si es un refugio, responde segun su contexto. Si NO esta autenticada y pide algo personal, pidele que use su numero registrado o que se registre. No inventes datos ni consultes nada fuera de lo dado.\\n\\n';\nconst prompt = instruccion + 'CONTEXTO DE LA PERSONA:\\n' + contextoTexto + '\\n\\nMENSAJE DEL USUARIO:\\n' + (datos.mensaje || '');\nreturn [{ json: { prompt } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000063",
+      "name": "Construir prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000064",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.5,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000065",
+      "name": "Google Gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [880, -180],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bTrjJ2WRiO4TRjnt",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae el texto de respuesta del AI Agent.\nconst r = $input.all()[0].json;\nlet texto = (typeof r.output === 'string') ? r.output : (r.output ? JSON.stringify(r.output) : '');\ntexto = String(texto || '').trim();\nif (!texto) texto = 'Hola! Soy el asistente de Adoptify por WhatsApp. Preguntame que necesites.';\nreturn [{ json: { respuesta: texto } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000066",
+      "name": "Mapear respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepara la llamada al proveedor (Twilio o Meta) con la respuesta del bot.\nconst r = $input.first().json; // {respuesta}\nconst prov = ($env.WHATSAPP_PROVIDER || 'twilio').toLowerCase();\nconst telefono = String(r.telefono || '').replace(/^\\+/, '');\nconst mensaje = String(r.respuesta || '');\nlet url = '';\nlet headers = {};\nlet meta = null;\nlet twilio = null;\nif (prov === 'meta') {\n  url = 'https://graph.facebook.com/' + ($env.META_WHATSAPP_VERSION || 'v20.0') + '/' + $env.META_WHATSAPP_PHONE_ID + '/messages';\n  headers = { Authorization: 'Bearer ' + $env.META_WHATSAPP_TOKEN };\n  meta = { messaging_product: 'whatsapp', to: telefono, type: 'text', text: { body: mensaje } };\n} else {\n  url = 'https://api.twilio.com/2010-04-01/Accounts/' + $env.TWILIO_ACCOUNT_SID + '/Messages.json';\n  headers = { Authorization: 'Basic ' + Buffer.from($env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') };\n  twilio = { From: $env.TWILIO_WHATSAPP_FROM, To: 'whatsapp:' + telefono, Body: mensaje };\n}\nreturn [{ json: { provider: prov, url, headers, meta, twilio } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000067",
+      "name": "Preparar envío respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "c9b9d9f0-0000-4000-8000-000000000601",
+              "leftValue": "={{ $json.provider }}",
+              "rightValue": "meta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000068",
+      "name": "¿Es Meta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": "={{ Object.entries($json.headers).map(([name, value]) => ({ name, value })) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.meta }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000069",
+      "name": "Enviar respuesta Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, -140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": "={{ Object.entries($json.headers).map(([name, value]) => ({ name, value })) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.twilio }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-00000000006A",
+      "name": "Enviar respuesta Twilio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 140]
+    }
+  ],
+  "connections": {
+    "Webhook whatsapp_in": {
+      "main": [[
+        {
+          "node": "Extraer mensaje",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Extraer mensaje": {
+      "main": [[
+        {
+          "node": "Obtener identidad",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Obtener identidad": {
+      "main": [[
+        {
+          "node": "Construir prompt",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Construir prompt": {
+      "main": [[
+        {
+          "node": "AI Agent",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "AI Agent": {
+      "ai_languageModel": [[
+        {
+          "node": "Google Gemini",
+          "type": "ai_languageModel",
+          "index": 0
+        }
+      ]],
+      "main": [[
+        {
+          "node": "Mapear respuesta",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Mapear respuesta": {
+      "main": [[
+        {
+          "node": "Preparar envío respuesta",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Preparar envío respuesta": {
+      "main": [[
+        {
+          "node": "¿Es Meta?",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "¿Es Meta?": {
+      "main": [
+        [
+          {
+            "node": "Enviar respuesta Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar respuesta Twilio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

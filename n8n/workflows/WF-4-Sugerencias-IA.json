@@ -1,0 +1,196 @@
+{
+  "name": "WF-4 Sugerencias IA",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000040",
+      "name": "Cada 2 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/tareas/siguiente?tipos=sugerir,matching",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000041",
+      "name": "Consumir tarea",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "c9b9d9f0-0000-4000-8000-000000000003",
+              "leftValue": "={{ $json.tarea }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "isNotEmpty"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000042",
+      "name": "¿Hay tarea?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construye el prompt para sugerencias de IA (descripciones, hashtags, matching).\nconst task = $input.all()[0].json;\nconst t = task.tarea;\nconst p = (t && t.payload) || {};\nlet instruccion = '';\nlet texto = '';\nif (t.tipo === 'sugerir_descripcion') {\n  instruccion = 'Eres un redactor experto en adopcion de mascotas. Con los datos de la mascota escribe una descripcion atractiva y empatica en espanol (3-5 frases) y requisitos de adopcion claros. Responde SOLO JSON: {\"descripcion\": \"...\", \"requisitos\": \"...\"}.\\n\\n';\n  texto = 'Nombre: ' + (p.nombre || '') + '\\nTipo: ' + (p.tipo || '') + '\\nRaza: ' + (p.raza || '') + '\\nEdad: ' + (p.edad || '') + '\\nPersonalidad: ' + (p.personalidad || '') + '\\nSalud: ' + (p.salud || '');\n} else if (t.tipo === 'sugerir_hashtags') {\n  instruccion = 'Genera 5-8 hashtags relevantes en espanol para una publicacion de Adoptify. Responde SOLO JSON: {\"hashtags\": [\"#...\", ...]}.\\n\\n';\n  texto = (p.titulo || '') + '\\n' + (p.contenido || '');\n} else {\n  instruccion = 'Analiza los datos y responde SOLO JSON con la sugerencia mas adecuada.\\n\\n';\n  texto = JSON.stringify(p);\n}\nreturn [{ json: { tipo: t.tipo, tarea_id: t.id, prompt: instruccion + texto } }];"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000043",
+      "name": "Construir texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: 'user', parts: [{ text: $json.prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1024 } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000044",
+      "name": "Generar con Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrae y valida el JSON de Gemini y arma el resultado de la tarea.\nconst r = $input.all()[0].json;\nconst tareaId = $('Construir texto').first().json.tarea_id;\nlet texto = '';\ntry {\n  texto = r.candidates[0].content.parts[0].text;\n} catch (e) {\n  texto = '';\n}\nif (!texto) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'Respuesta vacia de Gemini' } }];\n}\ntexto = texto.trim();\nif (texto.startsWith('```json')) texto = texto.slice(7);\nelse if (texto.startsWith('```')) texto = texto.slice(3);\nif (texto.endsWith('```')) texto = texto.slice(0, -3);\ntry {\n  const resultado = JSON.parse(texto.trim());\n  return [{ json: { tarea_id: tareaId, resultado, error: null } }];\n} catch (e) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'JSON invalido devuelto por Gemini' } }];\n}"
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000045",
+      "name": "Armar resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_PUBLIC_URL }}/api/ia/tareas/{{ $json.tarea_id }}/resultado",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Token",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ resultado: $json.resultado }) }}",
+        "options": {}
+      },
+      "id": "5f3f8a1e-0000-4000-8000-000000000046",
+      "name": "Entregar resultado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1320, 0]
+    }
+  ],
+  "connections": {
+    "Cada 2 minutos": {
+      "main": [[
+        {
+          "node": "Consumir tarea",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Consumir tarea": {
+      "main": [[
+        {
+          "node": "¿Hay tarea?",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "¿Hay tarea?": {
+      "main": [
+        [
+          {
+            "node": "Construir texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Construir texto": {
+      "main": [[
+        {
+          "node": "Generar con Gemini",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Generar con Gemini": {
+      "main": [[
+        {
+          "node": "Armar resultado",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    },
+    "Armar resultado": {
+      "main": [[
+        {
+          "node": "Entregar resultado",
+          "type": "main",
+          "index": 0
+        }
+      ]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

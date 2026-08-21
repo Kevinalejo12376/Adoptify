@@ -1,4 +1,4 @@
--- ============================================================
+git -- ============================================================
 -- ADOPTIFY - Esquema de base de datos NORMALIZADO A 3FN (PostgreSQL / Supabase)
 -- ============================================================
 -- Como usarlo:
@@ -101,6 +101,43 @@ INSERT INTO estados_mascota (codigo, nombre) VALUES
     ('disponible', 'Disponible'),
     ('en_proceso', 'En proceso'),
     ('adoptado',   'Adoptado');
+
+CREATE TABLE razas_mascota (
+    id              BIGSERIAL PRIMARY KEY,
+    tipo_mascota_id BIGINT REFERENCES tipos_mascota(id),
+    codigo          VARCHAR(60) NOT NULL UNIQUE,
+    nombre          VARCHAR(80) NOT NULL
+);
+CREATE INDEX idx_razas_mascota_tipo ON razas_mascota(tipo_mascota_id);
+INSERT INTO razas_mascota (codigo, nombre, tipo_mascota_id) VALUES
+    ('labrador',      'Labrador Retriever', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('pastor_aleman', 'Pastor Alemán', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('golden',        'Golden Retriever', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('bulldog',       'Bulldog', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('poodle',        'Poodle', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('chihuahua',     'Chihuahua', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('beagle',        'Beagle', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('rottweiler',    'Rottweiler', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('criollo',       'Criollo', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('pug',           'Pug', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('shih_tzu',      'Shih Tzu', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('doberman',      'Doberman', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('boxer',         'Boxer', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('cocker',        'Cocker Spaniel', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('siberiano',     'Husky Siberiano', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('schnauzer',     'Schnauzer', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('maltes',        'Maltés', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('yorkshire',     'Yorkshire Terrier', (SELECT id FROM tipos_mascota WHERE codigo='perro')),
+    ('persa',         'Persa', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('siames',        'Siamés', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('maine_coon',    'Maine Coon', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('bengali',       'Bengalí', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('sphynx',        'Sphynx', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('angora',        'Angora', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('ragdoll',       'Ragdoll', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('britanico',     'British Shorthair', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('comun_europeo', 'Común Europeo', (SELECT id FROM tipos_mascota WHERE codigo='gato')),
+    ('fold_escoces',  'Scottish Fold', (SELECT id FROM tipos_mascota WHERE codigo='gato'));
 
 CREATE TABLE estados_solicitud (
     id     BIGSERIAL PRIMARY KEY,
@@ -384,7 +421,7 @@ CREATE TABLE mascotas (
     peso           VARCHAR(30),
     color          VARCHAR(60),
     descripcion    TEXT,
-    personalidad   TEXT,
+    personalidad   TEXT[],
     salud          TEXT,
     requisitos     TEXT,
     vacunado       BOOLEAN NOT NULL DEFAULT false,
@@ -404,6 +441,7 @@ CREATE TABLE mascota_imagenes (
     id          BIGSERIAL PRIMARY KEY,
     mascota_id  BIGINT NOT NULL REFERENCES mascotas(id) ON DELETE CASCADE,
     url         TEXT NOT NULL,
+    public_id   VARCHAR(255),
     orden       INT NOT NULL DEFAULT 0
 );
 

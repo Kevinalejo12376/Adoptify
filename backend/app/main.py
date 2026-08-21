@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
 # pyrefly: ignore [missing-import]
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.core.config import settings
 from app.db.database import Base, engine
 # Importa todos los modelos para registrarlos en Base.metadata
@@ -18,7 +18,11 @@ from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
-    solicitudes_tienda, solicitudes_tienda_admin, upload,
+<<<<<<< HEAD
+    reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
+=======
+    solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
+>>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 )
 
 logger = logging.getLogger(__name__)
@@ -35,10 +39,12 @@ async def lifespan(app: FastAPI):
         seed_catalogos()
         logger.info("[lifespan] Conexion a base de datos OK (tablas listas).")
     except Exception as exc:
-        # No bloquea el arranque: en Supabase las tablas ya existen.
+        # No bloquea el arranque: en Supabase las tablas ya existen/verificadas.
         logger.warning(
-            "[lifespan] No se pudieron crear/sembrar tablas (afecta solo a SQLite local). "
-            "En Supabase las tablas ya existen, el servidor igual arranca. Detalle: %s",
+            "[lifespan] La sincronización inicial de la base de datos reportó un problema. "
+            "Esto NO indica que falten tablas o migraciones: el esquema se verifica al arrancar "
+            "y, si la conexión a la base es correcta, las migraciones quedan aplicadas. "
+            "El servidor arranca igual. Detalle: %s",
             exc,
         )
         logger.warning(
@@ -49,81 +55,113 @@ async def lifespan(app: FastAPI):
 
 
 def _run_migrations():
+<<<<<<< HEAD
+    """Ejecuta migraciones para sincronizar el schema de Supabase con los modelos.
+
+    Cada grupo de migración se ejecuta de forma AISLADA: si uno falla (por
+    permisos o porque el esquema ya está al día), se reporta un aviso y se
+    continúa con los demás. Así no se "abortan en bloque" ni se confunde con
+    migraciones faltantes. En SQLite local las tablas ya las crea
+    ``Base.metadata.create_all`` (modelos), por lo que no se aplica SQL de Supabase.
+    """
+    if getattr(engine.dialect, "name", "") == "sqlite":
+        print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
+=======
     """Ejecuta migraciones para sincronizar el schema de Supabase con los modelos."""
+    from app.core.config import settings
+
+    # SQLite local: SQLAlchemy ya crea todas las tablas con create_all y las
+    # consultas de information_schema/ALTER de Postgres no existen aqui, asi que
+    # se omiten las migraciones SQL (solo aplican a Supabase/PostgreSQL).
+    if settings.DATABASE_URL.startswith("sqlite"):
+        print("[migracion] SQLite local: tablas creadas por SQLAlchemy. Se omiten migraciones SQL de Postgres.")
+>>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
+        return
+
     from app.db.database import SessionLocal
     from sqlalchemy import text
     db = SessionLocal()
+    resultados = []
+
+    def _paso(nombre, fn):
+        """Ejecuta una migración aislada. No aborta el resto si falla."""
+        try:
+            fn(db)
+            resultados.append((nombre, True))
+            print(f"[migracion] OK: {nombre}")
+        except Exception as e:
+            try:
+                db.rollback()  # limpia una transacción fallida
+            except Exception:
+                pass
+            resultados.append((nombre, False))
+            print(f"[migracion] AVISO: '{nombre}' no se aplicó ({type(e).__name__}: {e}). Se continúa.")
+
     try:
-        # Verifica si la columna 'perfil_completo' existe en usuarios
-        result = db.execute(text(
-            "SELECT 1 FROM information_schema.columns "
-            "WHERE table_name='usuarios' AND column_name='perfil_completo'"
-        )).fetchone()
-        if not result:
-            print("[migracion] Agregando columna 'perfil_completo' a usuarios...")
+        # --- Usuarios (perfil_completo, username) ---
+        def _migrar_usuarios(db):
+            existe = db.execute(text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name='usuarios' AND column_name='perfil_completo'"
+            )).fetchone()
+            if not existe:
+                db.execute(text(
+                    "ALTER TABLE usuarios ADD COLUMN perfil_completo BOOLEAN NOT NULL DEFAULT false"
+                ))
+                db.commit()
+            _agregar_columna_si_no_existe(db, "usuarios", "username", "VARCHAR(50)")
             db.execute(text(
-                "ALTER TABLE usuarios ADD COLUMN perfil_completo BOOLEAN NOT NULL DEFAULT false"
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username)"
             ))
             db.commit()
-            print("[migracion] Columna 'perfil_completo' agregada correctamente.")
+        _paso("usuarios (perfil_completo, username)", _migrar_usuarios)
 
-        # Columna 'username' en usuarios (refugios aprobados)
-        _agregar_columna_si_no_existe(db, "usuarios", "username", "VARCHAR(50)")
-        db.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username)"
-        ))
-        db.commit()
+        # --- Refugios (logo_url, tiktok, departamento, municipio) ---
+        def _migrar_refugios(db):
+            for col, tipo in [
+                ("logo_url", "TEXT"),
+                ("tiktok", "VARCHAR(120)"),
+                ("departamento", "VARCHAR(150)"),
+                ("municipio", "VARCHAR(150)"),
+            ]:
+                _agregar_columna_si_no_existe(db, "refugios", col, tipo)
+            db.commit()
+        _paso("refugios (logo_url, tiktok, departamento, municipio)", _migrar_refugios)
 
-        # Columnas de refugios
-        _agregar_columna_si_no_existe(db, "refugios", "logo_url", "TEXT")
-        _agregar_columna_si_no_existe(db, "refugios", "tiktok", "VARCHAR(120)")
-        _agregar_columna_si_no_existe(db, "refugios", "departamento", "VARCHAR(150)")
-        _agregar_columna_si_no_existe(db, "refugios", "municipio", "VARCHAR(150)")
-        db.commit()
+        _paso("foro_posts_imagenes", _crear_tabla_foro_imagenes)
+        _paso("solicitudes_refugio (tablas)", _crear_tabla_solicitudes_refugio)
+        _paso("solicitudes_tienda (tablas)", _crear_tabla_solicitudes_tienda)
+        _paso("índices únicos de solicitudes", _indices_unicos_solicitudes)
 
-        # Tabla de imágenes del foro (Cloudinary)
-        _crear_tabla_foro_imagenes(db)
+        # --- Solicitudes de refugio (columnas) ---
+        def _migrar_solicitudes_refugio_columnas(db):
+            for col, tipo in [
+                ("representante_apellido", "VARCHAR(100)"),
+                ("departamento", "VARCHAR(150)"),
+                ("municipio", "VARCHAR(150)"),
+            ]:
+                _agregar_columna_si_no_existe(db, "solicitudes_refugio", col, tipo)
+            db.commit()
+        _paso("solicitudes_refugio (columnas)", _migrar_solicitudes_refugio_columnas)
 
-        # Tablas nuevas del módulo de solicitudes de refugio
-        _crear_tabla_solicitudes_refugio(db)
-        # Tablas nuevas del módulo de solicitudes de Tiendas Aliadas
-        _crear_tabla_solicitudes_tienda(db)
-        # Índices únicos parciales para evitar solicitudes duplicadas (best-effort)
-        _indices_unicos_solicitudes(db)
-        _agregar_columna_si_no_existe(
-            db, "solicitudes_refugio", "representante_apellido", "VARCHAR(100)"
-        )
-        _agregar_columna_si_no_existe(
-            db, "solicitudes_refugio", "departamento", "VARCHAR(150)"
-        )
-        _agregar_columna_si_no_existe(
-            db, "solicitudes_refugio", "municipio", "VARCHAR(150)"
-        )
-        db.commit()
+        _paso("movimientos_kardex", _crear_tabla_movimientos_kardex)
+        _paso("razas_mascota (catálogo)", _crear_tabla_razas_mascota)
+        _paso("mascota_imagenes", _crear_tabla_mascota_imagenes)
+        _paso("RBAC tienda", _crear_tablas_rbac_tienda)
+        _paso("backfill super admin tiendas", _backfill_super_admin_tiendas)
+        _paso("tablas nuevas de tienda", _crear_tablas_nuevas_tienda)
+        _paso("equipo de refugio", _crear_tablas_equipo_refugio)
 
-        # Tabla del módulo de Kardex de inventario (tiendas aliadas)
-        _crear_tabla_movimientos_kardex(db)
-        # ---- RBAC del modulo Tienda (jerarquia + permisos) ----
-        try:
-            _crear_tablas_rbac_tienda(db)
-        except Exception as e:
-            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
-            print(f"[migracion] No se pudieron crear tablas RBAC por SQL (SQLite las crea via modelos): {e}")
-        _backfill_super_admin_tiendas(db)
-
-        # ---- Nuevas tablas de Tienda (historial de actividad, donaciones, PQRS) ----
-        try:
-            _crear_tablas_nuevas_tienda(db)
-        except Exception as e:
-            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
-            print(f"[migracion] No se pudieron crear tablas nuevas de tienda por SQL (SQLite las crea via modelos): {e}")
-
-        # ---- Equipo de refugio (empleados con rol 'empleado_refugio' + permisos) ----
-        try:
-            _crear_tablas_equipo_refugio(db)
-        except Exception as e:
-            # En SQLite local las tablas ya las crea Base.metadata.create_all (modelos).
-            print(f"[migracion] No se pudieron crear tablas de equipo de refugio por SQL (SQLite las crea via modelos): {e}")
+        # --- Resumen final ---
+        ok = sum(1 for _, s in resultados if s)
+        fallos = [n for n, s in resultados if not s]
+        print(f"[migracion] Resumen: {ok}/{len(resultados)} migraciones aplicadas/verificadas.")
+        if fallos:
+            print(f"[migracion] Con aviso (no críticas): {', '.join(fallos)}")
+        else:
+            print("[migracion] Todas las migraciones aplicadas/verificadas correctamente.")
+        # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
+        _soft_delete_migrations(db)
 
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
@@ -131,7 +169,7 @@ def _run_migrations():
         print("[migracion] Migraciones del módulo de solicitudes de refugio aplicadas correctamente.")
         print("[migracion] Tabla 'movimientos_kardex' verificada correctamente.")
     except Exception as e:
-        print(f"[migracion] Error ejecutando migraciones: {e}")
+        print(f"[migracion] Error general ejecutando migraciones: {e}")
     finally:
         db.close()
 
@@ -436,6 +474,78 @@ def _crear_tabla_movimientos_kardex(db):
     db.commit()
 
 
+def _crear_tabla_razas_mascota(db):
+    """Crea la tabla 'razas_mascota' si no existe y la puebla (idempotente).
+
+    Solo se aplica en Supabase/PostgreSQL; en SQLite local la tabla la crea
+    Base.metadata.create_all y la puebla seed_catalogos()."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS razas_mascota (
+            id     BIGSERIAL PRIMARY KEY,
+            codigo VARCHAR(60) NOT NULL UNIQUE,
+            nombre VARCHAR(80) NOT NULL
+        )
+    """))
+    db.execute(text("""
+        INSERT INTO razas_mascota (codigo, nombre) VALUES
+            ('labrador',      'Labrador Retriever'),
+            ('pastor_aleman', 'Pastor Alemán'),
+            ('golden',        'Golden Retriever'),
+            ('bulldog',       'Bulldog'),
+            ('poodle',        'Poodle'),
+            ('chihuahua',     'Chihuahua'),
+            ('beagle',        'Beagle'),
+            ('rottweiler',    'Rottweiler'),
+            ('criollo',       'Criollo'),
+            ('pug',           'Pug'),
+            ('shih_tzu',      'Shih Tzu'),
+            ('doberman',      'Doberman'),
+            ('boxer',         'Boxer'),
+            ('cocker',        'Cocker Spaniel'),
+            ('siberiano',     'Husky Siberiano'),
+            ('schnauzer',     'Schnauzer'),
+            ('maltes',        'Maltés'),
+            ('yorkshire',     'Yorkshire Terrier'),
+            ('persa',         'Persa'),
+            ('siames',        'Siamés'),
+            ('maine_coon',    'Maine Coon'),
+            ('bengali',       'Bengalí'),
+            ('sphynx',        'Sphynx'),
+            ('angora',        'Angora'),
+            ('ragdoll',       'Ragdoll'),
+            ('britanico',     'British Shorthair'),
+            ('comun_europeo', 'Común Europeo'),
+            ('fold_escoces',  'Scottish Fold')
+        ON CONFLICT (codigo) DO NOTHING
+    """))
+    db.commit()
+    print("[migracion] Tabla 'razas_mascota' verificada y poblada.")
+
+
+def _crear_tabla_mascota_imagenes(db):
+    """Crea la tabla 'mascota_imagenes' si no existe (Supabase/PostgreSQL) y
+    agrega la columna 'public_id' si la tabla ya existía sin ella.
+
+    En SQLite local la tabla la crea Base.metadata.create_all (modelos)."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS mascota_imagenes (
+            id          BIGSERIAL PRIMARY KEY,
+            mascota_id  BIGINT NOT NULL REFERENCES mascotas(id) ON DELETE CASCADE,
+            url         TEXT NOT NULL,
+            public_id   VARCHAR(255),
+            orden       INT NOT NULL DEFAULT 0
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_mascota_img_mascota ON mascota_imagenes(mascota_id)"
+    ))
+    _agregar_columna_si_no_existe(db, "mascota_imagenes", "public_id", "VARCHAR(255)")
+    db.commit()
+    print("[migracion] Tabla 'mascota_imagenes' verificada.")
+
+
 def _crear_tablas_rbac_tienda(db):
     """Crea las tablas RBAC del modulo Tienda si no existen (Supabase/PostgreSQL)."""
     from sqlalchemy import text
@@ -636,6 +746,51 @@ def _crear_tablas_nuevas_tienda(db):
     db.commit()
 
 
+def _crear_tablas_ia(db):
+    """Crea las tablas de IA / n8n (tareas_ia, chat_sesiones, chat_mensajes)
+    si no existen (Supabase/PostgreSQL). En SQLite local las crea SQLAlchemy."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS tareas_ia (
+            id BIGSERIAL PRIMARY KEY,
+            tipo VARCHAR(60) NOT NULL,
+            payload TEXT NOT NULL,
+            estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+            resultado TEXT,
+            error TEXT,
+            intentos INTEGER NOT NULL DEFAULT 0,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            procesado_en TIMESTAMPTZ
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_tareas_ia_estado ON tareas_ia(estado)"
+    ))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS chat_sesiones (
+            id BIGSERIAL PRIMARY KEY,
+            session_id VARCHAR(64) NOT NULL UNIQUE,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            actualizado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS chat_mensajes (
+            id BIGSERIAL PRIMARY KEY,
+            sesion_id BIGINT NOT NULL REFERENCES chat_sesiones(id) ON DELETE CASCADE,
+            rol VARCHAR(20) NOT NULL,
+            contenido TEXT NOT NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_chat_msj_sesion ON chat_mensajes(sesion_id)"
+    ))
+    db.commit()
+    print("[migracion] Tablas de IA / n8n verificadas.")
+
+
 def _backfill_super_admin_tiendas(db):
     """Garantiza que el representante de cada tienda existente tenga su registro
     de Super Administrador en tienda_usuarios (idempotente)."""
@@ -661,20 +816,27 @@ def _backfill_super_admin_tiendas(db):
 app = FastAPI(title="Adoptify API", lifespan=lifespan)
 
 
-# Maneja errores de base de datos (conexion caida, DNS no resuelve, timeout)
-# devolviendo un JSON 503 limpio en lugar de un stack trace gigante en consola.
+# Maneja errores de base de datos devolviendo un JSON 503 limpio en lugar de un
+# stack trace gigante en consola. Distingue entre errores de CONEXION
+# (red/DNS/timeout) y errores de consulta/esquema para no dar mensajes
+# enganosos: el mensaje de red solo aparece cuando realmente hubo un fallo de
+# conectividad.
 @app.exception_handler(SQLAlchemyError)
 async def _db_error_handler(request: Request, exc: SQLAlchemyError):
     logger.error("Error de base de datos en %s: %s", request.url.path, exc)
-    return JSONResponse(
-        status_code=503,
-        content={
-            "detail": (
-                "La base de datos no esta disponible en este momento. "
-                "Revisa tu conexion de red/DNS hacia Supabase e intentalo de nuevo."
-            )
-        },
-    )
+
+    if isinstance(exc, OperationalError):
+        detail = (
+            "No se pudo conectar con la base de datos en este momento. "
+            "Revisa tu conexion de red/DNS hacia Supabase e intentalo de nuevo."
+        )
+    else:
+        detail = (
+            "Ocurrio un error al consultar la base de datos. "
+            "Si el problema persiste, contacta al administrador del sistema."
+        )
+
+    return JSONResponse(status_code=503, content={"detail": detail})
 
 
 # CORS para permitir que el frontend de React se comunique con la API.
@@ -724,6 +886,20 @@ app.include_router(
     tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
+<<<<<<< HEAD
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descarga",
+    tags=["Reportes descargables (PDF/Excel)"],
+)
+app.include_router(
+    adopciones.router,
+    prefix="/api/adopciones",
+    tags=["Adopciones"],
+)
+=======
+app.include_router(ia.router, prefix="/api/ia", tags=["IA / n8n"])
+>>>>>>> 947d364 (feat(n8n): Automatizacion completada, chat bot, automatizaciones de correo, workflows y demas)
 
 
 @app.get("/")

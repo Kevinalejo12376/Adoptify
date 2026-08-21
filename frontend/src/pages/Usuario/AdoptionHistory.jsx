@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import {
   PawPrint, CheckCircle, XCircle, AlertCircle, MapPin, Calendar,
   Phone, MessageCircle, Search, Clock, ChevronRight, Dog, Cat,
-  Heart, ClipboardList, UserCheck, FileText, Home, Loader2,
+  Heart, ClipboardList, UserCheck, FileText, Home, Loader2, FileDown,
 } from "lucide-react";
 import { misSolicitudes } from "../../api/solicitudes";
+import ReporteGeneralModal from "../../components/ReporteGeneralModal";
 
 // Mapea codigos del backend al status que usa la UI
 const ESTADO_DISPLAY = {
@@ -56,6 +57,7 @@ export default function AdoptionHistory() {
   const [adoptions, setAdoptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showReporteModal, setShowReporteModal] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
@@ -106,13 +108,23 @@ export default function AdoptionHistory() {
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-display">
-            Mis Solicitudes de Adopcion
-          </h1>
-          <p className="text-gray-600 dark:text-dark-text-secondary mt-1">
-            Seguimiento de todas tus solicitudes
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-display">
+              Mis Solicitudes de Adopcion
+            </h1>
+            <p className="text-gray-600 dark:text-dark-text-secondary mt-1">
+              Seguimiento de todas tus solicitudes
+            </p>
+          </div>
+          {/* Boton Reporte General: abre el modal de descarga PDF/Excel */}
+          <button
+            onClick={() => setShowReporteModal(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-md whitespace-nowrap flex-shrink-0"
+          >
+            <FileDown className="w-4 h-4" />
+            Reporte General
+          </button>
         </div>
 
         {error && (
@@ -284,6 +296,12 @@ export default function AdoptionHistory() {
           </div>
         )}
       </div>
+
+      {/* Modal de Reporte General (PDF/Excel) */}
+      <ReporteGeneralModal
+        isOpen={showReporteModal}
+        onClose={() => setShowReporteModal(false)}
+      />
     </div>
   );
 }
