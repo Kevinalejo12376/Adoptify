@@ -9,6 +9,7 @@ import {
   listarPqrs, actualizarPqrs,
   listarPqrsTiendas, obtenerPqrsTienda, cambiarEstadoPqrsTienda, responderPqrsTienda,
 } from "../../api/admin";
+import AdminModalPortal from "../../components/admin/AdminModalPortal";
 
 const ESTADOS = ["pendiente", "en_proceso", "resuelto", "cerrado"];
 const TIPOS = {
@@ -77,10 +78,11 @@ function PqrsDetailModal({ item, onClose, onResponder, onCambiarEstado }) {
   const TipoIcono = tipoConfig.icon;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-2xl max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative h-24 bg-gradient-to-r from-rose-500 to-amber-500 rounded-t-2xl" />
@@ -180,6 +182,7 @@ function PqrsDetailModal({ item, onClose, onResponder, onCambiarEstado }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -190,10 +193,11 @@ function ResponderModal({ item, onClose, onGuardar, guardando }) {
   if (!item) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-lg bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-lg max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 pb-0">
@@ -248,6 +252,7 @@ function ResponderModal({ item, onClose, onGuardar, guardando }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -293,10 +298,11 @@ function PqrsTiendaDetailModal({ item, onClose, onEstado, onResponder }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
       <div
-        className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-2xl max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative h-24 bg-gradient-to-r from-rose-500 to-amber-500 rounded-t-2xl" />
@@ -401,6 +407,7 @@ function PqrsTiendaDetailModal({ item, onClose, onEstado, onResponder }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 

@@ -13,7 +13,6 @@ const loginDog = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347014/f
 const mascotasImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347015/frontend-assets/mascotas/mascotas.jpg";
 const daycareImg = "https://res.cloudinary.com/kj0wube2/image/upload/v1785347013/frontend-assets/daycare/daycare.jpg";
 import GoogleIcon from "../../components/GoogleIcon";
-import logo from "../../assets/logo.png";
 import { CAROUSEL_IMAGES } from "../../assets/images";
 import {
   forgotPasswordRequest,

@@ -13,6 +13,7 @@ import {
   eliminarSolicitudRefugio,
 } from "../../api/admin";
 import RefugioDetalleModal from "./components/RefugioDetalleModal";
+import AdminModalPortal from "../../components/admin/AdminModalPortal";
 
 // ========================================================
 // CONFIG
@@ -268,7 +269,7 @@ function TabRegistrados({ refugios, cargando, busqueda, setBusqueda, filtroEstad
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50/70 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr className="bg-gray-50/70 dark:bg-dark-bg text-left text-xs uppercase tracking-wide text-gray-500 dark:text-dark-text-secondary">
                 <th className="px-5 py-3.5 font-semibold">Refugio</th>
                 <th className="px-4 py-3.5 font-semibold">Ciudad</th>
                 <th className="px-4 py-3.5 font-semibold">Contacto</th>
@@ -297,7 +298,7 @@ function TabRegistrados({ refugios, cargando, busqueda, setBusqueda, filtroEstad
                 </tr>
               ) : (
                 refugios.map((r) => (
-                  <tr key={r.id} className="border-t border-gray-50 hover:bg-rose-50/30 transition-colors">
+                  <tr key={r.id} className="border-t border-gray-50 hover:bg-rose-50/30 dark:hover:bg-[#20202c] transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         {r.logo_url ? (
@@ -547,8 +548,9 @@ function ModalEditar({ refugio, onClose, onGuardar }) {
   const inputCls = "w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm text-gray-800 bg-gray-50/50 placeholder-gray-400 outline-none focus:border-rose-300 focus:ring-4 focus:ring-rose-100";
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-pop-in" onClick={(e) => e.stopPropagation()}>
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-full overflow-y-auto animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white/90 backdrop-blur border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-3xl">
           <div className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl bg-rose-100 text-rose-500 flex items-center justify-center"><Edit3 size={18} /></span>
@@ -623,6 +625,7 @@ function ModalEditar({ refugio, onClose, onGuardar }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -640,8 +643,9 @@ function ModalConfirmacion({ accion, onClose, onConfirmar }) {
   const Icon = config.icon;
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-pop-in" onClick={(e) => e.stopPropagation()}>
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto p-6 sm:p-8 animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <div className="text-center">
           <div className={`mx-auto w-16 h-16 rounded-2xl ${config.bg} flex items-center justify-center mb-4`}>
             <Icon size={30} />
@@ -657,6 +661,7 @@ function ModalConfirmacion({ accion, onClose, onConfirmar }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -666,8 +671,9 @@ function ModalConfirmacion({ accion, onClose, onConfirmar }) {
 
 function ModalEliminarSolicitud({ solicitud, onClose, onConfirmar }) {
   return (
-    <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-pop-in" onClick={(e) => e.stopPropagation()}>
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto p-6 sm:p-8 animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <div className="text-center">
           <div className="mx-auto w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-4">
             <Trash2 size={30} />
@@ -688,5 +694,6 @@ function ModalEliminarSolicitud({ solicitud, onClose, onConfirmar }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }

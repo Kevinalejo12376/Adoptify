@@ -22,8 +22,7 @@ const menuItems = [
       { icon: BarChart3, label: "Estadísticas", path: "/admin/marketplace/estadisticas" },
     ],
   },
-  { icon: ClipboardList, label: "Reportes", path: "/admin/reportes" },
-  { icon: FileDown, label: "Descargar Reportes", path: "/admin/reportes-descargables" },
+  { icon: FileDown, label: "Reportes", path: "/admin/reportes-descargables" },
 ];
 
 export default function AdminSidebar({ mobileOpen, onMobileClose, onLogout }) {

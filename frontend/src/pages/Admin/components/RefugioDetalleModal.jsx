@@ -12,6 +12,7 @@ import {
   cambiarEstadoRefugioAdmin,
   eliminarRefugioAdmin,
 } from "../../../api/admin";
+import AdminModalPortal from "../../../components/admin/AdminModalPortal";
 
 const inputCls = "w-full px-3.5 py-2 rounded-xl border border-gray-200 text-sm text-gray-800 bg-gray-50/50 placeholder-gray-400 outline-none focus:border-rose-300 focus:ring-4 focus:ring-rose-100";
 
@@ -163,9 +164,10 @@ export default function RefugioDetalleModal({ refugio, onClose, onActualizar, no
   const activo = detalle?.estado === "activo";
 
   return (
-    <div className="fixed inset-0 z-[95] bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl my-4 animate-pop-in overflow-hidden"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl my-auto animate-pop-in overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ===== Encabezado ===== */}
@@ -373,6 +375,7 @@ export default function RefugioDetalleModal({ refugio, onClose, onActualizar, no
         )}
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -457,7 +460,8 @@ function ConfirmAccionModal({ accion, activo, nombre, cargando, onClose, onConfi
   const Icono = configs.icono;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-pop-in" onClick={(e) => e.stopPropagation()}>
         <div className="text-center">
           <div className={`mx-auto w-16 h-16 rounded-2xl ${configs.bg} flex items-center justify-center mb-4`}>
@@ -480,5 +484,6 @@ function ConfirmAccionModal({ accion, activo, nombre, cargando, onClose, onConfi
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }

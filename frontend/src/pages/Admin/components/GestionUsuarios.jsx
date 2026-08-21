@@ -12,6 +12,7 @@ import {
   validarNombre, validarApellido, validarEmail, validarTelefonoAdmin, validarPassword,
   normalizarEmail, limpiarEspacios, claseInput, soloDigitos,
 } from "../../../utils/validaciones";
+import AdminModalPortal from "../../../components/admin/AdminModalPortal";
 
 // ========================================================
 // GENERADOR DE AVATARES CON INICIALES Y COLORES PASTEL
@@ -94,8 +95,8 @@ const estadoConfig = {
     label: "Suspendido",
   },
   eliminado: {
-    dot: "bg-gray-400",
-    bg: "bg-gray-50 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400",
+    dot: "bg-red-500",
+    bg: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
     label: "Eliminado",
   },
 };
@@ -206,47 +207,37 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-lg max-h-full flex flex-col bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header con degradado */}
-        <div className="relative h-28 bg-gradient-to-r from-rose-500 to-amber-500 rounded-t-2xl" />
-
-        {/* Avatar superpuesto */}
-        <div className="absolute top-16 left-6">
-          <UserAvatar name={user.nombre} size="xl" className="ring-4 ring-white dark:ring-dark-card shadow-lg" />
-        </div>
-
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-        >
-          <X size={16} />
-        </button>
-
-        {/* Info principal */}
-        <div className="pt-14 px-6 pb-4 border-b border-gray-100 dark:border-dark-border">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-                {user.nombre || "Sin nombre"}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-0.5">
-                {user.email}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
+        {/* Info principal: Nombre + Estado + Rol (encabezado compacto con botón cerrar) */}
+        <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-gray-100 dark:border-dark-border flex-shrink-0">
+          <div className="min-w-0">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text break-words">
+              {user.nombre || "Sin nombre"}
+            </h3>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
               <StatusBadge estado={user.estado || (user.activo ? "activo" : "suspendido")} />
               <RolBadge rol={user.rol} />
             </div>
           </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors flex-shrink-0"
+            title="Cerrar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Información detallada */}
-        <div className="px-6 py-4 space-y-3">
+        {/* Contenido con scroll interno */}
+        <div className="overflow-y-auto flex-1">
+          {/* Información detallada */}
+          <div className="px-6 py-4 space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-text-secondary">
             Información general
           </h4>
@@ -308,9 +299,10 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
             })}
           </div>
         </div>
+        </div>
 
         {/* Botones rápidos: Editar, Activar/Inactivar, Eliminar */}
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-dark-border flex items-center gap-2">
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-dark-border flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => { onClose(); onEdit(user); }}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-200 text-sm"
@@ -339,6 +331,7 @@ function ViewUserModal({ user, onClose, onEdit, onSuspend, onDelete, onResetPass
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -443,13 +436,14 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
   const inputClass = "w-full px-3 py-2.5 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-gray-900 dark:text-dark-text placeholder-gray-400";
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
+        className="relative w-full max-w-lg max-h-full flex flex-col bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-5 pb-0">
+        <div className="flex items-center justify-between p-5 pb-0 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
               {user ? <Edit3 size={18} className="text-rose-500" /> : <Plus size={18} className="text-rose-500" />}
@@ -463,14 +457,15 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
           </button>
         </div>
 
-        {error && (
-          <div className="mx-5 mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
-            <AlertTriangle size={14} />
-            {error}
-          </div>
-        )}
+        <div className="overflow-y-auto flex-1">
+          {error && (
+            <div className="mx-5 mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+              <AlertTriangle size={14} />
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} noValidate className="p-5 space-y-3">
+          <form onSubmit={handleSubmit} noValidate className="p-5 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Nombre *</label>
@@ -569,9 +564,11 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
               Cancelar
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -792,14 +789,15 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content"
+        className="relative w-full max-w-2xl max-h-full flex flex-col bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 pb-0">
+        <div className="flex items-center justify-between p-5 pb-0 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center">
               <Building2 size={20} className="text-rose-500" />
@@ -811,7 +809,7 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-6" noValidate>
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 space-y-6" noValidate>
           {successMsg && (
             <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-sm font-semibold flex items-center gap-3 animate-fade-in">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500 flex-shrink-0"><circle cx="12" cy="12" r="10"/><polyline points="16 8 11 15 8 12"/></svg>
@@ -931,6 +929,7 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
         </form>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 
@@ -941,10 +940,11 @@ function ActionConfirmModal({ config, onClose, onConfirm, loading }) {
   if (!config) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
+    <AdminModalPortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md animate-modal-overlay" />
       <div
-        className="relative w-full max-w-md bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content overflow-hidden"
+        className="relative w-full max-w-md max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 pb-0">
@@ -993,6 +993,7 @@ function ActionConfirmModal({ config, onClose, onConfirm, loading }) {
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
 

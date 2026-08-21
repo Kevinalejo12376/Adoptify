@@ -70,6 +70,82 @@ body {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
+/* Texto y superficies adicionales para dark mode (modales, tablas, cards) */
+.dark .text-gray-800 {
+  color: #d8d8e4;
+}
+.dark .text-gray-400 {
+  color: #8a8aa0;
+}
+.dark .border-gray-300 {
+  border-color: #33334a;
+}
+.dark .bg-gray-100 {
+  background-color: #1f1f2e;
+}
+.dark .bg-gray-200 {
+  background-color: #2a2a3a;
+}
+.dark .bg-gray-50\/30 {
+  background-color: rgba(21, 21, 31, 0.3);
+}
+.dark .bg-gray-50\/40 {
+  background-color: rgba(21, 21, 31, 0.4);
+}
+.dark .bg-gray-50\/50 {
+  background-color: #15151f;
+}
+.dark .bg-gray-50\/60 {
+  background-color: rgba(21, 21, 31, 0.6);
+}
+.dark .bg-gray-50\/70 {
+  background-color: rgba(21, 21, 31, 0.7);
+}
+.dark .bg-white\/50 {
+  background-color: rgba(26, 26, 35, 0.5);
+}
+.dark .bg-white\/60 {
+  background-color: rgba(26, 26, 35, 0.6);
+}
+.dark .bg-white\/70 {
+  background-color: rgba(26, 26, 35, 0.7);
+}
+.dark .bg-white\/80 {
+  background-color: rgba(26, 26, 35, 0.8);
+}
+.dark .bg-white\/90 {
+  background-color: rgba(26, 26, 35, 0.9);
+}
+
+/* Colores semánticos de mensajes para dark mode */
+.dark .text-red-600 {
+  color: #f87171;
+}
+.dark .text-red-700 {
+  color: #fca5a5;
+}
+.dark .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.12);
+}
+.dark .text-blue-600 {
+  color: #60a5fa;
+}
+.dark .text-blue-700 {
+  color: #93c5fd;
+}
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+.dark .border-red-100 {
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.dark .border-blue-100 {
+  border-color: rgba(59, 130, 246, 0.2);
+}
+.dark .border-blue-200 {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
 /* Gradient backgrounds in dark mode */
 .dark .bg-gradient-to-br.from-rose-50 {
   background: linear-gradient(to bottom right, #1a0a0f, var(--color-dark-bg), #1a1208);
@@ -578,6 +654,51 @@ body {
 
 .animate-modal-overlay {
   animation: modal-overlay-in 0.3s ease-out forwards;
+}
+
+/* ========================================================
+   MODALES — Jerarquía de capas y bloqueo de scroll
+   --------------------------------------------------------
+   Los overlays de los modales del Panel Admin usan
+   `fixed inset-0 z-[100]` (y z-[110] para los apilados), lo
+   que los coloca por encima del navbar (z-40) y del sidebar
+   (z-50). El backdrop (bg-black/* + backdrop-blur) oscurece y
+   desenfoca todo lo que está detrás (navbar + sidebar + página)
+   mientras el panel del modal permanece nítido.
+
+   FIX GLOBAL DE STACKING CONTEXT
+   -------------------------------
+   Los modales del Admin que NO usan portal se renderizan dentro
+   de los contenedores de página con `.animate-fade-in*` (el
+   <main> del AdminLayout y el contenedor raíz de cada página).
+   Esas animaciones modifican `opacity` y, mientras están en
+   curso, `opacity < 1` crea un stacking context anidado que
+   "atrapa" al overlay del modal (z-[100]/z-[110]) por debajo
+   del navbar (z-40) y del sidebar (z-50), que sí están en el
+   contexto raíz.
+
+   La solución: mientras exista un modal del Admin abierto,
+   forzar `opacity: 1` en esos contenedores animados (solo en
+   los que contienen el modal, vía `:has()`). Así desaparece el
+   stacking context intermedio y el overlay del modal compite
+   directamente en el contexto raíz, quedando SIEMPRE por encima
+   del navbar y del sidebar. Se aplica de forma automática a
+   todos los modales del Admin (no requiere modificar ninguno) y
+   al cerrar el modal todo vuelve a su estado exacto.
+   ======================================================== */
+
+/* Bloquea el scroll del fondo mientras haya un modal abierto */
+body:has(.z-\[100\]),
+body:has(.z-\[110\]) {
+  overflow: hidden;
+}
+
+/* Elimina el stacking context de los contenedores animados que envuelven
+   un modal del Admin abierto, para que el overlay quede por encima de
+   navbar (z-40) y sidebar (z-50). */
+[class*="animate-fade-in"]:has(.z-\[100\]),
+[class*="animate-fade-in"]:has(.z-\[110\]) {
+  opacity: 1 !important;
 }
 
 .animate-modal-content {

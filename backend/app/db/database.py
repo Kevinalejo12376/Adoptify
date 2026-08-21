@@ -21,16 +21,18 @@ else:
     #   es lento/inestable veras "could not translate host name" o quedara colgado.
     # - pool_timeout: si todas las conexiones del pool estan ocupadas, espera como
     #   maximo este tiempo antes de lanzar error (evita que la API se cuelgue).
-    # IMPORTANTE: el pooler de Supabase en modo sesion limita las conexiones
-    # (por defecto ~15). Este pool usa pool_size + max_overflow = max 5, muy por
-    # debajo de ese limite, para evitar el error "EMAXCONNSESSION max clients
-    # reached in session mode" cuando hay muchas peticiones concurrentes.
+    # - pool_size + max_overflow: en Supabase el pooler en modo sesion (puerto 5432)
+    #   limita a ~15 conexiones TOTALES (plan free). Si el pool de SQLAlchemy suma
+    #   mas de ese limite (p.ej. 5+10=15) y hay otra instancia del backend corriendo,
+    #   se agota el pooler y aparecen errores EMAXCONNSESSION / 503.
+    #   Se usa un pool conservador (4+4=8) para dejar margen y evitar saturar el
+    #   pooler compartido. Cada peticion reutiliza conexiones del pool.
     engine = create_engine(
         settings.DATABASE_URL,
         pool_pre_ping=True,
-        pool_recycle=180,
-        pool_size=2,
-        max_overflow=3,
+        pool_recycle=300,
+        pool_size=4,
+        max_overflow=4,
         pool_timeout=15,
         connect_args={"connect_timeout": 10},
     )
