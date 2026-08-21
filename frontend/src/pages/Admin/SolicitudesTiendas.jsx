@@ -14,6 +14,7 @@ import {
   eliminarSolicitudTienda,
   verificarDocumentoSolicitudTienda,
 } from "../../api/admin";
+import AdminModal from "../../components/admin/AdminModal";
 
 // ========================================================
 // CONFIG
@@ -78,27 +79,10 @@ function Toast({ mensaje, tipo, onClose }) {
 }
 
 function Modal({ isOpen, onClose, title, children, size = "md" }) {
-  if (!isOpen) return null;
-  const sizes = { sm: "max-w-md", md: "max-w-2xl", lg: "max-w-4xl" };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-modal-overlay" />
-      <div
-        className={`relative w-full ${sizes[size] || sizes.md} bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-modal-content max-h-[90vh] flex flex-col`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-dark-border shrink-0">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text">{title}</h3>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
-          >
-            <X size={17} />
-          </button>
-        </div>
-        <div className="p-6 overflow-y-auto">{children}</div>
-      </div>
-    </div>
+    <AdminModal open={isOpen} onClose={onClose} title={title} size={size}>
+      {children}
+    </AdminModal>
   );
 }
 

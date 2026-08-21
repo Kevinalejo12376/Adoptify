@@ -104,7 +104,6 @@ import AdminMascotas from "./pages/Admin/Mascotas";
 import AdminMarketplace from "./pages/Admin/Marketplace";
 import AdminPedidos from "./pages/Admin/Pedidos";
 import AdminForo from "./pages/Admin/Foro";
-import AdminReportes from "./pages/Admin/Reportes";
 import AdminReportesDescargables from "./pages/Admin/ReportesDescargables";
 import AdminPQRS from "./pages/Admin/PQRS";
 import AdminAdministradores from "./pages/Admin/Administradores";
@@ -157,7 +156,6 @@ function AppContent() {
             <Route path="marketplace/estadisticas" element={<AdminMarketplace />} />
             <Route path="pedidos" element={<AdminPedidos />} />
             <Route path="foro" element={<AdminForo />} />
-            <Route path="reportes" element={<AdminReportes />} />
             <Route path="reportes-descargables" element={<AdminReportesDescargables />} />
             <Route path="pqrs" element={<AdminPQRS />} />
             <Route path="administradores" element={<AdminAdministradores />} />

@@ -36,9 +36,19 @@ export async function listarMascotas() {
   return apiFetch(`${base}/mascotas`);
 }
 
-/** Elimina una mascota. */
+/** Elimina una mascota (soft delete: la desactiva conservando su historial). */
 export async function eliminarMascota(id) {
   return apiFetch(`${base}/mascotas/${id}`, { method: "DELETE" });
+}
+
+/** Obtiene el detalle completo de una mascota (incluye imágenes). */
+export async function obtenerMascotaAdmin(id) {
+  return apiFetch(`${base}/mascotas/${id}`);
+}
+
+/** Actualiza los datos de una mascota (admin). */
+export async function actualizarMascotaAdmin(id, payload) {
+  return apiFetch(`${base}/mascotas/${id}`, { method: "PUT", body: payload });
 }
 
 /** Lista todos los productos (con su vendedor). */

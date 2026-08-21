@@ -143,7 +143,7 @@ export default function ShelterAdoptionHistory() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gray-50 dark:bg-dark-bg/50">
+                <tr className="bg-gray-50 dark:bg-dark-bg">
                   <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase tracking-wider">Solicitante</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase tracking-wider">Mascota</th>
                   <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase tracking-wider">Estado</th>
@@ -154,7 +154,7 @@ export default function ShelterAdoptionHistory() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
                 {filteredAdoptions.map((ad) => (
-                  <tr key={ad.id} className="hover:bg-gray-50 dark:hover:bg-dark-bg/30 transition-colors">
+                  <tr key={ad.id} className="hover:bg-gray-50 dark:hover:bg-[#20202c] transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white text-xs font-bold">

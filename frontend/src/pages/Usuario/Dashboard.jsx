@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2 } from "lucide-react";
+import { Heart, PawPrint, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2 } from "lucide-react";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import { CAROUSEL_IMAGES } from "../../assets/images";
 import { listarMascotas } from "../../api/mascotas";
@@ -116,7 +116,7 @@ export default function Dashboard() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-6 mt-12 pt-8 border-t border-gray-200">
+              <div className="grid grid-cols-2 gap-6 mt-12 pt-8 border-t border-gray-200">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <PawPrint className="w-5 h-5 text-rose-500" />
@@ -130,13 +130,6 @@ export default function Dashboard() {
                     <div className="text-2xl font-bold text-gray-900 font-display">{nf.format(stats?.adopciones_exitosas ?? 0)}</div>
                   </div>
                   <div className="text-sm text-gray-600">Adopciones exitosas</div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Users className="w-5 h-5 text-rose-500" />
-                    <div className="text-2xl font-bold text-gray-900 font-display">{nf.format(stats?.usuarios ?? 0)}</div>
-                  </div>
-                  <div className="text-sm text-gray-600">Miembros activos</div>
                 </div>
               </div>
             </div>

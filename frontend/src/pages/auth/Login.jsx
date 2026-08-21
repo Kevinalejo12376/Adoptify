@@ -8,7 +8,6 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import GoogleIcon from "../../components/GoogleIcon";
-import logo from "../../assets/logo.png";
 import { CAROUSEL_IMAGES } from "../../assets/images";
 import {
   forgotPasswordRequest,

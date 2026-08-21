@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import GoogleIcon from "../../components/GoogleIcon";
-import logo from "../../assets/logo.png";
 import { CAROUSEL_IMAGES } from "../../assets/images";
 import { useAuth } from "../../context/AuthContext";
 import { getTiposDocumento } from "../../api/catalogos";

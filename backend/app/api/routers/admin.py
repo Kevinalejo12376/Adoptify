@@ -23,7 +23,7 @@ from app.models.solicitud import SolicitudAdopcion
 from app.models.producto import Producto
 from app.models.tienda import Tienda, TiendaUsuario
 from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdjunto
-from app.models.catalogos import Rol, TipoDocumento, EstadoMascota
+from app.models.catalogos import Rol, TipoDocumento, EstadoMascota, TipoMascota, TamanoMascota, GeneroMascota
 from app.models.foro import ForoPost
 from app.models.interaccion import Resena
 from app.core.notificaciones import registrar_auditoria, crear_notificacion
@@ -35,6 +35,9 @@ from app.schemas.tienda_extra import (
     AdminTiendaPqrsEstadoUpdate,
     AdminTiendaPqrsRespuestaCreate,
 )
+from app.schemas.mascota import MascotaUpdate
+from app.schemas.serializers import serialize_mascota
+from app.api.routers.mascotas import _sincronizar_imagenes_mascota, _componer_edad_valores
 from app.services.cloudinary_service import subir_imagen_producto
 
 router = APIRouter()
@@ -169,10 +172,12 @@ def listar_mascotas_admin(
     db: Session = Depends(get_db),
     limite: int = Query(200, ge=1, le=1000, description="Maximo de mascotas a devolver"),
 ):
-    """Lista mascotas (de todos los refugios) para supervision del admin.
+    """Lista mascotas activas (de todos los refugios) para supervision del admin.
+    Las mascotas desactivadas por soft delete no aparecen en el listado normal.
     Con paginación (max 1000) y joinedload para evitar N+1 queries."""
     mascotas = (
         db.query(Mascota)
+        .filter(Mascota.activo == True)  # noqa: E712
         .options(joinedload(Mascota.tipo), joinedload(Mascota.estado), joinedload(Mascota.refugio))
         .order_by(Mascota.creado_en.desc())
         .limit(limite)
@@ -206,6 +211,59 @@ def eliminar_mascota_admin(
     # Soft delete: desactiva la mascota conservando su historial de adopción.
     soft_delete(db, m)
     return None
+
+
+@router.get("/mascotas/{mascota_id}")
+def obtener_mascota_admin(
+    mascota_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Detalle completo de una mascota para el panel admin. Incluye las imágenes
+    y también los registros desactivados por soft delete (activo=False)."""
+    m = db.query(Mascota).filter(Mascota.id == mascota_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+    return serialize_mascota(m)
+
+
+@router.put("/mascotas/{mascota_id}")
+def actualizar_mascota_admin(
+    mascota_id: int,
+    payload: MascotaUpdate,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Actualiza los datos de una mascota desde el panel admin (misma lógica y
+    validaciones que la actualización del refugio)."""
+    mascota = db.query(Mascota).filter(Mascota.id == mascota_id).first()
+    if not mascota:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+
+    datos = payload.model_dump(exclude_unset=True)
+    # Las imágenes se sincronizan aparte (relación mascota_imagenes).
+    imagenes = datos.pop("imagenes", None)
+    # Resuelve los campos de catálogo (código/nombre -> id)
+    if "tipo" in datos:
+        mascota.tipo_id = id_por_codigo(db, TipoMascota, datos.pop("tipo"), requerido=True)
+    if "tamano" in datos:
+        mascota.tamano_id = id_por_codigo(db, TamanoMascota, datos.pop("tamano"))
+    if "genero" in datos:
+        mascota.genero_id = id_por_codigo(db, GeneroMascota, datos.pop("genero"))
+    if "estado" in datos:
+        mascota.estado_id = id_por_codigo(db, EstadoMascota, datos.pop("estado"), requerido=True)
+    # Compone la edad estructurada (valor + unidad) en texto antes de asignar.
+    if "edad_valor" in datos or "edad_unidad" in datos:
+        edad_valor = datos.pop("edad_valor", None)
+        edad_unidad = datos.pop("edad_unidad", None)
+        mascota.edad = _componer_edad_valores(edad_valor, edad_unidad)
+    for campo, valor in datos.items():
+        setattr(mascota, campo, valor)
+
+    _sincronizar_imagenes_mascota(db, mascota, imagenes)
+    db.commit()
+    db.refresh(mascota)
+    return serialize_mascota(mascota)
 
 
 @router.get("/usuarios", response_model=List[AdminUsuarioResponse])

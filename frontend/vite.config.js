@@ -14,6 +14,7 @@ export default defineConfig({
     host: 'localhost',
     // Puerto fijo: evita que Vite salte a 5174 si el 5173 esta ocupado.
     port: 5173,
-    strictPort: true
+    strictPort: true,
+    allowedHosts: true
   }
 })

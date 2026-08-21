@@ -188,7 +188,7 @@ export default function ShelterDashboard() {
               <div className="p-6 text-center text-sm text-gray-400">No hay solicitudes recientes</div>
             ) : (
               recentRequests.map((req) => (
-                <div key={req.id} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-dark-bg/50 transition-colors">
+                <div key={req.id} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-[#20202c] transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-400 to-amber-500 flex items-center justify-center text-white text-xs font-bold">
                       {req.user?.[0]?.toUpperCase() || "?"}

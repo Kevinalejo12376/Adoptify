@@ -96,10 +96,15 @@ export default function DataTable({
     if (col.tipo === "avatar") {
       return (
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-500/10 dark:to-amber-500/10 flex items-center justify-center text-xs font-bold text-rose-600 dark:text-rose-400 flex-shrink-0">
             {col.nombreAvatar ? col.nombreAvatar(fila) : (fila.nombre?.[0] || "?")}
           </div>
-          <span className="font-medium text-gray-900 dark:text-dark-text text-sm">{valor}</span>
+          <div className="min-w-0">
+            <span className="font-semibold text-gray-900 dark:text-dark-text text-sm block truncate">{valor}</span>
+            {col.subtitulo && (
+              <span className="text-xs text-gray-400 dark:text-dark-text-secondary block truncate">{col.subtitulo(fila)}</span>
+            )}
+          </div>
         </div>
       );
     }
@@ -171,7 +176,7 @@ export default function DataTable({
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100 dark:border-dark-border">
+              <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/70 dark:bg-dark-bg/40">
                 {columnas.map((col, idx) => (
                   <th
                     key={col.key || idx}
@@ -198,7 +203,7 @@ export default function DataTable({
                   onClick={() => accionFila?.(fila)}
                   className={`
                     transition-colors duration-150
-                    ${accionFila ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-bg/50" : ""}
+                    ${accionFila ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-[#20202c]" : ""}
                   `}
                 >
                   {columnas.map((col, colIdx) => (

@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
+import AdminModalPortal from "./AdminModalPortal";
 
 export default function ConfirmModal({
   isOpen,
@@ -40,16 +41,17 @@ export default function ConfirmModal({
   };
 
   return (
+    <AdminModalPortal>
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-modal-overlay"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-modal-overlay"
       onClick={onClose}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      {/* Backdrop oscuro + blur */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" />
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-md bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content overflow-hidden"
+        className="relative w-full max-w-md max-h-full overflow-y-auto bg-white dark:bg-dark-card rounded-2xl shadow-2xl animate-modal-content"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -108,5 +110,6 @@ export default function ConfirmModal({
         </div>
       </div>
     </div>
+    </AdminModalPortal>
   );
 }
