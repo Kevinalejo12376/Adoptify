@@ -19,7 +19,8 @@ from app.api.routers import (
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
     solicitudes_tienda, solicitudes_tienda_admin, upload, reportes_descarga,
-    adopciones, ia,
+    reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
+    solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
 )
 
 logger = logging.getLogger(__name__)
@@ -882,6 +883,11 @@ app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágen
 app.include_router(
     reportes_descarga.router,
     prefix="/api/reportes-descargables",
+    tags=["Reportes descargables"],
+)
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descarga",
     tags=["Reportes descargables (PDF/Excel)"],
 )
 app.include_router(
