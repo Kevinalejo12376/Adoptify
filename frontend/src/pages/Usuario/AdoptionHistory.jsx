@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import {
   PawPrint, CheckCircle, XCircle, AlertCircle, MapPin, Calendar,
   Phone, MessageCircle, Search, Clock, ChevronRight, Dog, Cat,
-  Heart, ClipboardList, UserCheck, FileText, Home, Loader2,
+  Heart, ClipboardList, UserCheck, FileText, Home, Loader2, FileDown, ChevronDown,
 } from "lucide-react";
-import { misSolicitudes } from "../../api/solicitudes";
+import { misSolicitudes, descargarReporteHistorialUsuario } from "../../api/solicitudes";
+import ReporteGeneralModal from "../../components/ReporteGeneralModal";
 
 // Mapea codigos del backend al status que usa la UI
 const ESTADO_DISPLAY = {
@@ -56,6 +57,7 @@ export default function AdoptionHistory() {
   const [adoptions, setAdoptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reporteAbierto, setReporteAbierto] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true); setError(null);
@@ -106,13 +108,23 @@ export default function AdoptionHistory() {
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-display">
-            Mis Solicitudes de Adopcion
-          </h1>
-          <p className="text-gray-600 dark:text-dark-text-secondary mt-1">
-            Seguimiento de todas tus solicitudes
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-display">
+              Mis Solicitudes de Adopcion
+            </h1>
+            <p className="text-gray-600 dark:text-dark-text-secondary mt-1">
+              Seguimiento de todas tus solicitudes
+            </p>
+          </div>
+          <button
+            onClick={() => setReporteAbierto(true)}
+            className="inline-flex items-center self-start sm:self-auto px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border transition-all"
+          >
+            <FileDown className="w-4 h-4 mr-2 text-rose-500" />
+            Reporte general
+            <ChevronDown className="w-4 h-4 ml-1 text-gray-400" />
+          </button>
         </div>
 
         {error && (
@@ -283,6 +295,13 @@ export default function AdoptionHistory() {
             })}
           </div>
         )}
+
+        {/* Reporte general: descarga PDF/Excel de las solicitudes del usuario */}
+        <ReporteGeneralModal
+          isOpen={reporteAbierto}
+          onClose={() => setReporteAbierto(false)}
+          descargar={descargarReporteHistorialUsuario}
+        />
       </div>
     </div>
   );

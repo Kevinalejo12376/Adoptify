@@ -18,7 +18,7 @@ from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
-    solicitudes_tienda, solicitudes_tienda_admin, upload,
+    solicitudes_tienda, solicitudes_tienda_admin, upload, reportes_descarga,
 )
 
 logger = logging.getLogger(__name__)
@@ -816,6 +816,11 @@ app.include_router(
     tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
+app.include_router(
+    reportes_descarga.router,
+    prefix="/api/reportes-descargables",
+    tags=["Reportes descargables"],
+)
 
 
 @app.get("/")
