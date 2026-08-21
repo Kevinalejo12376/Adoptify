@@ -1219,11 +1219,6 @@ app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágen
 app.include_router(
     reportes_descarga.router,
     prefix="/api/reportes-descargables",
-    tags=["Reportes descargables"],
-)
-app.include_router(
-    reportes_descarga.router,
-    prefix="/api/reportes-descarga",
     tags=["Reportes descargables (PDF/Excel)"],
 )
 app.include_router(
