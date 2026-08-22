@@ -48,6 +48,10 @@ from app.schemas.usuario import (
 )
 from app.schemas.token import Token
 from app.schemas.serializers import serialize_usuario
+from app.services.cloudinary_service import (
+    subir_imagen,
+    eliminar_imagen_permanente,
+)
 
 
 class GoogleLoginRequest(BaseModel):
@@ -533,6 +537,11 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
         "rol": rol_codigo,
         "estado": "activo" if current_user.activo else "inactivo",
         "creado_en": current_user.creado_en.isoformat() if current_user.creado_en else None,
+        # Imágenes persistentes de Cloudinary (secure_url) para reconstruir el
+        # perfil después de recargar la página o volver a iniciar sesión.
+        "avatar_url": current_user.avatar_url,
+        "avatar_public_id": current_user.avatar_public_id,
+        "cover_url": current_user.cover_url,
         "settings": {"storeEnabled": False},
     }
     # Para administradores, entrega los permisos que espera el panel admin.
@@ -576,6 +585,12 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
             data["description"] = refugio.descripcion
             data["address"] = refugio.direccion
             data["location"] = refugio.ubicacion or current_user.ubicacion
+            # Logo y galería persistidos (secure_url de Cloudinary).
+            data["logo_url"] = refugio.logo_url
+            data["imagenes"] = [
+                {"id": img.id, "url": img.url, "es_portada": img.es_portada}
+                for img in (refugio.imagenes or [])
+            ]
             data["settings"] = {"storeEnabled": bool(refugio.tienda_habilitada)}
             data["es_representante"] = es_representante
             # Permisos reales desde la BD: el representante tiene todos los
@@ -600,6 +615,9 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
             data["description"] = tienda.descripcion
             data["location"] = tienda.ciudad or tienda.ubicacion
             data["phone"] = tienda.telefono or current_user.telefono
+            # Logo persistido de la tienda (secure_url de Cloudinary).
+            data["logo_url"] = tienda.logo_url
+            data["logo_public_id"] = tienda.logo_public_id
             data["settings"] = {"storeEnabled": True}
     return data
 
@@ -640,10 +658,12 @@ def update_profile(
     """
     update_data = payload.model_dump(exclude_unset=True)
 
-    # Actualizar solo los campos enviados
+    # Actualizar solo los campos enviados. `exclude_unset=True` ya garantiza
+    # que únicamente se apliquen los campos que el cliente mandó. Se admite
+    # valor None para poder limpiar de forma explícita campos de imagen
+    # (avatar_url / cover_url) sin sobrescribir el resto del perfil.
     for field, value in update_data.items():
-        if value is not None:
-            setattr(current_user, field, value)
+        setattr(current_user, field, value)
 
     # Verificar si el perfil esta completo (campos minimos deseables)
     # Consideramos "completo" si tiene bio, telefono, ubicacion y al menos
@@ -789,3 +809,83 @@ def google_login(payload: GoogleLoginRequest, db: Session = Depends(get_db)):
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+# ─── Endpoints de foto de perfil (avatar) ────────────────────────────────────
+# Centralizan la subida/eliminación de la foto de perfil en Cloudinary para
+# garantizar que no queden imágenes huérfanas y que la URL de la BD siempre
+# corresponda a la foto vigente.
+
+class AvatarUpdate(BaseModel):
+    imagen_base64: str
+
+
+@router.post("/avatar", status_code=status.HTTP_200_OK)
+def cambiar_avatar(
+    payload: AvatarUpdate,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Sube una nueva foto de perfil a Cloudinary, la guarda en la BD y
+    elimina la foto anterior (si existe) para no dejar imágenes huérfanas.
+
+    La imagen anterior solo se elimina DESPUÉS de confirmar la nueva en la
+    base de datos, de modo que nunca se pierde la foto vigente.
+    """
+    try:
+        resultado = subir_imagen(
+            "usuario",
+            payload.imagen_base64,
+            etiqueta=f"avatar_{current_user.id}",
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"No se pudo subir la foto a Cloudinary: {exc}",
+        ) from exc
+
+    public_id_anterior = getattr(current_user, "avatar_public_id", None)
+
+    # Guarda la nueva imagen ANTES de eliminar la anterior (consistencia).
+    current_user.avatar_url = resultado["url"]
+    current_user.avatar_public_id = resultado["public_id"]
+    db.commit()
+    db.refresh(current_user)
+
+    # Solo elimina la foto anterior después de confirmar la nueva en la BD.
+    if public_id_anterior and public_id_anterior != resultado["public_id"]:
+        try:
+            eliminar_imagen_permanente(public_id_anterior)
+        except Exception as exc:
+            logger.warning("[auth] No se pudo eliminar avatar anterior '%s': %s", public_id_anterior, exc)
+
+    return {
+        "avatar_url": current_user.avatar_url,
+        "avatar_public_id": current_user.avatar_public_id,
+    }
+
+
+@router.delete("/avatar", status_code=status.HTTP_200_OK)
+def eliminar_avatar(
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Elimina la foto de perfil: la borra de Cloudinary y limpia la URL en BD."""
+    public_id = getattr(current_user, "avatar_public_id", None)
+    current_user.avatar_url = None
+    current_user.avatar_public_id = None
+    db.commit()
+    db.refresh(current_user)
+
+    if public_id:
+        try:
+            eliminar_imagen_permanente(public_id)
+        except Exception as exc:
+            logger.warning("[auth] No se pudo eliminar avatar '%s': %s", public_id, exc)
+
+    return {"avatar_url": None}

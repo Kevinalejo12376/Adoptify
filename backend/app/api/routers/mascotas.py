@@ -1,7 +1,13 @@
 # pyrefly: ignore [missing-import]
+<<<<<<< HEAD
 import threading
 import time
 import logging
+=======
+import logging
+import threading
+import time
+>>>>>>> bc79710 (fix: corregir persistencia de imagenes en Cloudinary)
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 # pyrefly: ignore [missing-import]
@@ -20,7 +26,10 @@ from app.models.catalogos import TipoMascota, TamanoMascota, GeneroMascota, Esta
 from app.schemas.mascota import MascotaCreate, MascotaUpdate, MascotaResponse
 from app.schemas.serializers import serialize_mascota
 from app.core.softdelete import soft_delete
+<<<<<<< HEAD
 from app.core.softdelete import soft_delete
+=======
+>>>>>>> bc79710 (fix: corregir persistencia de imagenes en Cloudinary)
 from app.api.routers.ia import crear_tarea_ia
 
 logger = logging.getLogger(__name__)

@@ -105,6 +105,25 @@ export async function googleLoginRequest(credential) {
   return fetchMe();
 }
 
+/**
+ * Cambia la foto de perfil del usuario autenticado.
+ * El backend sube la nueva imagen a Cloudinary, guarda la URL en la BD y
+ * elimina la foto anterior de Cloudinary (evita imágenes huérfanas).
+ * @param {string} imagenBase64 Imagen en base64 (con o sin prefijo data:).
+ * @returns {Promise<{avatar_url:string}>}
+ */
+export async function cambiarAvatar(imagenBase64) {
+  return apiFetch("/api/auth/avatar", {
+    method: "POST",
+    body: { imagen_base64: imagenBase64 },
+  });
+}
+
+/** Elimina la foto de perfil: de Cloudinary y de la base de datos. */
+export async function eliminarAvatar() {
+  return apiFetch("/api/auth/avatar", { method: "DELETE" });
+}
+
 /** Cierra sesion (limpia el token local). */
 export function logoutRequest() {
   clearToken();

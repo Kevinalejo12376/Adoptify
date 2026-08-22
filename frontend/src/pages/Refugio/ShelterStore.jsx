@@ -35,7 +35,12 @@ const mapProducto = (p) => ({
   rating: Number(p.rating) || 0,
   sales: p.ventas || 0,
   features: [],
-  images: [],
+  // Imágenes persistentes de Cloudinary (producto_imagenes) devueltas por la API.
+  images: (p.imagenes || []).map((img) => ({
+    id: img.id,
+    src: img.url,
+    label: img.etiqueta || "",
+  })),
 });
 
 // Construye el payload que espera el backend a partir del formulario.

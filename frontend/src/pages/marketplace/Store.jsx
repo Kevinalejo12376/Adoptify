@@ -55,6 +55,8 @@ const normalizeProducto = (p) => ({
   color: categoryColors[p.categoria] || "from-gray-400 to-gray-500",
   shelterId: p.refugio_id,
   storeId: p.tienda_id,
+  // Imagen persistente de Cloudinary (producto_imagenes) devuelta por la API.
+  image: p.imagen_url || (p.imagenes && p.imagenes[0]?.url) || null,
 });
 
 export default function Store() {
@@ -647,11 +649,19 @@ export default function Store() {
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
 
-                    {/* Icon */}
+                    {/* Icon / Imagen persistente */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-24 h-24 bg-white/30 dark:bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center transition-transform duration-500 group-hover:scale-110">
-                        <CatIcon className="w-12 h-12 text-white drop-shadow-lg" />
-                      </div>
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="w-full h-full object-contain p-3 transition-transform duration-500 group-hover:scale-110 drop-shadow-lg"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 bg-white/30 dark:bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center transition-transform duration-500 group-hover:scale-110">
+                          <CatIcon className="w-12 h-12 text-white drop-shadow-lg" />
+                        </div>
+                      )}
                     </div>
 
                     {/* Category Badge */}

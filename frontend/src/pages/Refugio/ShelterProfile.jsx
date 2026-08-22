@@ -81,6 +81,8 @@ export default function ShelterProfile() {
           key: `db_${img.id}`,
           url: img.url,
         })),
+        // Logo del refugio persistido (secure_url de Cloudinary).
+        logo: perfil?.logo_url || null,
       };
       setProfile(p);
       setEditForm(p);
@@ -435,7 +437,11 @@ export default function ShelterProfile() {
                 {/* Avatar */}
                 <div className="relative group shrink-0">
                   <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-white/20 backdrop-blur-md border-2 border-white/40 flex items-center justify-center shadow-2xl overflow-hidden transition-all duration-300 group-hover:scale-105">
-                    <Building2 className="w-14 h-14 sm:w-16 sm:h-16 text-white/80" />
+                    {profile.logo ? (
+                      <img src={profile.logo} alt={profile.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Building2 className="w-14 h-14 sm:w-16 sm:h-16 text-white/80" />
+                    )}
                   </div>
                   {isEditing && (
                     <button

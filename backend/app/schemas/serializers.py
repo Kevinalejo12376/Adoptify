@@ -26,6 +26,10 @@ def serialize_usuario(u):
         "rol": u.rol.codigo if u.rol else None,
         "tipo_documento": u.tipo_documento.codigo if u.tipo_documento else None,
         "perfil_completo": u.perfil_completo if hasattr(u, "perfil_completo") else False,
+        # Imágenes persistentes de Cloudinary (secure_url).
+        "avatar_url": u.avatar_url,
+        "avatar_public_id": u.avatar_public_id,
+        "cover_url": u.cover_url,
     }
 
 
@@ -348,6 +352,13 @@ def serialize_producto(p):
         "refugio_id": p.refugio_id,
         "tienda_id": p.tienda_id,
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        # Imágenes de Cloudinary (secure_url) almacenadas en producto_imagenes.
+        "imagenes": [
+            {"id": img.id, "url": img.url, "etiqueta": img.etiqueta, "orden": img.orden}
+            for img in (p.imagenes or [])
+        ],
+        # URL de la primera imagen (cómoda para listados y tarjetas).
+        "imagen_url": (p.imagenes[0].url if (p.imagenes or []) else None),
     }
 
 
