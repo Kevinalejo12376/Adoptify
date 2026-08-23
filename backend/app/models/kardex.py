@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Enum, func
+from sqlalchemy import Column, Integer, String, Numeric, BigInteger, DateTime, ForeignKey, Enum, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -40,12 +40,13 @@ class MovimientoKardex(Base):
     )
     concepto = Column(String(255), nullable=False, default="")
     cantidad = Column(Integer, nullable=False, default=0)
-    costo_unitario = Column(Numeric(12, 2), nullable=False, default=0)
-    costo_total = Column(Numeric(12, 2), nullable=False, default=0)
+    # Moneda: COP sin centavos -> entero (BigInteger).
+    costo_unitario = Column(BigInteger, nullable=False, default=0)
+    costo_total = Column(BigInteger, nullable=False, default=0)
 
     # Saldo resultante tras el movimiento
     saldo_cantidad = Column(Integer, nullable=False, default=0)
-    saldo_valor = Column(Numeric(14, 2), nullable=False, default=0)
+    saldo_valor = Column(BigInteger, nullable=False, default=0)
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 

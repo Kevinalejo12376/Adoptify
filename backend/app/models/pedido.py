@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Text, Numeric, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, Numeric, BigInteger, DateTime, ForeignKey, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -11,10 +11,11 @@ class Pedido(Base):
     id = Column(Integer, primary_key=True, index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"))
     estado_id = Column(Integer, ForeignKey("estados_pedido.id"), nullable=False)
-    subtotal = Column(Numeric(10, 2), nullable=False, default=0)
-    costo_envio = Column(Numeric(10, 2), nullable=False, default=0)
-    descuento = Column(Numeric(10, 2), nullable=False, default=0)
-    total = Column(Numeric(10, 2), nullable=False, default=0)
+    # Moneda: COP sin centavos -> entero (BigInteger).
+    subtotal = Column(BigInteger, nullable=False, default=0)
+    costo_envio = Column(BigInteger, nullable=False, default=0)
+    descuento = Column(BigInteger, nullable=False, default=0)
+    total = Column(BigInteger, nullable=False, default=0)
     codigo_promocion = Column(String(40))
     # Datos de contacto/envio del comprador
     nombre_contacto = Column(String(150))
@@ -41,9 +42,10 @@ class PedidoItem(Base):
     producto_id = Column(Integer, ForeignKey("productos.id", ondelete="SET NULL"))
     # Snapshot de datos del producto al momento de la compra
     nombre_producto = Column(String(150), nullable=False)
-    precio_unitario = Column(Numeric(10, 2), nullable=False, default=0)
+    # Moneda: COP sin centavos -> entero (BigInteger).
+    precio_unitario = Column(BigInteger, nullable=False, default=0)
     cantidad = Column(Integer, nullable=False, default=1)
-    subtotal = Column(Numeric(10, 2), nullable=False, default=0)
+    subtotal = Column(BigInteger, nullable=False, default=0)
 
     pedido = relationship("Pedido", back_populates="items")
     producto = relationship("Producto", lazy="joined")

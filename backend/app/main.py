@@ -448,10 +448,11 @@ def _crear_tabla_movimientos_kardex(db):
             tipo_movimiento VARCHAR(30) NOT NULL,
             concepto VARCHAR(255) NOT NULL DEFAULT '',
             cantidad INTEGER NOT NULL DEFAULT 0,
-            costo_unitario NUMERIC(12,2) NOT NULL DEFAULT 0,
-            costo_total NUMERIC(12,2) NOT NULL DEFAULT 0,
+            -- Moneda: COP sin centavos -> entero (BIGINT).
+            costo_unitario BIGINT NOT NULL DEFAULT 0,
+            costo_total BIGINT NOT NULL DEFAULT 0,
             saldo_cantidad INTEGER NOT NULL DEFAULT 0,
-            saldo_valor NUMERIC(14,2) NOT NULL DEFAULT 0,
+            saldo_valor BIGINT NOT NULL DEFAULT 0,
             creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
         )
     """))

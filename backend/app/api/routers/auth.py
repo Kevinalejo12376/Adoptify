@@ -67,6 +67,22 @@ def _slugify(texto: str) -> str:
     return base or "refugio"
 
 
+# ─── Helper: limpieza de codigos de verificacion vencidos/usados ─────────────
+# Evita que la tabla 'codigos_verificacion' crezca indefinidamente: al generar
+# un codigo nuevo para un email+tipo se eliminan los codigos previos ya usados
+# o expirados. Solo sobreviven los codigos activos y vigentes (verificacion en
+# curso), de modo que la tabla queda acotada por email.
+
+def _depurar_codigos_vencidos(db: Session, email: str, tipo: str):
+    now = datetime.now(timezone.utc)
+    db.query(CodigoVerificacion).filter(
+        CodigoVerificacion.email == email,
+        CodigoVerificacion.tipo == tipo,
+        (CodigoVerificacion.usado == True) | (CodigoVerificacion.expira_en <= now),  # noqa: E712
+    ).delete(synchronize_session=False)
+    db.flush()
+
+
 # ─── Helper: crear usuario en BD (reutilizado por register y verify-register) ───
 
 def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
@@ -167,6 +183,8 @@ def enviar_codigo(payload: EnviarCodigoRequest, db: Session = Depends(get_db)):
         CodigoVerificacion.expira_en > now,
     ).update({"usado": True})
     db.flush()
+    # Elimina los codigos ya usados o expirados del mismo email+tipo (evita acumulacion).
+    _depurar_codigos_vencidos(db, email, tipo)
 
     # Generar código de 6 dígitos
     import random
@@ -368,6 +386,8 @@ def forgot_password(payload: EnviarCodigoRequest, db: Session = Depends(get_db))
         CodigoVerificacion.expira_en > now,
     ).update({"usado": True})
     db.flush()
+    # Elimina los codigos ya usados o expirados del mismo email+tipo (evita acumulacion).
+    _depurar_codigos_vencidos(db, email, "reset_password")
 
     # Generar código de 6 dígitos
     import random

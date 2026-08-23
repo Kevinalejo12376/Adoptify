@@ -5,17 +5,6 @@ Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
 servidor, y se devuelven como respuesta de descarga directa.
 """
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
-Endpoints de descarga de reportes (PDF/Excel) para el panel de administracion.
-
-Los archivos se generan en memoria (ReportLab / openpyxl) y se envian como
-descarga directa via ``StreamingResponse`` con las cabeceras correctas
-(``Content-Type``, ``Content-Disposition``) para forzar la descarga en el
-navegador. No se almacena ninguna copia en el servidor; los recursos se
-liberan automaticamente al finalizar la respuesta.
-"""
-# pyrefly: ignore [missing-import]
 from datetime import datetime, timezone
 # pyrefly: ignore [missing-import]
 from urllib.parse import quote
@@ -41,42 +30,6 @@ _FORMATOS = {
         ".xlsx",
     ),
 }
-
-
-@router.get("")
-def tipos_reportes(_admin: Usuario = Depends(get_current_admin)):
-    """Devuelve los tipos de reportes disponibles para la UI."""
-    return listar_reportes()
-
-
-@router.get("/{codigo}")
-def descargar(
-    codigo: str,
-    formato: str = Query("pdf", pattern="^(pdf|excel)$"),
-    _admin: Usuario = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Genera y descarga el reporte en el formato solicitado."""
-    generador = obtener_generador(codigo)
-    if not generador:
-        raise HTTPException(status_code=404, detail="Tipo de reporte no encontrado")
-
-    if formato == "excel":
-        contenido = generador.generar_excel(db)
-        media_type, ext = _FORMATOS["excel"]
-    else:
-        contenido = generador.generar_pdf(db)
-        media_type, ext = _FORMATOS["pdf"]
-
-    nombre = f"{generador.nombre_archivo}{ext}"
-    return Response(
-        content=contenido,
-        media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
-    )
-from app.services import reportes as reportes_service
-
-router = APIRouter()
 
 MEDIA_TYPE_PDF = "application/pdf"
 MEDIA_TYPE_EXCEL = (
