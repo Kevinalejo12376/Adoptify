@@ -15,6 +15,7 @@ import { misProductos, crearProducto, actualizarProducto, eliminarProducto } fro
 import ConfirmModal from "../../components/ConfirmModal";
 import FieldError from "../../components/FieldError";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
+import { formatPrice } from "../../utils/price";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -689,7 +690,7 @@ export default function ShelterStore() {
                     <h3 className="text-base font-bold text-gray-900 dark:text-white font-display leading-tight line-clamp-1 mb-1">{product.name}</h3>
                     <p className="text-[11px] text-gray-400 dark:text-dark-text-secondary mb-2 line-clamp-1">{product.brand}</p>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">${product.price.toFixed(2)}</span>
+                      <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">{formatPrice(product.price)}</span>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-lg ${isOutOfStock ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" : isLowStock ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
                         {isOutOfStock ? "Agotado" : `${product.stock} uds`}
                       </span>

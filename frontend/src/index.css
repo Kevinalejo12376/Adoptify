@@ -665,7 +665,6 @@ body {
    (z-50). El backdrop (bg-black/* + backdrop-blur) oscurece y
    desenfoca todo lo que está detrás (navbar + sidebar + página)
    mientras el panel del modal permanece nítido.
-
    FIX GLOBAL DE STACKING CONTEXT
    -------------------------------
    Los modales del Admin que NO usan portal se renderizan dentro

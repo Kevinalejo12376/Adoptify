@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useFavorites } from "../../context/FavoritesContext";
 import { obtenerRefugio } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
+import { formatPrice } from "../../utils/price";
 
 const categoryIcons = {
   Alimentos: Dog,
@@ -420,7 +421,7 @@ export default function ShelterDetails() {
                             <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{product.description}</p>
                             <div className="flex items-center justify-between mt-2">
                               <span className="text-base font-bold text-rose-600 font-display">
-                                ${product.price.toFixed(2)}
+                                {formatPrice(product.price)}
                               </span>
                               <div className="flex items-center gap-0.5">
                                 <Star className="w-3 h-3 text-amber-500 fill-amber-500" />

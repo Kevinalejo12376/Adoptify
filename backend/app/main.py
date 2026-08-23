@@ -18,14 +18,8 @@ from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
-<<<<<<< HEAD
-    solicitudes_tienda, solicitudes_tienda_admin, upload, reportes_descarga,
-    reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
-    solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
-=======
     reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
     ia,
->>>>>>> bc79710 (fix: corregir persistencia de imagenes en Cloudinary)
 )
 
 logger = logging.getLogger(__name__)
@@ -68,16 +62,6 @@ def _run_migrations():
     """
     if getattr(engine.dialect, "name", "") == "sqlite":
         print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
-<<<<<<< HEAD
-    from app.core.config import settings
-
-    # SQLite local: SQLAlchemy ya crea todas las tablas con create_all y las
-    # consultas de information_schema/ALTER de Postgres no existen aqui, asi que
-    # se omiten las migraciones SQL (solo aplican a Supabase/PostgreSQL).
-    if settings.DATABASE_URL.startswith("sqlite"):
-        print("[migracion] SQLite local: tablas creadas por SQLAlchemy. Se omiten migraciones SQL de Postgres.")
-=======
->>>>>>> bc79710 (fix: corregir persistencia de imagenes en Cloudinary)
         return
 
     from app.db.database import SessionLocal
@@ -890,14 +874,6 @@ app.include_router(
     tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
-<<<<<<< HEAD
-app.include_router(
-    reportes_descarga.router,
-    prefix="/api/reportes-descargables",
-    tags=["Reportes descargables"],
-)
-=======
->>>>>>> bc79710 (fix: corregir persistencia de imagenes en Cloudinary)
 app.include_router(
     reportes_descarga.router,
     prefix="/api/reportes-descarga",

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
+import { formatPrice } from "../../utils/price";
 import {
   ArrowLeft,
   ShoppingCart,
@@ -955,14 +956,14 @@ export default function ProductProfile() {
                 </div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-dark-text font-display tracking-tight">
-                    ${product.price.toFixed(2)}
+                    {formatPrice(product.price)}
                   </span>
                   <div className="flex flex-col">
                     <span className="text-sm text-gray-400 dark:text-dark-text-secondary line-through">
-                      ${originalPrice.toFixed(2)}
+                      {formatPrice(originalPrice)}
                     </span>
                     <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full text-center mt-0.5">
-                      Ahorras ${(originalPrice - product.price).toFixed(2)}
+                      Ahorras {formatPrice(originalPrice - product.price)}
                     </span>
                   </div>
                 </div>

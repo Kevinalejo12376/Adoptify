@@ -7,6 +7,7 @@ import {
   Box, TrendingUp, CreditCard, ArrowUp, ArrowDown, Loader2
 } from "lucide-react";
 import { misPedidosRefugio } from "../../api/pedidos";
+import { formatPrice } from "../../utils/price";
 
 const orderStatuses = [
   { id: "recibido", label: "Recibido", icon: Package, color: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400" },
@@ -234,7 +235,7 @@ export default function ShelterOrders() {
                     </div>
                     <div className="flex items-center gap-3 sm:text-right">
                       <div>
-                        <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">${order.total.toFixed(2)}</span>
+                        <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">{formatPrice(order.total)}</span>
                         <p className="text-xs text-gray-400 dark:text-dark-text-secondary">{order.items.length} producto(s)</p>
                       </div>
                       <ChevronRight className="w-5 h-5 text-gray-300 dark:text-gray-600 transition-transform group-hover:translate-x-0.5" />

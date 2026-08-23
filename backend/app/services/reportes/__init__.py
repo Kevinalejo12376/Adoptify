@@ -21,19 +21,6 @@ from app.services.reportes.generadores import (
     ReporteUsuarios,
 )
 
-# Codigo -> clase generadora
-REGISTRO_REPORTES = {
-__all__ = [
-    "Columna",
-    "GeneradorReporte",
-    "REGISTRO_REPORTES",
-    "obtener_generador",
-    "listar_tipos",
-]
-
-# Reexportar tipos utiles
-from app.services.reportes.base import Columna  # noqa: E402
-
 # ---------------------------------------------------------------------------
 # Registro central de reportes
 # ---------------------------------------------------------------------------

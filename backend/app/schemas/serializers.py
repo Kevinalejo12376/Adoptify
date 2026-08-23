@@ -86,6 +86,12 @@ def serialize_mascota(m):
         "refugio_telefono": m.refugio.telefono if m.refugio else None,
         "refugio_direccion": m.refugio.direccion if m.refugio else None,
         "refugio_ubicacion": m.refugio.ubicacion if m.refugio else None,
+        # Disponible si el refugio no está borrado y la cuenta de su
+        # representante está activa (no suspendido).
+        "refugio_activo": (
+            bool(m.refugio and m.refugio.activo and m.refugio.usuario and m.refugio.usuario.activo)
+            if m.refugio else None
+        ),
         # Etiquetas legibles (nombre) + ids por si el frontend los necesita
         "tipo": m.tipo.nombre if m.tipo else None,
         "tamano": m.tamano.nombre if m.tamano else None,

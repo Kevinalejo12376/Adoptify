@@ -4,7 +4,7 @@
 import { API_URL, getToken } from "./client";
 import { descargarBlob, nombreArchivoDesdeDisposition } from "../utils/downloadFile";
 
-const base = "/api/reportes-descargables";
+const base = "/api/reportes-descarga";
 
 const _authedHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
@@ -12,7 +12,7 @@ const _authedHeaders = () => ({
 
 /** Lista los tipos de reportes disponibles. */
 export async function obtenerTiposReportes() {
-  const res = await fetch(`${API_URL}${base}`, {
+  const res = await fetch(`${API_URL}${base}/tipos`, {
     headers: _authedHeaders(),
   });
   if (!res.ok) {
@@ -32,19 +32,6 @@ export async function obtenerTiposReportes() {
  * Genera y descarga un reporte. Devuelve { nombre } del archivo descargado.
  * @param {string} codigo  Código del tipo de reporte.
  * @param {"pdf"|"excel"} formato  Formato de salida.
- */
-export async function descargarReporte(codigo, formato = "pdf") {
-  const res = await fetch(`${API_URL}${base}/${codigo}?formato=${formato}`, {
-    headers: _authedHeaders(),
-  });
-
-  if (!res.ok) {
-    let detail = "No se pudo generar el reporte.";
- * Descarga un reporte en el formato indicado y fuerza el guardado en el
- * dispositivo del usuario.
- * @param {string} tipo  Codigo del tipo de reporte (ej: "usuarios").
- * @param {"pdf"|"excel"} formato  Formato de salida.
- * @returns {Promise<{nombre:string}>} Nombre del archivo descargado.
  */
 export async function descargarReporte(tipo, formato = "pdf") {
   const endpoint = formato === "excel" ? "excel" : "pdf";
@@ -68,25 +55,9 @@ export async function descargarReporte(tipo, formato = "pdf") {
   const ext = formato === "excel" ? "xlsx" : "pdf";
   const nombre = nombreArchivoDesdeDisposition(
     res.headers.get("Content-Disposition"),
-    `reporte_${codigo}.${ext}`
+    `reporte_${tipo}.${ext}`
   );
   descargarBlob(blob, nombre);
-
-  return { nombre };
-}
-
-  // Nombre de archivo desde Content-Disposition (o generico)
-  const nombre = extraerNombreArchivo(res) || `reporte_${tipo}.${endpoint === "excel" ? "xlsx" : "pdf"}`;
-
-  // Descarga forzada en el navegador
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = nombre;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 
   return { nombre };
 }
