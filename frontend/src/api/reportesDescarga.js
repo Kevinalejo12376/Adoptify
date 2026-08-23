@@ -4,7 +4,7 @@
 import { API_URL, getToken } from "./client";
 import { descargarBlob, nombreArchivoDesdeDisposition } from "../utils/downloadFile";
 
-const base = "/api/reportes-descargables";
+const base = "/api/reportes-descarga";
 
 const _authedHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
@@ -12,7 +12,7 @@ const _authedHeaders = () => ({
 
 /** Lista los tipos de reportes disponibles. */
 export async function obtenerTiposReportes() {
-  const res = await fetch(`${API_URL}${base}`, {
+  const res = await fetch(`${API_URL}${base}/tipos`, {
     headers: _authedHeaders(),
   });
   if (!res.ok) {
@@ -52,7 +52,11 @@ export async function descargarReporte(tipo, formato = "pdf") {
   }
 
   const blob = await res.blob();
-  const nombre = nombreArchivoDesdeDisposition(res.headers.get("Content-Disposition"));
+  const ext = formato === "excel" ? "xlsx" : "pdf";
+  const nombre = nombreArchivoDesdeDisposition(
+    res.headers.get("Content-Disposition"),
+    `reporte_${tipo}.${ext}`
+  );
   descargarBlob(blob, nombre);
 
   return { nombre };

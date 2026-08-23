@@ -8,6 +8,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from app.db.database import get_db
+from app.core.disponibilidad import refugio_visible
 from app.core.security import (
     get_current_refugio,
     get_current_user,
@@ -29,10 +30,9 @@ router = APIRouter()
 
 @router.get("/", response_model=List[RefugioResponse])
 def listar_refugios(db: Session = Depends(get_db)):
-    # Solo refugios activos (soft delete) en el directorio público.
-    return db.query(Refugio).filter(
-        Refugio.activo == True  # noqa: E712
-    ).order_by(Refugio.nombre.asc()).all()
+    # Solo refugios activos (no borrados y con cuenta de representante activa)
+    # en el directorio público.
+    return db.query(Refugio).filter(refugio_visible()).order_by(Refugio.nombre.asc()).all()
 
 
 @router.get("/mi-perfil", response_model=RefugioResponse)
@@ -430,7 +430,7 @@ def desvincular_empleado(
 @router.get("/{refugio_id}", response_model=RefugioResponse)
 def obtener_refugio(refugio_id: int, db: Session = Depends(get_db)):
     refugio = db.query(Refugio).filter(
-        Refugio.id == refugio_id, Refugio.activo == True  # noqa: E712
+        Refugio.id == refugio_id, refugio_visible()
     ).first()
     if not refugio:
         raise HTTPException(status_code=404, detail="Refugio no encontrado")

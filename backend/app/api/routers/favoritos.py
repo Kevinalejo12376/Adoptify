@@ -13,6 +13,7 @@ from app.models.mascota import Mascota
 from app.models.producto import Producto
 from app.models.interaccion import FavoritoMascota, FavoritoProducto
 from app.schemas.serializers import serialize_mascota, serialize_producto
+from app.core.disponibilidad import mascota_de_refugio_visible
 
 router = APIRouter()
 
@@ -25,7 +26,10 @@ def listar_mascotas_fav(current_user: Usuario = Depends(get_current_user), db: S
     if not ids:
         return []
     mascotas = db.query(Mascota).filter(
-        Mascota.id.in_(ids), Mascota.activo == True  # noqa: E712
+        Mascota.id.in_(ids),
+        Mascota.activo == True,  # noqa: E712
+        # Solo mascotas de refugios activos (los inactivos ocultan las suyas).
+        mascota_de_refugio_visible(),
     ).all()
     return [serialize_mascota(m) for m in mascotas]
 

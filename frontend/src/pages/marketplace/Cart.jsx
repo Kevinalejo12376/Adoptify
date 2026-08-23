@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { listarProductos } from "../../api/productos";
 import { crearPedido } from "../../api/pedidos";
+import { formatPrice } from "../../utils/price";
 import { useAuth } from "../../context/AuthContext";
 import {
   ShoppingCart,
@@ -145,7 +146,7 @@ export default function Cart() {
             Tu pedido <span className="font-bold text-gray-900 dark:text-dark-text">{orderResult.numero}</span> fue registrado con éxito.
           </p>
           <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-display mb-8">
-            Total: ${Number(orderResult.total).toFixed(2)}
+            Total: {formatPrice(orderResult.total)}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/store" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all">
@@ -266,7 +267,7 @@ export default function Cart() {
               <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
                 ¡Te faltan{" "}
                 <span className="font-bold">
-                  ${(50 - cartTotal).toFixed(2)}
+                  {formatPrice(50 - cartTotal)}
                 </span>{" "}
                 para envío gratis!
               </p>
@@ -363,11 +364,11 @@ export default function Cart() {
                       {/* Price */}
                       <div className="text-right">
                         <span className="text-xl font-bold text-rose-600 dark:text-rose-400 font-display">
-                          ${(item.price * item.quantity).toFixed(2)}
+                          {formatPrice(item.price * item.quantity)}
                         </span>
                         {item.quantity > 1 && (
                           <p className="text-xs text-gray-400 dark:text-dark-text-secondary">
-                            ${item.price.toFixed(2)} c/u
+                            {formatPrice(item.price)} c/u
                           </p>
                         )}
                       </div>
@@ -432,7 +433,7 @@ export default function Cart() {
                     Subtotal ({cartCount} productos)
                   </span>
                   <span className="font-semibold text-gray-900 dark:text-dark-text">
-                    ${cartTotal.toFixed(2)}
+                    {formatPrice(cartTotal)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -446,7 +447,7 @@ export default function Cart() {
                         : "text-gray-900 dark:text-dark-text"
                     }`}
                   >
-                    {shipping === 0 ? "GRATIS" : `$${shipping.toFixed(2)}`}
+                    {shipping === 0 ? "GRATIS" : formatPrice(shipping)}
                   </span>
                 </div>
                 {promoApplied && (
@@ -456,7 +457,7 @@ export default function Cart() {
                       Descuento (10%)
                     </span>
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                      -${discount.toFixed(2)}
+                      -{formatPrice(discount)}
                     </span>
                   </div>
                 )}
@@ -466,7 +467,7 @@ export default function Cart() {
                       Total
                     </span>
                     <span className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-display">
-                      ${finalTotal.toFixed(2)}
+                      {formatPrice(finalTotal)}
                     </span>
                   </div>
                 </div>
@@ -532,7 +533,7 @@ export default function Cart() {
                   </h3>
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">
-                      ${product.price.toFixed(2)}
+                      {formatPrice(product.price)}
                     </span>
                     <button
                       onClick={() => handleAddSuggested(product)}

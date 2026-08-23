@@ -32,7 +32,7 @@ export default function ShelterAnimals() {
         if (!activo) return;
         setShelter(r);
         const mias = (todas || [])
-          .filter((m) => m.refugio_id === Number(id) || (r && m.refugio_id === r.id))
+          .filter((m) => (m.refugio_id === Number(id) || (r && m.refugio_id === r.id)) && m.refugio_activo !== false)
           .map((m) => ({
             id: m.id,
             name: m.nombre,

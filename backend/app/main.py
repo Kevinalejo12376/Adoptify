@@ -18,9 +18,8 @@ from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
-    solicitudes_tienda, solicitudes_tienda_admin, upload, reportes_descarga,
     reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
-    solicitudes_tienda, solicitudes_tienda_admin, upload, ia,
+    ia,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,13 +62,6 @@ def _run_migrations():
     """
     if getattr(engine.dialect, "name", "") == "sqlite":
         print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
-    from app.core.config import settings
-
-    # SQLite local: SQLAlchemy ya crea todas las tablas con create_all y las
-    # consultas de information_schema/ALTER de Postgres no existen aqui, asi que
-    # se omiten las migraciones SQL (solo aplican a Supabase/PostgreSQL).
-    if settings.DATABASE_URL.startswith("sqlite"):
-        print("[migracion] SQLite local: tablas creadas por SQLAlchemy. Se omiten migraciones SQL de Postgres.")
         return
 
     from app.db.database import SessionLocal
@@ -104,11 +96,13 @@ def _run_migrations():
                 ))
                 db.commit()
             _agregar_columna_si_no_existe(db, "usuarios", "username", "VARCHAR(50)")
+            # Columna para eliminar la foto de perfil anterior de Cloudinary.
+            _agregar_columna_si_no_existe(db, "usuarios", "avatar_public_id", "VARCHAR(255)")
             db.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username)"
             ))
             db.commit()
-        _paso("usuarios (perfil_completo, username)", _migrar_usuarios)
+        _paso("usuarios (perfil_completo, username, avatar_public_id)", _migrar_usuarios)
 
         # --- Refugios (logo_url, tiktok, departamento, municipio) ---
         def _migrar_refugios(db):
@@ -880,11 +874,6 @@ app.include_router(
     tags=["Administracion - Solicitudes de Tiendas Aliadas"],
 )
 app.include_router(upload.router, prefix="/api/upload", tags=["Subida de imágenes"])
-app.include_router(
-    reportes_descarga.router,
-    prefix="/api/reportes-descargables",
-    tags=["Reportes descargables"],
-)
 app.include_router(
     reportes_descarga.router,
     prefix="/api/reportes-descarga",

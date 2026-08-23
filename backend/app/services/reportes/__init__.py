@@ -7,7 +7,7 @@ usan el router de descarga y la UI para listar y generar reportes en PDF/Excel.
 # pyrefly: ignore [missing-import]
 from typing import Dict, Optional, Type
 
-from app.services.reportes.base import GeneradorReporte
+from app.services.reportes.base import GeneradorReporte, Columna
 from app.services.reportes.generadores import (
     ReporteContenido,
     ReporteEstadisticas,
@@ -54,14 +54,7 @@ REGISTRO_REPORTES: Dict[str, Type[GeneradorReporte]] = {
 
 
 def obtener_generador(codigo: str) -> Optional[GeneradorReporte]:
-    """Instancia el generador de reporte correspondiente al codigo.
-
-    Args:
-        codigo: Codigo del tipo de reporte.
-
-    Returns:
-        Instancia del generador, o None si el codigo no esta registrado.
-    """
+    """Instancia el generador de reporte correspondiente al codigo (o None)."""
     clase = REGISTRO_REPORTES.get(codigo)
     if clase is None:
         return None
@@ -91,3 +84,13 @@ def listar_tipos() -> list:
         }
         for cls in REGISTRO_REPORTES.values()
     ]
+
+
+__all__ = [
+    "Columna",
+    "GeneradorReporte",
+    "REGISTRO_REPORTES",
+    "obtener_generador",
+    "listar_reportes",
+    "listar_tipos",
+]

@@ -26,6 +26,10 @@ def serialize_usuario(u):
         "rol": u.rol.codigo if u.rol else None,
         "tipo_documento": u.tipo_documento.codigo if u.tipo_documento else None,
         "perfil_completo": u.perfil_completo if hasattr(u, "perfil_completo") else False,
+        # Imágenes persistentes de Cloudinary (secure_url).
+        "avatar_url": u.avatar_url,
+        "avatar_public_id": u.avatar_public_id,
+        "cover_url": u.cover_url,
     }
 
 
@@ -70,7 +74,7 @@ def serialize_mascota(m):
         "peso": m.peso,
         "color": m.color,
         "descripcion": m.descripcion,
-        "personalidad": _a_texto(m.personalidad),
+        "personalidad": _a_lista(m.personalidad),
         "salud": _a_texto(m.salud),
         "requisitos": _a_texto(m.requisitos),
         "vacunado": m.vacunado,
@@ -82,6 +86,12 @@ def serialize_mascota(m):
         "refugio_telefono": m.refugio.telefono if m.refugio else None,
         "refugio_direccion": m.refugio.direccion if m.refugio else None,
         "refugio_ubicacion": m.refugio.ubicacion if m.refugio else None,
+        # Disponible si el refugio no está borrado y la cuenta de su
+        # representante está activa (no suspendido).
+        "refugio_activo": (
+            bool(m.refugio and m.refugio.activo and m.refugio.usuario and m.refugio.usuario.activo)
+            if m.refugio else None
+        ),
         # Etiquetas legibles (nombre) + ids por si el frontend los necesita
         "tipo": m.tipo.nombre if m.tipo else None,
         "tamano": m.tamano.nombre if m.tamano else None,
@@ -348,6 +358,13 @@ def serialize_producto(p):
         "refugio_id": p.refugio_id,
         "tienda_id": p.tienda_id,
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
+        # Imágenes de Cloudinary (secure_url) almacenadas en producto_imagenes.
+        "imagenes": [
+            {"id": img.id, "url": img.url, "etiqueta": img.etiqueta, "orden": img.orden}
+            for img in (p.imagenes or [])
+        ],
+        # URL de la primera imagen (cómoda para listados y tarjetas).
+        "imagen_url": (p.imagenes[0].url if (p.imagenes or []) else None),
     }
 
 

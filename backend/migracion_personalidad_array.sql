@@ -2,15 +2,7 @@
 -- Migración: personalidad de la tabla `mascotas` pasa de TEXT
 -- (lista separada por comas) a text[] (array de textos).
 --
--- Convierte los datos existentes sin perder información:
---   Antes:  "Juguetón, Cariñoso, Sociable"
---   Después: ["Juguetón", "Cariñoso", "Sociable"]
---
--- NOTA: PostgreSQL no permite subconsultas dentro de la expresión
--- `USING` de ALTER COLUMN TYPE, por eso se hace en pasos:
---   1) crear columna temporal
---   2) convertir los datos con UPDATE (aquí sí se permite subconsulta)
---   3) eliminar la columna original y renombrar la nueva
+
 --
 -- Ejecutar en el SQL Editor de Supabase (una sola vez).
 -- ============================================================

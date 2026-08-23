@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { formatPrice } from "../../utils/price";
 import {
   PawPrint,
   Heart,
@@ -429,7 +430,7 @@ export default function Favorites() {
                         <div className="absolute bottom-3 right-3">
                           <div className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg">
                             <span className="text-lg font-bold text-rose-600 font-display">
-                              ${product.price.toFixed(2)}
+                              {formatPrice(product.price)}
                             </span>
                           </div>
                         </div>

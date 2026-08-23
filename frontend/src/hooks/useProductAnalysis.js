@@ -10,6 +10,7 @@ const POSICIONES = [
   { index: 3, label: "Lado derecho", instruccion: "Muestra el lado derecho del producto" },
 ];
 
+
 const MENSAJES_DINAMICOS = [
   "Coloca el producto frente a la cámara",
   "Asegúrate de que el producto esté bien iluminado",

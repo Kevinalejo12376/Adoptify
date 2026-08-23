@@ -43,6 +43,13 @@ export default function Navbar() {
     return names[0][0].toUpperCase();
   };
 
+  // Foto de perfil real persistida: para refugios se prefiere el logo del
+  // refugio; para el resto, el avatar del usuario (o el logo si aplica).
+  const getUserAvatar = () => {
+    if (esShelter) return user?.logo_url || user?.avatar_url || null;
+    return user?.avatar_url || user?.logo_url || null;
+  };
+
   // Get a consistent color based on user name for the avatar
   const getAvatarColor = () => {
     const colors = [
@@ -444,9 +451,13 @@ export default function Navbar() {
                           : "bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 shadow-md shadow-rose-200/50"
                     }`}
                   >
-                    {/* User Avatar */}
-                    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
-                      {getUserInitials()}
+                    {/* User Avatar (foto real o iniciales) */}
+                    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden`}>
+                      {getUserAvatar() ? (
+                        <img src={getUserAvatar()} alt={user?.name || "avatar"} className="w-full h-full object-cover" />
+                      ) : (
+                        getUserInitials()
+                      )}
                     </div>
                     <span className="font-medium text-sm max-w-[100px] truncate">{user?.name || t("nav.mi_cuenta")}</span>
                     <ChevronDown className={`w-4 h-4 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
@@ -462,8 +473,12 @@ export default function Navbar() {
                         isDark ? "border-white/5 bg-[#252628]" : "border-gray-100"
                       }`}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
-                            {getUserInitials()}
+                          <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white text-sm font-bold shrink-0 overflow-hidden`}>
+                            {getUserAvatar() ? (
+                              <img src={getUserAvatar()} alt={user?.name || "avatar"} className="w-full h-full object-cover" />
+                            ) : (
+                              getUserInitials()
+                            )}
                           </div>
                           <div className="min-w-0">
                             <p className={`font-semibold truncate ${
