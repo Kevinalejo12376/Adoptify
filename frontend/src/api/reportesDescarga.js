@@ -30,7 +30,7 @@ export async function obtenerTiposReportes() {
 
 /**
  * Genera y descarga un reporte. Devuelve { nombre } del archivo descargado.
- * @param {string} codigo  Código del tipo de reporte.
+ * @param {string} tipo  Código del tipo de reporte.
  * @param {"pdf"|"excel"} formato  Formato de salida.
  */
 export async function descargarReporte(tipo, formato = "pdf") {
