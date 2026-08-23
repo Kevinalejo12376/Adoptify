@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.lookups import id_por_codigo
+from app.core.disponibilidad import mascota_de_refugio_visible, refugio_visible
 from app.models.mascota import Mascota
 from app.models.refugio import Refugio
 from app.models.usuario import Usuario
@@ -25,6 +26,8 @@ def estadisticas_publicas(db: Session = Depends(get_db)):
         db.query(Mascota).filter(
             Mascota.estado_id == disponible_id,
             Mascota.activo == True,  # noqa: E712
+            # Solo mascotas de refugios activos (los inactivos ocultan las suyas).
+            mascota_de_refugio_visible(),
         ).count()
         if disponible_id else 0
     )
@@ -35,8 +38,14 @@ def estadisticas_publicas(db: Session = Depends(get_db)):
 
     return {
         "mascotas_disponibles": mascotas_disponibles,
-        "mascotas_total": db.query(Mascota).filter(Mascota.activo == True).count(),  # noqa: E712
-        "refugios": db.query(Refugio).filter(Refugio.activo == True).count(),  # noqa: E712
+        "mascotas_total": (
+            db.query(Mascota)
+            .filter(
+                Mascota.activo == True,  # noqa: E712
+                mascota_de_refugio_visible(),
+            ).count()
+        ),
+        "refugios": db.query(Refugio).filter(refugio_visible()).count(),
         "adopciones_exitosas": adopciones_exitosas,
         "usuarios": db.query(Usuario).filter(Usuario.activo == True).count(),  # noqa: E712
     }

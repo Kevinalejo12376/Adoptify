@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from "react";
+ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, PawPrint, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2 } from "lucide-react";
+import { Heart, PawPrint, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Bell, Calendar, MapPin, TrendingUp, Loader2, AlertCircle } from "lucide-react";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import { CAROUSEL_IMAGES } from "../../assets/images";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
 import { estadisticasPublicas } from "../../api/refugios";
+import { formatPrice } from "../../utils/price";
 
 const nf = new Intl.NumberFormat("es-CO");
 
@@ -29,23 +30,73 @@ export default function Dashboard() {
   const [topics, setTopics] = useState([]);
   const [postsTotal, setPostsTotal] = useState(0);
 
-  // Carga datos reales para el panel del usuario.
+  // Estados independientes por sección: loading / success / empty / error.
+  const [petsLoading, setPetsLoading] = useState(true);
+  const [petsError, setPetsError] = useState(null);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState(null);
+  const [topicsLoading, setTopicsLoading] = useState(true);
+  const [topicsError, setTopicsError] = useState(null);
+
+  // Estadísticas reales de la plataforma.
+  useEffect(() => {
+    estadisticasPublicas().then(setStats).catch(() => setStats(null));
+  }, []);
+
+  // Mascotas: estados loading / success / empty / error independientes.
   useEffect(() => {
     let activo = true;
     (async () => {
-      const [est, mascotas, prods, posts] = await Promise.all([
-        estadisticasPublicas().catch(() => null),
-        listarMascotas().catch(() => []),
-        listarProductos().catch(() => []),
-        listarPosts().catch(() => []),
-      ]);
-      if (!activo) return;
-      setStats(est);
-      setPets((mascotas || []).slice(0, 4));
-      setProducts((prods || []).slice(0, 3));
-      const lista = posts || [];
-      setPostsTotal(lista.length);
-      setTopics(lista.slice(0, 3));
+      setPetsLoading(true); setPetsError(null);
+      try {
+        const data = await listarMascotas();
+        if (!activo) return;
+        // Filtro defensivo: no mostrar mascotas de refugios inactivos.
+        setPets((Array.isArray(data) ? data : []).filter((m) => m.refugio_activo !== false).slice(0, 4));
+      } catch (e) {
+        if (activo) setPetsError(e?.message || "No se pudieron cargar las mascotas");
+      } finally {
+        if (activo) setPetsLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  // Productos de las tiendas: estados loading / success / empty / error.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setProductsLoading(true); setProductsError(null);
+      try {
+        const data = await listarProductos();
+        if (!activo) return;
+        setProducts((Array.isArray(data) ? data : []).slice(0, 3));
+      } catch (e) {
+        if (activo) setProductsError(e?.message || "No se pudieron cargar los productos");
+      } finally {
+        if (activo) setProductsLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  // Temas recientes del foro: estados loading / success / empty / error.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setTopicsLoading(true); setTopicsError(null);
+      try {
+        const data = await listarPosts();
+        if (!activo) return;
+        if (Array.isArray(data)) {
+          setTopics(data.slice(0, 3));
+          setPostsTotal(data.length);
+        }
+      } catch (e) {
+        if (activo) setTopicsError(e?.message || "No se pudieron cargar los temas del foro");
+      } finally {
+        if (activo) setTopicsLoading(false);
+      }
     })();
     return () => { activo = false; };
   }, []);
@@ -244,7 +295,17 @@ export default function Dashboard() {
             </Link>
           </div>
           
-          {pets.length === 0 ? (
+          {petsLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl shadow-sm">
+              <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+              <p className="text-gray-500">Cargando mascotas…</p>
+            </div>
+          ) : petsError ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <p className="text-gray-500">{petsError}</p>
+            </div>
+          ) : pets.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <PawPrint className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No hay mascotas disponibles por el momento</p>
@@ -253,8 +314,17 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {pets.map((pet) => (
                 <div key={pet.id} className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-                  <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                    <PawPrint className="w-16 h-16 text-rose-500" />
+                  <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
+                    {pet.imagen_url || (pet.imagenes && pet.imagenes[0]?.url) ? (
+                      <img
+                        src={pet.imagen_url || (pet.imagenes && pet.imagenes[0]?.url)}
+                        alt={pet.nombre}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <PawPrint className="w-16 h-16 text-rose-500" />
+                    )}
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">{pet.nombre}</h3>
                   <p className="text-sm text-gray-600 mb-1">{pet.raza || pet.tipo}</p>
@@ -286,7 +356,17 @@ export default function Dashboard() {
             </Link>
           </div>
           
-          {products.length === 0 ? (
+          {productsLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl shadow-sm">
+              <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+              <p className="text-gray-500">Cargando productos…</p>
+            </div>
+          ) : productsError ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <p className="text-gray-500">{productsError}</p>
+            </div>
+          ) : products.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No hay productos disponibles por el momento</p>
@@ -295,12 +375,21 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {products.map((product) => (
                 <div key={product.id} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
-                  <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                    <ShoppingBag className="w-16 h-16 text-rose-500" />
+                  <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
+                    {product.imagen_url || (product.imagenes && product.imagenes[0]?.url) ? (
+                      <img
+                        src={product.imagen_url || (product.imagenes && product.imagenes[0]?.url)}
+                        alt={product.nombre}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <ShoppingBag className="w-16 h-16 text-rose-500" />
+                    )}
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
                   <div className="flex justify-between items-center">
-                    <span className="text-2xl font-bold text-rose-600 font-display">${Number(product.precio).toFixed(2)}</span>
+                    <span className="text-2xl font-bold text-rose-600 font-display">{formatPrice(product.precio)}</span>
                     <Link to={`/product/${product.id}`} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Ver
@@ -369,7 +458,17 @@ export default function Dashboard() {
 
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-6 font-display">Temas Recientes</h3>
-            {topics.length === 0 ? (
+            {topicsLoading ? (
+              <div className="flex flex-col items-center justify-center py-10">
+                <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+                <p className="text-gray-500">Cargando temas recientes…</p>
+              </div>
+            ) : topicsError ? (
+              <div className="text-center py-10">
+                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                <p className="text-gray-500">{topicsError}</p>
+              </div>
+            ) : topics.length === 0 ? (
               <div className="text-center py-10">
                 <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500">Aún no hay temas en el foro</p>

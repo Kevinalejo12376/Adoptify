@@ -19,6 +19,7 @@ from app.core.security import (
 )
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import crear_notificacion, registrar_auditoria
+from app.core.disponibilidad import mascota_de_refugio_visible
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.mascota import Mascota
@@ -52,7 +53,10 @@ def crear_solicitud(
     db: Session = Depends(get_db),
 ):
     mascota = db.query(Mascota).filter(
-        Mascota.id == payload.mascota_id, Mascota.activo == True  # noqa: E712
+        Mascota.id == payload.mascota_id,
+        Mascota.activo == True,  # noqa: E712
+        # No permitir solicitudes de mascotas de refugios inactivos.
+        mascota_de_refugio_visible(),
     ).first()
     if not mascota:
         raise HTTPException(status_code=404, detail="Mascota no encontrada")

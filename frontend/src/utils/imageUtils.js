@@ -123,36 +123,3 @@ export async function readAndValidateImages(files, opts = {}) {
   }
   return { ok: errors.length === 0, results, errors };
 }
-
-/**
- * Optimiza una URL de imagen de Cloudinary agregando transformaciones de
- * escalado y formato. Evita que imágenes originalmente pequeñas se vean
- * pixeladas al mostrarlas en contenedores grandes: Cloudinary entrega una
- * versión con el ancho solicitado, formato auto y calidad ajustada.
- *
- * @param {string} src URL original (puede ser de Cloudinary o no).
- * @param {object} [opts]
- * @param {number} [opts.width] Ancho máximo en píxeles (por defecto 1200).
- * @param {string} [opts.quality] Calidad ('auto', 80, 90, ...).
- * @returns {string} URL optimizada; si no es de Cloudinary, la URL original.
- */
-export function optimizeCloudinaryUrl(
-  src,
-  { width = 1200, quality = "auto" } = {}
-) {
-  if (!src || typeof src !== "string") return src;
-  const marker = "/image/upload/";
-  const idx = src.indexOf(marker);
-  if (idx === -1) return src; // No es una URL de Cloudinary estándar.
-
-  const prefix = src.slice(0, idx + marker.length);
-  const rest = src.slice(idx + marker.length);
-  const transforms = ["f_auto"];
-  if (quality) transforms.push(`q_${quality}`);
-  if (width) transforms.push(`w_${width}`);
-
-  // Evita duplicar transformaciones si la URL ya las trae.
-  if (/^(f_|q_|w_|h_|c_|e_)/.test(rest)) return src;
-
-  return `${prefix}${transforms.join(",")}/${rest}`;
-}

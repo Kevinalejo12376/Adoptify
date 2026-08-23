@@ -21,13 +21,12 @@ from app.services.reportes.generadores import (
     ReporteUsuarios,
 )
 
-# Codigo -> clase generadora
-REGISTRO_REPORTES = {
 __all__ = [
     "Columna",
     "GeneradorReporte",
     "REGISTRO_REPORTES",
     "obtener_generador",
+    "listar_reportes",
     "listar_tipos",
 ]
 
@@ -60,6 +59,18 @@ def obtener_generador(codigo: str) -> Optional[GeneradorReporte]:
     if clase is None:
         return None
     return clase()
+
+
+def listar_reportes():
+    """Devuelve la lista de reportes disponibles (para el selector de la UI)."""
+    return [
+        {
+            "codigo": g.codigo,
+            "titulo": g.titulo,
+            "descripcion": g.descripcion,
+        }
+        for g in REGISTRO_REPORTES.values()
+    ]
 
 
 def listar_reportes() -> list:

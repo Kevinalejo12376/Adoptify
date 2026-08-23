@@ -255,6 +255,7 @@ CREATE TABLE usuarios (
     bio                TEXT,
     website            VARCHAR(150),
     avatar_url         TEXT,
+    avatar_public_id   VARCHAR(255),
     cover_url          TEXT,
     twitter            VARCHAR(120),
     instagram          VARCHAR(120),

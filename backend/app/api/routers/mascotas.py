@@ -21,6 +21,7 @@ from app.schemas.mascota import MascotaCreate, MascotaUpdate, MascotaResponse
 from app.schemas.serializers import serialize_mascota
 from app.core.softdelete import soft_delete
 from app.core.softdelete import soft_delete
+from app.core.disponibilidad import mascota_de_refugio_visible
 from app.api.routers.ia import crear_tarea_ia
 
 logger = logging.getLogger(__name__)
@@ -144,7 +145,12 @@ def listar_mascotas(
     tipo: Optional[str] = Query(None, description="Filtrar por tipo: perro, gato, otro"),
     estado: Optional[str] = Query(None, description="Filtrar por estado"),
 ):
-    query = db.query(Mascota).filter(Mascota.activo == True)  # noqa: E712
+    query = (
+        db.query(Mascota)
+        .filter(Mascota.activo == True)  # noqa: E712
+        # Excluye mascotas de refugios inactivos (borrados o suspendidos).
+        .filter(mascota_de_refugio_visible())
+    )
     if tipo:
         tipo_id = id_por_codigo(db, TipoMascota, tipo)
         if tipo_id:
@@ -166,9 +172,16 @@ def mis_mascotas(current_user: Usuario = Depends(require_permiso_refugio("mascot
 
 @router.get("/{mascota_id}", response_model=MascotaResponse)
 def obtener_mascota(mascota_id: int, db: Session = Depends(get_db)):
-    mascota = db.query(Mascota).filter(
-        Mascota.id == mascota_id, Mascota.activo == True  # noqa: E712
-    ).first()
+    mascota = (
+        db.query(Mascota)
+        .filter(
+            Mascota.id == mascota_id,
+            Mascota.activo == True,  # noqa: E712
+            # Solo mascotas de refugios activos (borrados o suspendidos quedan ocultas).
+            mascota_de_refugio_visible(),
+        )
+        .first()
+    )
     if not mascota:
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
     return serialize_mascota(mascota)

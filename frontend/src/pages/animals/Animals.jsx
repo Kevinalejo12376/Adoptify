@@ -16,6 +16,8 @@ import {
   Ruler,
   Calendar,
   VenetianMask,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ScrollToTop from "../../components/ScrollToTop";
@@ -33,6 +35,7 @@ export default function Animals() {
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Trae las mascotas reales desde la base de datos.
   useEffect(() => {
@@ -44,7 +47,10 @@ export default function Animals() {
         const data = await listarMascotas();
         if (!activo) return;
         setAnimals(
-          data.map((m) => ({
+          // Filtro defensivo: nunca mostrar mascotas de refugios inactivos.
+          data
+            .filter((m) => m.refugio_activo !== false)
+            .map((m) => ({
             id: m.id,
             name: m.nombre,
             type: m.tipo || "",
@@ -53,7 +59,10 @@ export default function Animals() {
             size: m.tamano || "—",
             gender: m.genero || "—",
             shelter: m.refugio_nombre || "Refugio",
-            image: null,
+            image:
+              m.imagen_url ||
+              (m.imagenes && m.imagenes[0]?.url) ||
+              null,
           }))
         );
       } catch (e) {
@@ -63,7 +72,7 @@ export default function Animals() {
       }
     })();
     return () => { activo = false; };
-  }, []);
+  }, [reloadKey]);
 
   const toggleFavorite = (animal) => {
     if (isFavorite(animal.id)) {
@@ -336,22 +345,57 @@ export default function Animals() {
         </div>
 
         {/* Results info */}
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
-          <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-            Mostrando{" "}
-            <span className="font-semibold text-gray-900 dark:text-dark-text">
-              {filteredAnimals.length}
-            </span>{" "}
-            {filteredAnimals.length === 1 ? "mascota" : "mascotas"}
-            {hasActiveFilters && (
-              <span className="text-gray-400 dark:text-dark-text-secondary">
-                {" "}(con filtros aplicados)
-              </span>
-            )}
-          </p>
-        </div>
+        {!loading && !error && (
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+            <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
+              Mostrando{" "}
+              <span className="font-semibold text-gray-900 dark:text-dark-text">
+                {filteredAnimals.length}
+              </span>{" "}
+              {filteredAnimals.length === 1 ? "mascota" : "mascotas"}
+              {hasActiveFilters && (
+                <span className="text-gray-400 dark:text-dark-text-secondary">
+                  {" "}(con filtros aplicados)
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* Estado de carga */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-24">
+            <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+            <p className="text-lg font-medium text-gray-600 dark:text-dark-text-secondary">
+              Cargando animales…
+            </p>
+          </div>
+        )}
+
+        {/* Estado de error */}
+        {!loading && error && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-red-100 to-rose-100 dark:from-red-900/30 dark:to-rose-900/30 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-10 h-10 text-red-400 dark:text-red-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-2">
+              Error al cargar los animales
+            </h3>
+            <p className="text-gray-500 dark:text-dark-text-secondary mb-6 max-w-md mx-auto">
+              {error}
+            </p>
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg shadow-rose-200/50 dark:shadow-rose-500/20 hover:scale-105 active:scale-95"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {/* Animals Grid */}
+        {!loading && !error && filteredAnimals.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredAnimals.map((animal) => {
             const AnimalIcon = getAnimalIcon(animal.type);
@@ -376,12 +420,23 @@ export default function Animals() {
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
 
-                    {/* Icon */}
+                    {/* Placeholder (icono): visible si no hay imagen o si la imagen falla */}
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="w-24 h-24 bg-white/30 dark:bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center transition-transform duration-500 group-hover:scale-110">
                         <AnimalIcon className="w-12 h-12 text-white drop-shadow-lg" />
                       </div>
                     </div>
+
+                    {/* Imagen real de la mascota (Cloudinary) */}
+                    {animal.image && (
+                      <img
+                        src={animal.image}
+                        alt={animal.name}
+                        loading="lazy"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    )}
 
                     {/* Type Badge */}
                     <div className="absolute top-3 left-3">
@@ -469,15 +524,16 @@ export default function Animals() {
             );
           })}
         </div>
+        )}
 
         {/* No Results */}
-        {filteredAnimals.length === 0 && (
+        {!loading && !error && filteredAnimals.length === 0 && (
           <div className="text-center py-20">
             <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-rose-100 to-amber-100 dark:from-rose-900/30 dark:to-amber-900/30 rounded-full flex items-center justify-center">
               <PawPrint className="w-10 h-10 text-rose-400 dark:text-rose-500" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-2">
-              No se encontraron mascotas
+              No se encontraron animales
             </h3>
             <p className="text-gray-500 dark:text-dark-text-secondary mb-6 max-w-md mx-auto">
               Intenta con otros filtros o términos de búsqueda. ¡Tenemos muchas mascotas esperando por ti!

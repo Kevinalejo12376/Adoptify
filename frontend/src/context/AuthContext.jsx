@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { loginRequest, registerRequest, fetchMe, logoutRequest, fetchProfile, googleLoginRequest } from "../api/auth";
 import { getToken } from "../api/client";
 import { useTheme } from "./ThemeContext";
@@ -30,6 +30,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileCompleted, setProfileCompleted] = useState(false);
+  // Evita sincronizar el perfil completo más de una vez por usuario (anti-bucle).
+  const syncUserRef = useRef(null);
 
   // ─── Verificar si el perfil del usuario está completo ───
   const checkProfileStatus = useCallback(async () => {
@@ -37,6 +39,16 @@ export const AuthProvider = ({ children }) => {
       const profile = await fetchProfile();
       const isComplete = profile.perfil_completo === true;
       setProfileCompleted(isComplete);
+
+      // Sincroniza el perfil completo (avatar_url, cover_url, bio, redes, etc.)
+      // con el user del contexto para que las imágenes persistan tras el login
+      // sin depender únicamente del endpoint /me. Se aplica una sola vez por
+      // usuario para evitar bucles de actualización.
+      const profileKey = profile?.id ?? user?.id ?? null;
+      if (profile && profileKey != null && syncUserRef.current !== profileKey) {
+        syncUserRef.current = profileKey;
+        setUser((prev) => ({ ...prev, ...profile }));
+      }
 
       // Solo mostrar el modal automaticamente a usuarios con JWT real que
       // NO tengan el perfil completo, que NO sean admin/store mock y SOLO
@@ -144,6 +156,19 @@ export const AuthProvider = ({ children }) => {
     return me;
   };
 
+  /** Refresca los datos del usuario autenticado desde el backend (/me).
+   *  Útil tras guardar el avatar u otros cambios de perfil para que el
+   *  contexto quede sincronizado sin recargar la aplicación. */
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await fetchMe();
+      setUser(me);
+      return me;
+    } catch {
+      return null;
+    }
+  }, []);
+
   /** Marcar perfil como completado (llamar desde el modal). */
   const markProfileCompleted = () => {
     setProfileCompleted(true);
@@ -238,6 +263,7 @@ export const AuthProvider = ({ children }) => {
         isShelter, esRepresentanteRefugio, permisosRefugio, tienePermisoRefugio,
         addFavorite, removeFavorite, isFavorite,
         checkProfileStatus, markProfileCompleted, openProfileModal,
+        refreshUser,
       }}
     >
       {children}

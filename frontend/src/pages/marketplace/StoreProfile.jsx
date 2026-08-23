@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
+import { formatPrice } from "../../utils/price";
 import {
   ArrowLeft,
   Store,
@@ -985,7 +986,7 @@ export default function StoreProfile() {
                       <div className="absolute bottom-3 right-3">
                         <div className="px-3 py-1.5 bg-white/90 dark:bg-dark-card/90 backdrop-blur-sm rounded-xl shadow-lg">
                           <span className="text-lg font-bold text-gray-800 dark:text-gray-200 font-display">
-                            ${product.price.toFixed(2)}
+                            {formatPrice(product.price)}
                           </span>
                         </div>
                       </div>

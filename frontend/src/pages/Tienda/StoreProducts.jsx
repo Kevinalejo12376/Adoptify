@@ -19,6 +19,8 @@ const mapProducto = (p) => ({
   estado: p.activo ? "visible" : "oculto",
   calificacion: Number(p.rating) || 0,
   vendidos: p.ventas || 0,
+  // Imagen persistente de Cloudinary (producto_imagenes) devuelta por la API.
+  imagen: p.imagen_url || (p.imagenes && p.imagenes[0]?.url) || null,
 });
 
 function StatusBadge({ estado }) {
@@ -160,7 +162,11 @@ export default function StoreProducts() {
             >
               {/* Encabezado con imagen */}
               <div className="relative h-36 bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 dark:from-dark-bg dark:via-dark-border/60 dark:to-dark-border flex items-center justify-center overflow-hidden">
-                <Package size={48} className="text-rose-200 dark:text-gray-600 group-hover:scale-110 transition-transform duration-300" />
+                {product.imagen ? (
+                  <img src={product.imagen} alt={product.nombre} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                ) : (
+                  <Package size={48} className="text-rose-200 dark:text-gray-600 group-hover:scale-110 transition-transform duration-300" />
+                )}
                 <div className="absolute top-3 right-3">
                   <StatusBadge estado={product.estado} />
                 </div>

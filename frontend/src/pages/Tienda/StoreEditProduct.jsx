@@ -173,6 +173,11 @@ export default function StoreEditProduct() {
           informacion_adicional: "",
           activo: p.activo,
         });
+        // Carga las imágenes persistentes de Cloudinary (producto_imagenes)
+        // para mostrarlas al editar y no perderlas al guardar otros datos.
+        if (p.imagenes && p.imagenes.length > 0) {
+          setAiImages(p.imagenes.map((img) => img.url));
+        }
       } catch (e) { /* producto no encontrado */ }
       finally { setLoading(false); }
     })();
