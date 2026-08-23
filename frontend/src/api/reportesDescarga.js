@@ -30,21 +30,8 @@ export async function obtenerTiposReportes() {
 
 /**
  * Genera y descarga un reporte. Devuelve { nombre } del archivo descargado.
- * @param {string} codigo  Código del tipo de reporte.
+ * @param {string} tipo  Código del tipo de reporte.
  * @param {"pdf"|"excel"} formato  Formato de salida.
- */
-export async function descargarReporte(codigo, formato) {
-  const res = await fetch(`${API_URL}${base}/${codigo}?formato=${formato}`, {
-    headers: _authedHeaders(),
-  });
-
-  if (!res.ok) {
-    let detail = "No se pudo generar el reporte.";
- * Descarga un reporte en el formato indicado y fuerza el guardado en el
- * dispositivo del usuario.
- * @param {string} tipo  Codigo del tipo de reporte (ej: "usuarios").
- * @param {"pdf"|"excel"} formato  Formato de salida.
- * @returns {Promise<{nombre:string}>} Nombre del archivo descargado.
  */
 export async function descargarReporte(tipo, formato = "pdf") {
   const endpoint = formato === "excel" ? "excel" : "pdf";
@@ -67,22 +54,6 @@ export async function descargarReporte(tipo, formato = "pdf") {
   const blob = await res.blob();
   const nombre = nombreArchivoDesdeDisposition(res.headers.get("Content-Disposition"));
   descargarBlob(blob, nombre);
-
-  return { nombre };
-}
-
-  // Nombre de archivo desde Content-Disposition (o generico)
-  const nombre = extraerNombreArchivo(res) || `reporte_${tipo}.${endpoint === "excel" ? "xlsx" : "pdf"}`;
-
-  // Descarga forzada en el navegador
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = nombre;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 
   return { nombre };
 }

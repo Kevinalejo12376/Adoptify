@@ -8,6 +8,7 @@ import {
 import AutoFadingImage from "../../components/AutoFadingImage";
 import GoogleIcon from "../../components/GoogleIcon";
 import { CAROUSEL_IMAGES } from "../../assets/images";
+import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
 import { useAuth } from "../../context/AuthContext";
 import { getTiposDocumento } from "../../api/catalogos";
 import { sendVerificationCode, verifyCode, registerWithCodeRequest } from "../../api/auth";
