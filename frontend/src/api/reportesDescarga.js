@@ -4,7 +4,7 @@
 import { API_URL, getToken } from "./client";
 import { descargarBlob, nombreArchivoDesdeDisposition } from "../utils/downloadFile";
 
-const base = "/api/reportes-descargables";
+const base = "/api/reportes-descarga";
 
 const _authedHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,

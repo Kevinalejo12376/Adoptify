@@ -156,6 +156,14 @@ class ProductoStockUpdate(BaseModel):
     stock: int = Field(..., ge=0)
 
 
+class ImagenProductoResponse(BaseModel):
+    """Imagen de un producto (secure_url de Cloudinary)."""
+    id: int
+    url: str
+    etiqueta: Optional[str] = None
+    orden: int = 0
+
+
 class ProductoResponse(BaseModel):
     id: int
     # Identificador público único (URL amigable /product/<uuid>).
