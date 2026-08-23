@@ -94,7 +94,8 @@ def _formatear_valor_pdf(valor: Any, col: Columna) -> str:
 
     if col.tipo in (TIPO_NUMERO, TIPO_MONEDA, TIPO_ENTERO):
         if isinstance(valor, (int, float)):
-            fmt = col.formato or {"entero": "%d", "numero": "%.2f", "moneda": "%.2f"}.get(col.tipo, "%.2f")
+            # Moneda (COP): sin centavos -> entero. El punto de miles es solo formato.
+            fmt = col.formato or {"entero": "%d", "numero": "%.2f", "moneda": "%d"}.get(col.tipo, "%.2f")
             return (fmt % valor).replace(".", ",") if col.tipo == TIPO_MONEDA else fmt % valor
         return str(valor)
 

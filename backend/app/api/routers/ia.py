@@ -349,7 +349,9 @@ async def chat(
     """
     sesion = _obtener_o_crear_sesion(db, payload.session_id, usuario)
 
-    # 1. Guardar mensaje del usuario
+    # 1. Guardar mensaje del usuario (actualiza la ultima actividad de la sesion
+    #    para poder depurar sesiones abandonadas sin borrar historial valido).
+    sesion.actualizado_en = datetime.now(timezone.utc)
     db.add(ChatMensaje(sesion_id=sesion.id, rol="user", contenido=payload.mensaje))
     db.commit()
 
@@ -421,8 +423,9 @@ async def chat(
             "orientarte por la página. ¿En qué te ayudo?"
         )
 
-    # 4. Guardar respuesta del bot
+    # 4. Guardar respuesta del bot (actualiza la ultima actividad de la sesion).
     db.add(ChatMensaje(sesion_id=sesion.id, rol="bot", contenido=str(respuesta_bot)))
+    sesion.actualizado_en = datetime.now(timezone.utc)
     db.commit()
 
     return {"respuesta": respuesta_bot, "accion": accion}

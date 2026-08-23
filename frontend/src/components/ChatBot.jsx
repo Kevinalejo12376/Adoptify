@@ -5,7 +5,6 @@ import { useAuth } from "../context/AuthContext";
 import { MessageCircle, X, Send, Sparkles, Loader2, User } from "lucide-react";
 import logoAdoptify from "../assets/logo.png";
 import {
-  crearSesionChat,
   enviarMensajeChat,
   historialChat,
 } from "../api/chat";
@@ -57,20 +56,30 @@ function generarSessionId() {
   return `s_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function obtenerSessionId() {
-  let id = localStorage.getItem(SESSION_KEY);
-  if (!id) {
-    id = generarSessionId();
-    localStorage.setItem(SESSION_KEY, id);
+// Solo LEE el session_id persistido de una conversación activa (si existe).
+// NO genera ni crea sesión: la sesión solo se crea al enviar el primer mensaje.
+function leerSessionId() {
+  try {
+    return localStorage.getItem(SESSION_KEY) || null;
+  } catch {
+    return null;
   }
-  return id;
+}
+
+// Persiste el session_id una vez que el usuario realmente envía un mensaje.
+function guardarSessionId(id) {
+  try {
+    localStorage.setItem(SESSION_KEY, id);
+  } catch {
+    /* localStorage no disponible: se ignora (la sesión vive en el backend) */
+  }
 }
 
 export default function ChatBot() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: cargandoSesion } = useAuth();
   const estaAutenticado = Boolean(user);
   // Avatar del usuario (foto de perfil o inicial del nombre).
   const avatarUsuario = user?.avatar || user?.avatar_url || null;
@@ -88,26 +97,44 @@ export default function ChatBot() {
     ? (user.id ?? user.email ?? user.role ?? user.rol ?? "usuario")
     : null;
 
-  // Reinicia la sesión del chat cuando cambia el usuario (login/logout/cambio de
-  // rol). Así un invitado en Home siempre usa una sesión anónima nueva, y al
-  // iniciar sesión el bot se reinicia con el rol/contexto correcto, sin heredar
-  // la identidad de un usuario anterior (p. ej. "Alfredo").
+  // La sesión NO se crea al montar el componente, abrir/cerrar el chatbot,
+  // refrescar la página ni cambiar de ruta. Solo se crea en el backend cuando
+  // el usuario envía su primer mensaje.
+  //
+  // Este efecto únicamente REINICIA la conversación cuando cambia realmente la
+  // identidad (login/logout/cambio de rol). Espera a que AuthContext termine de
+  // restaurar la sesión para no borrar una conversación activa tras un refresh.
+  const identidadAnterior = useRef(identidadUsuario);
+  const sesionInicializada = useRef(false);
+
   useEffect(() => {
-    const nuevoId = generarSessionId();
-    localStorage.setItem(SESSION_KEY, nuevoId);
+    if (cargandoSesion) return;
+    if (!sesionInicializada.current) {
+      sesionInicializada.current = true;
+      identidadAnterior.current = identidadUsuario;
+      return; // primera carga: no crear sesión ni descartar una conversación activa
+    }
+    if (identidadAnterior.current === identidadUsuario) return;
+    // Cambio real de identidad: nueva conversación (sin llamar al backend).
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch { /* ignore */ }
     setMensajes([]);
     setEscribiendo(false);
     setCargandoHistorial(false);
-    crearSesionChat(nuevoId).catch(() => {});
+    identidadAnterior.current = identidadUsuario;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identidadUsuario]);
+  }, [identidadUsuario, cargandoSesion]);
 
-  // Cargar historial al abrir.
+  // Cargar historial al abrir. Si NO existe una conversación activa persistida,
+  // no se genera ni se crea sesión (solo se creará al enviar el primer mensaje).
   useEffect(() => {
     if (!open) return;
+    const sid = leerSessionId();
+    if (!sid) return;
     let activo = true;
     setCargandoHistorial(true);
-    historialChat(obtenerSessionId())
+    historialChat(sid)
       .then((data) => {
         if (!activo) return;
         const items = (data || []).map((m) => ({
@@ -145,7 +172,14 @@ export default function ChatBot() {
       ]);
       setEscribiendo(true);
       try {
-        const res = await enviarMensajeChat(obtenerSessionId(), texto);
+        // La sesión se crea (en el backend) únicamente al enviar el primer
+        // mensaje. Si ya existe una conversación activa, se reutiliza su id.
+        let sid = leerSessionId();
+        if (!sid) {
+          sid = generarSessionId();
+          guardarSessionId(sid);
+        }
+        const res = await enviarMensajeChat(sid, texto);
         const respuesta = res?.respuesta || "No pude procesar eso, intenta de nuevo.";
         setMensajes((prev) => [
           ...prev,
