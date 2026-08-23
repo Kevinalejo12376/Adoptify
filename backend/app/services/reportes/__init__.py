@@ -80,11 +80,11 @@ def listar_reportes() -> list:
     """Devuelve los tipos de reporte disponibles (para el selector de la UI)."""
     return [
         {
-            "codigo": cls.codigo,
-            "titulo": cls.titulo,
-            "descripcion": cls.descripcion,
+            "codigo": g.codigo,
+            "titulo": g.titulo,
+            "descripcion": g.descripcion,
         }
-        for cls in REGISTRO_REPORTES.values()
+        for g in REGISTRO_REPORTES.values()
     ]
 
 
