@@ -7,6 +7,7 @@ import {
   ChevronRight, MessageSquare, Sparkles, Store
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
+import { formatPrice } from "../../utils/price";
 
 const orderStatuses = [
   { id: "recibido", label: "Pedido recibido", icon: Package, description: "Hemos recibido tu pedido y estamos revisándolo" },
@@ -312,7 +313,7 @@ export default function ShelterOrderDetail() {
                         <p className="text-xs text-gray-500 dark:text-dark-text-secondary">Cantidad: {item.quantity}</p>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-gray-900 dark:text-white">${(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">{formatPrice(item.price * item.quantity)}</span>
                   </div>
                 ))}
               </div>
@@ -357,7 +358,7 @@ export default function ShelterOrderDetail() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 dark:text-dark-text-secondary">Subtotal</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">${order.total.toFixed(2)}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{formatPrice(order.total)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 dark:text-dark-text-secondary">Envío</span>
@@ -366,7 +367,7 @@ export default function ShelterOrderDetail() {
                 <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-gray-900 dark:text-white">Total</span>
-                    <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">${order.total.toFixed(2)}</span>
+                    <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">{formatPrice(order.total)}</span>
                   </div>
                 </div>
               </div>

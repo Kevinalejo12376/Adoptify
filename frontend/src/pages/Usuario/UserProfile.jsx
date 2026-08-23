@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { misSolicitudes } from "../../api/solicitudes";
 import { idsMascotasFavoritas } from "../../api/favoritos";
+import { updateProfile, cambiarAvatar, eliminarAvatar } from "../../api/auth";
 import FieldError from "../../components/FieldError";
 import {
   validarNombre, validarEmail, validarTelefono, normalizarEmail, limpiarEspacios, claseInput,
@@ -123,11 +124,14 @@ function PetCard({ pet, index }) {
   );
 }
 
-// ─── Avatar Modal (editar + subir a Cloudinary con el flujo unificado) ───
-function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange }) {
+// ─── Avatar Modal (seleccionar/editar y enviar al backend para subir/eliminar) ───
+// La subida a Cloudinary y el borrado de la imagen anterior los realiza el
+// backend (POST/DELETE /api/auth/avatar). Este modal solo prepara la imagen
+// (recorte/rotación) y delega en `onAvatarChange` la operación persistente.
+function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange, busy = false }) {
   const fileInputRef = useRef(null);
   const [editingSrc, setEditingSrc] = useState(null);
-  const { uploadDataUrl, uploading, error, progress } = useImageUpload({ tipo: "usuario", etiqueta: "avatar" });
+  const [localError, setLocalError] = useState("");
 
   if (!isOpen) return null;
 
@@ -135,25 +139,26 @@ function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange }) {
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || editingSrc) return;
+    if (!file || editingSrc || busy) return;
     const res = await readAndValidateImage(file);
     if (res.ok) {
+      setLocalError("");
       setEditingSrc(res.base64);
+    } else {
+      setLocalError(res.error || "No se pudo leer la imagen.");
     }
   };
 
-  // La imagen ya editada se sube a Cloudinary y se guarda la secure_url.
+  // La imagen ya editada se envía al padre, que la sube con el backend.
   const handleEditorApply = async (dataUrl) => {
     setEditingSrc(null);
-    const res = await uploadDataUrl(dataUrl);
-    if (res.ok) {
-      onAvatarChange?.(res.url);
-      onClose();
-    }
+    await onAvatarChange?.(dataUrl);
+    onClose();
   };
 
-  const handleQuitar = () => {
-    onAvatarChange?.(null);
+  // Quitar la foto: el padre llama al endpoint DELETE y limpia Cloudinary + BD.
+  const handleQuitar = async () => {
+    await onAvatarChange?.(null);
     onClose();
   };
 
@@ -192,26 +197,23 @@ function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange }) {
               className="hidden"
               accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
               onChange={handleFile}
-              disabled={uploading}
+              disabled={busy}
             />
 
             <div
-              onClick={() => !uploading && !editingSrc && fileInputRef.current?.click()}
+              onClick={() => !busy && !editingSrc && fileInputRef.current?.click()}
               className={`border-2 border-dashed border-gray-200 dark:border-dark-border rounded-2xl p-8 text-center transition-all duration-300 group cursor-pointer bg-gray-50/50 dark:bg-dark-bg/50 ${
-                uploading ? "opacity-60 cursor-not-allowed" : "hover:border-rose-300 dark:hover:border-rose-700"
+                busy ? "opacity-60 cursor-not-allowed" : "hover:border-rose-300 dark:hover:border-rose-700"
               }`}
             >
-              {uploading ? (
+              {busy ? (
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
                   <p className="text-sm font-semibold text-gray-700 dark:text-white">
-                    Subiendo foto ({progress}%)
+                    Guardando foto...
                   </p>
                   <div className="w-full max-w-xs h-2 rounded-full bg-gray-200 dark:bg-dark-border overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
+                    <div className="h-full w-2/3 bg-gradient-to-r from-rose-500 to-amber-500 rounded-full animate-pulse" />
                   </div>
                 </div>
               ) : (
@@ -235,10 +237,10 @@ function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange }) {
               )}
             </div>
 
-            {error && (
+            {localError && (
               <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500 dark:text-red-400" />
-                <p className="text-xs text-red-700 dark:text-red-300 flex-1">{error}</p>
+                <p className="text-xs text-red-700 dark:text-red-300 flex-1">{localError}</p>
               </div>
             )}
 
@@ -246,13 +248,14 @@ function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange }) {
               {currentAvatar && (
                 <button
                   onClick={handleQuitar}
-                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-semibold rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all border border-red-200 dark:border-red-500/30"
+                  disabled={busy}
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-semibold rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all border border-red-200 dark:border-red-500/30 disabled:opacity-60"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Quitar foto
+                  {busy ? "Eliminando foto..." : "Quitar foto"}
                 </button>
               )}
-              <button onClick={onClose} className="w-full px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-dark-border">
+              <button onClick={onClose} disabled={busy} className="w-full px-6 py-3 bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all border border-gray-200 dark:border-dark-border disabled:opacity-60">
                 Cancelar
               </button>
             </div>
@@ -382,7 +385,7 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
 
 // ─── Main Component ───
 export default function UserProfile() {
-  const { user: authUser, profileCompleted, openProfileModal } = useAuth();
+  const { user: authUser, profileCompleted, openProfileModal, refreshUser } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -393,6 +396,9 @@ export default function UserProfile() {
   const [favCount, setFavCount] = useState(0);
   const [solTotal, setSolTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  // Estados de la foto de perfil (subir/eliminar en Cloudinary + BD).
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   // Sincroniza el perfil con el usuario autenticado del contexto.
   useEffect(() => {
@@ -404,6 +410,16 @@ export default function UserProfile() {
         phone: authUser.phone || "",
         location: authUser.location || "",
         bio: authUser.bio || "",
+        // Imágenes persistentes (secure_url de Cloudinary) recuperadas desde
+        // el backend (/me o /profile). Permiten reconstruir el perfil después
+        // de recargar la página o volver a iniciar sesión.
+        avatar: authUser.avatar_url || authUser.avatar || null,
+        cover: authUser.cover_url || authUser.cover || null,
+        website: authUser.website || "",
+        social: {
+          twitter: authUser.twitter || "",
+          instagram: authUser.instagram || "",
+        },
       };
       setUser(u);
       setEditedUser(u);
@@ -456,14 +472,49 @@ export default function UserProfile() {
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
-  const handleSave = () => {
+  // Guarda los datos editados en la base de datos y actualiza la interfaz.
+  // Si falla la API se conservan los cambios locales para poder reintentar.
+  const handleSave = async () => {
+    const payload = {
+      telefono: editedUser.phone || null,
+      ubicacion: editedUser.location || null,
+      bio: editedUser.bio || null,
+      website: editedUser.website || null,
+      twitter: editedUser.social?.twitter || null,
+      instagram: editedUser.social?.instagram || null,
+    };
+    try {
+      await updateProfile(payload);
+      refreshUser();
+    } catch {
+      // No se bloquea la interfaz; los cambios quedan en el formulario local.
+    }
     setUser({ ...editedUser });
     setShowEditModal(false);
   };
 
-  // Guarda la URL de Cloudinary devuelta por el flujo unificado de avatar.
-  const handleAvatarChange = (url) => {
-    setUser((prev) => ({ ...prev, avatar: url }));
+  // Sube/elimina la foto de perfil mediante los endpoints dedicados del
+  // backend, que también eliminan la imagen anterior de Cloudinary (evita
+  // imágenes huérfanas). Después sincroniza el contexto (Navbar y menú
+  // desplegable) al instante, sin recargar.
+  const handleAvatarChange = async (value) => {
+    if (avatarBusy) return;
+    setAvatarBusy(true);
+    setAvatarError("");
+    const nuevoAvatar = value || null;
+    try {
+      if (value) {
+        await cambiarAvatar(value);
+      } else {
+        await eliminarAvatar();
+      }
+      setUser((prev) => ({ ...prev, avatar: nuevoAvatar }));
+      refreshUser();
+    } catch (e) {
+      setAvatarError(e?.message || "No se pudo guardar la foto. Intenta de nuevo.");
+    } finally {
+      setAvatarBusy(false);
+    }
   };
 
   const handleCancel = () => {
@@ -564,7 +615,35 @@ export default function UserProfile() {
                     <MapPin className="w-4 h-4 text-rose-400 dark:text-rose-500" />
                     <p className="text-gray-600 dark:text-gray-400">{user.location}</p>
                   </div>
-                  
+
+                  {/* Acciones de la foto de perfil (Cambiar / Eliminar) */}
+                  <div className="flex items-center justify-center sm:justify-start gap-2 mt-3 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => { setAvatarError(""); setShowAvatarModal(true); }}
+                      disabled={avatarBusy}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-200 dark:border-rose-500/30 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all disabled:opacity-60"
+                    >
+                      <Camera className="w-4 h-4" />
+                      Cambiar foto
+                    </button>
+                    {user.avatar && (
+                      <button
+                        type="button"
+                        onClick={async () => { setAvatarError(""); await handleAvatarChange(null); }}
+                        disabled={avatarBusy}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/20 transition-all disabled:opacity-60"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {avatarBusy ? "Eliminando..." : "Eliminar foto"}
+                      </button>
+                    )}
+                  </div>
+                  {avatarError && (
+                    <p className="mt-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5 justify-center sm:justify-start">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {avatarError}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -861,6 +940,7 @@ export default function UserProfile() {
         onClose={() => setShowAvatarModal(false)}
         currentAvatar={user.avatar}
         onAvatarChange={handleAvatarChange}
+        busy={avatarBusy}
       />
       <EditProfileModal
         key={showEditModal ? "edit-open" : "edit-closed"}

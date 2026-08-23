@@ -30,6 +30,7 @@ class ProfileUpdate(BaseModel):
     twitter: Optional[str] = None
     instagram: Optional[str] = None
     avatar_url: Optional[str] = None
+    avatar_public_id: Optional[str] = None
     cover_url: Optional[str] = None
 
     @field_validator("website")
@@ -76,6 +77,7 @@ class ProfileResponse(BaseModel):
     bio: Optional[str] = None
     website: Optional[str] = None
     avatar_url: Optional[str] = None
+    avatar_public_id: Optional[str] = None
     cover_url: Optional[str] = None
     twitter: Optional[str] = None
     instagram: Optional[str] = None

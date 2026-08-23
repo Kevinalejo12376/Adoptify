@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Check } from "lucide-react";
+import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Check, Loader2, AlertCircle } from "lucide-react";
 import ScrollToTop from "../../components/ScrollToTop";
 import AnimatedSection from "../../components/AnimatedSection";
 import AutoFadingImage from "../../components/AutoFadingImage";
@@ -10,6 +10,7 @@ import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
+import { formatPrice } from "../../utils/price";
 // Carrusel automático: imágenes servidas desde Cloudinary (carpeta
 // "frontend-assets/assets-extras"). Centralizadas en src/assets/images.js.
 const carruselImages = CAROUSEL_IMAGES;
@@ -33,24 +34,95 @@ export default function Home() {
   const [productos, setProductos] = useState([]);
   const [postsTotal, setPostsTotal] = useState(0);
   const [topics, setTopics] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  // Estados independientes por sección: loading / success / empty / error.
+  const [petsLoading, setPetsLoading] = useState(true);
+  const [petsError, setPetsError] = useState(null);
+  const [refugiosLoading, setRefugiosLoading] = useState(true);
+  const [refugiosError, setRefugiosError] = useState(null);
+  const [productosLoading, setProductosLoading] = useState(true);
+  const [productosError, setProductosError] = useState(null);
+  const [topicsLoading, setTopicsLoading] = useState(true);
+  const [topicsError, setTopicsError] = useState(null);
 
   useEffect(() => {
     estadisticasPublicas().then(setStats).catch(() => setStats(null));
   }, []);
 
+  // Mascotas: estados loading / success / empty / error independientes.
   useEffect(() => {
-    Promise.all([
-      listarMascotas().then(data => setPets(Array.isArray(data) ? data.slice(0, 4) : [])).catch(() => setPets([])),
-      listarRefugios().then(data => setRefugios(Array.isArray(data) ? data.slice(0, 3) : [])).catch(() => setRefugios([])),
-      listarProductos().then(data => setProductos(Array.isArray(data) ? data.slice(0, 3) : [])).catch(() => setProductos([])),
-      listarPosts().then(data => {
+    let activo = true;
+    (async () => {
+      setPetsLoading(true); setPetsError(null);
+      try {
+        const data = await listarMascotas();
+        if (!activo) return;
+        // Filtro defensivo: no mostrar mascotas de refugios inactivos.
+        setPets(Array.isArray(data) ? data.filter((m) => m.refugio_activo !== false).slice(0, 4) : []);
+      } catch (e) {
+        if (activo) setPetsError(e?.message || "No se pudieron cargar las mascotas");
+      } finally {
+        if (activo) setPetsLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  // Refugios: estados loading / success / empty / error independientes.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setRefugiosLoading(true); setRefugiosError(null);
+      try {
+        const data = await listarRefugios();
+        if (!activo) return;
+        setRefugios(Array.isArray(data) ? data.slice(0, 3) : []);
+      } catch (e) {
+        if (activo) setRefugiosError(e?.message || "No se pudieron cargar los refugios");
+      } finally {
+        if (activo) setRefugiosLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  // Productos de las tiendas: estados loading / success / empty / error.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setProductosLoading(true); setProductosError(null);
+      try {
+        const data = await listarProductos();
+        if (!activo) return;
+        setProductos(Array.isArray(data) ? data.slice(0, 3) : []);
+      } catch (e) {
+        if (activo) setProductosError(e?.message || "No se pudieron cargar los productos");
+      } finally {
+        if (activo) setProductosLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  // Temas recientes del foro: estados loading / success / empty / error.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setTopicsLoading(true); setTopicsError(null);
+      try {
+        const data = await listarPosts();
+        if (!activo) return;
         if (Array.isArray(data)) {
           setTopics(data.slice(0, 3));
           setPostsTotal(data.length);
         }
-      }).catch(() => { setTopics([]); setPostsTotal(0); }),
-    ]).finally(() => setLoading(false));
+      } catch (e) {
+        if (activo) setTopicsError(e?.message || "No se pudieron cargar los temas del foro");
+      } finally {
+        if (activo) setTopicsLoading(false);
+      }
+    })();
+    return () => { activo = false; };
   }, []);
 
   useEffect(() => {
@@ -263,17 +335,36 @@ export default function Home() {
             </Link>
           </div>
           
-          {pets.length === 0 ? (
+          {petsLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl shadow-sm">
+              <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+              <p className="text-gray-500">Cargando mascotas…</p>
+            </div>
+          ) : petsError ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <p className="text-gray-500">{petsError}</p>
+            </div>
+          ) : pets.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <PawPrint className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">Aún no hay mascotas publicadas</p>
+              <p className="text-gray-500">No hay mascotas disponibles</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {pets.map((pet) => (
                 <div key={pet.id} className="bg-white rounded-2xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300 hover:scale-105">
-                  <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                    <PawPrint className="w-16 h-16 text-rose-500" />
+                  <div className="w-32 h-32 mx-auto mb-4 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
+                    {pet.imagen_url || (pet.imagenes && pet.imagenes[0]?.url) ? (
+                      <img
+                        src={pet.imagen_url || (pet.imagenes && pet.imagenes[0]?.url)}
+                        alt={pet.nombre}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <PawPrint className="w-16 h-16 text-rose-500" />
+                    )}
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">{pet.nombre}</h3>
                   <p className="text-sm text-gray-600 mb-4">{pet.refugio_nombre || pet.raza || pet.tipo}</p>
@@ -308,7 +399,17 @@ export default function Home() {
             </Link>
           </div>
 
-          {refugios.length === 0 ? (
+          {refugiosLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl shadow-sm">
+              <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+              <p className="text-gray-500">Cargando refugios…</p>
+            </div>
+          ) : refugiosError ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <p className="text-gray-500">{refugiosError}</p>
+            </div>
+          ) : refugios.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <HomeIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">Aún no hay refugios registrados</p>
@@ -449,10 +550,20 @@ export default function Home() {
             </Link>
           </div>
           
-          {productos.length === 0 ? (
+          {productosLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl shadow-sm">
+              <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+              <p className="text-gray-500">Cargando productos…</p>
+            </div>
+          ) : productosError ? (
+            <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <p className="text-gray-500">{productosError}</p>
+            </div>
+          ) : productos.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">Aún no hay productos publicados</p>
+              <p className="text-gray-500">No hay productos disponibles</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -463,7 +574,7 @@ export default function Home() {
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
                   <div className="flex justify-between items-center">
-                    <span className="text-2xl font-bold text-rose-600 font-display">${Number(product.precio).toFixed(2)}</span>
+                    <span className="text-2xl font-bold text-rose-600 font-display">{formatPrice(product.precio)}</span>
                     <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Ver
@@ -559,10 +670,20 @@ export default function Home() {
 
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h3 className="text-2xl font-bold text-gray-900 mb-6 font-display">Temas Recientes</h3>
-            {topics.length === 0 ? (
+            {topicsLoading ? (
+              <div className="flex flex-col items-center justify-center py-10">
+                <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+                <p className="text-gray-500">Cargando temas recientes…</p>
+              </div>
+            ) : topicsError ? (
+              <div className="text-center py-10">
+                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                <p className="text-gray-500">{topicsError}</p>
+              </div>
+            ) : topics.length === 0 ? (
               <div className="text-center py-10">
                 <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">Aún no hay temas en el foro</p>
+                <p className="text-gray-500">No hay temas recientes</p>
               </div>
             ) : (
               <div className="space-y-4">

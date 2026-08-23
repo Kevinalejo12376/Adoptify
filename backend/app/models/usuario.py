@@ -24,6 +24,10 @@ class Usuario(Base):
     bio = Column(Text)
     website = Column(String(150))
     avatar_url = Column(Text)
+    # ID público del recurso en Cloudinary (para poder eliminar la foto anterior
+    # al cambiarla y no dejar imágenes huérfanas). Sigue el patrón de
+    # tiendas.logo_public_id.
+    avatar_public_id = Column(String(255))
     cover_url = Column(Text)
     twitter = Column(String(120))
     instagram = Column(String(120))

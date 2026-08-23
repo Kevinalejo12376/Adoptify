@@ -8,6 +8,7 @@ import {
 import { categoryIcons, categoryColors } from "../../data/products";
 import { actualizarProducto, eliminarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
+import { formatPrice } from "../../utils/price";
 
 const CatIconComponent = ({ category, className }) => {
   const Icon = categoryIcons[category] || Package;
@@ -248,7 +249,7 @@ export default function ShelterProductDetail() {
               {/* Price & Stock */}
               <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
                 <div className="flex items-baseline gap-3 mb-4">
-                  <span className="text-3xl font-bold text-rose-600 dark:text-rose-400 font-display">${product.price?.toFixed(2) || "0.00"}</span>
+                  <span className="text-3xl font-bold text-rose-600 dark:text-rose-400 font-display">{formatPrice(product.price)}</span>
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
                     isOutOfStock ? "bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400"
                       : isLowStock ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400"

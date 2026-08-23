@@ -124,14 +124,6 @@ def construir_excel(
     borde = Border(left=borde_fino, right=borde_fino, top=borde_fino, bottom=borde_fino)
 
     # ------------------------------------------------------------------
-    # Encabezado del documento (titulo + subtitulo)
-    # ------------------------------------------------------------------
-    hoja.cell(row=1, column=1, value=titulo).font = fuente_titulo
-    hoja.cell(row=2, column=1, value=subtitulo).font = fuente_sub
-    hoja.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(columnas))
-    hoja.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(columnas))
-    hoja.row_dimensions[1].height = 22
-    hoja.row_dimensions[2].height = 14
     # Logo institucional (Cloudinary) en la esquina superior izquierda
     # ------------------------------------------------------------------
     _agregar_logo(hoja)

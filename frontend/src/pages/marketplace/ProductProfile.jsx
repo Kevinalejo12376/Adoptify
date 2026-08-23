@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
+import { formatPrice } from "../../utils/price";
 import {
   ArrowLeft,
   ShoppingCart,
@@ -183,7 +184,14 @@ export default function ProductProfile() {
             ? String(p.tallas).split(",").map((s) => s.trim()).filter(Boolean)
             : ["Único"],
           color: categoryColors[p.categoria] || "from-gray-400 to-gray-500",
-          gallery: [],
+          // Galería desde las imágenes persistentes de Cloudinary
+          // (producto_imagenes) devueltas por el backend.
+          gallery: (p.imagenes || []).map((img, index) => ({
+            id: img.id,
+            src: img.url,
+            label: img.etiqueta || (p.imagenes.length > 1 ? `Vista ${index + 1}` : ""),
+            color: categoryColors[p.categoria] || "from-gray-400 to-gray-500",
+          })),
           longDescription: p.descripcion_larga || p.descripcion || "",
           features: [],
           careInstructions: null,
@@ -550,19 +558,27 @@ export default function ProductProfile() {
                   </div>
                 </div>
 
-                {/* Center icon */}
+                {/* Center image / icon */}
                 <div className={`relative h-72 sm:h-96 lg:h-[460px] flex items-center justify-center ${isImageExpanded ? "h-[600px]" : ""} transition-all duration-500`}>
-                  <div
-                    className={`bg-white/20 dark:bg-white/10 backdrop-blur-xl rounded-[3rem] flex items-center justify-center shadow-2xl ring-1 ring-white/20 transition-all duration-500 ${
-                      isImageExpanded ? "w-64 h-64" : "w-48 h-48 sm:w-56 sm:h-56"
-                    }`}
-                  >
-                    <CatIcon
-                      className={`text-white drop-shadow-2xl transition-all duration-500 ${
-                        isImageExpanded ? "w-32 h-32" : "w-24 h-24 sm:w-28 sm:h-28"
-                      }`}
+                  {currentImage.src ? (
+                    <img
+                      src={currentImage.src}
+                      alt={product.name}
+                      className="w-full h-full object-contain p-6 drop-shadow-2xl"
                     />
-                  </div>
+                  ) : (
+                    <div
+                      className={`bg-white/20 dark:bg-white/10 backdrop-blur-xl rounded-[3rem] flex items-center justify-center shadow-2xl ring-1 ring-white/20 transition-all duration-500 ${
+                        isImageExpanded ? "w-64 h-64" : "w-48 h-48 sm:w-56 sm:h-56"
+                      }`}
+                    >
+                      <CatIcon
+                        className={`text-white drop-shadow-2xl transition-all duration-500 ${
+                          isImageExpanded ? "w-32 h-32" : "w-24 h-24 sm:w-28 sm:h-28"
+                        }`}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -580,12 +596,18 @@ export default function ProductProfile() {
                             : "ring-1 ring-gray-200 dark:ring-dark-border opacity-60 hover:opacity-100 hover:ring-rose-300 dark:hover:ring-rose-700 hover:scale-105"
                         }`}
                       >
-                        <div
-                          className={`absolute inset-0 bg-gradient-to-br ${img.color} transition-transform duration-300 group-hover/thumb:scale-110`}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <CatIcon className="w-7 h-7 sm:w-8 sm:h-8 text-white drop-shadow-lg" />
-                        </div>
+                        {img.src ? (
+                          <img src={img.src} alt={product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            <div
+                              className={`absolute inset-0 bg-gradient-to-br ${img.color} transition-transform duration-300 group-hover/thumb:scale-110`}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <CatIcon className="w-7 h-7 sm:w-8 sm:h-8 text-white drop-shadow-lg" />
+                            </div>
+                          </>
+                        )}
                         {activeImageIndex === index && (
                           <div className="absolute inset-0 bg-rose-500/10" />
                         )}
@@ -934,14 +956,14 @@ export default function ProductProfile() {
                 </div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-dark-text font-display tracking-tight">
-                    ${product.price.toFixed(2)}
+                    {formatPrice(product.price)}
                   </span>
                   <div className="flex flex-col">
                     <span className="text-sm text-gray-400 dark:text-dark-text-secondary line-through">
-                      ${originalPrice.toFixed(2)}
+                      {formatPrice(originalPrice)}
                     </span>
                     <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full text-center mt-0.5">
-                      Ahorras ${(originalPrice - product.price).toFixed(2)}
+                      Ahorras {formatPrice(originalPrice - product.price)}
                     </span>
                   </div>
                 </div>
