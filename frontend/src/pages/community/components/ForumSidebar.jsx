@@ -304,7 +304,7 @@ export default function ForumSidebar({
               isDark ? "text-dark-text-secondary" : "text-gray-500"
             }`}
           >
-            Tipo de mascota
+            Especie de mascota
           </label>
           <select
             value={petTypeFilter}

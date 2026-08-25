@@ -3,6 +3,9 @@ import ConfirmModal from "../../components/ConfirmModal";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { misPosts, crearPost, actualizarPost, eliminarPost } from "../../api/foro";
+import ImageUploader from "../../components/ImageUploader";
+import { eliminarImagen, subirImagen } from "../../api/upload";
+import { fileToBase64 } from "../../utils/imageUtils";
 import {
   MessageSquare,
   Search,
@@ -17,7 +20,6 @@ import {
   Bookmark,
   Send,
   X,
-  Image as ImageIcon,
   Hash,
   Edit3,
   Trash2,
@@ -193,7 +195,7 @@ const mapPost = (p) => ({
   content: p.contenido || "",
   category: CATEGORY_NAME_TO_ID[(p.categoria || "").toLowerCase()] || "general",
   tags: p.tags || [],
-  images: (p.imagenes || []).map((img) => img.url),
+  images: (p.imagenes || []).map((img) => ({ id: img.id, url: img.url, publicId: img.publicId || "" })),
   avatar: p.autor_avatar || "",
   status: "published",
   isPinned: !!p.fijado,
@@ -210,6 +212,7 @@ const mapPost = (p) => ({
   })),
   shares: p.compartidos || 0,
   time: tiempoRelativo(p.creado_en),
+  createdAt: p.creado_en || "",
   views: p.vistas || 0,
   author: p.autor,
 });
@@ -347,6 +350,11 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
   const [tags, setTags] = useState([]);
   const [tagInput, setTagInput] = useState("");
   const [images, setImages] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  // Snapshot de imágenes existentes al abrir (para calcular eliminaciones).
+  const initialImagesRef = useRef([]);
+  // publicIds de imágenes NUEVAS subidas en esta sesión (para limpiar huérfanos).
+  const uploadedThisSession = useRef([]);
   const [errors, setErrors] = useState({});
   const [currentDraftId, setCurrentDraftId] = useState(null);
   const [drafts, setDrafts] = useState([]);
@@ -364,9 +372,16 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
 
   useEffect(() => {
     if (editPost) {
-      setTitle(editPost.title||""); setContent(editPost.content||""); setCategory(editPost.category||""); setTags(editPost.tags||[]); setImages(editPost.images||[]); setCurrentDraftId(null);
+      setTitle(editPost.title||""); setContent(editPost.content||""); setCategory(editPost.category||""); setTags(editPost.tags||[]);
+      const preloaded = (editPost.images || []).map((img) => ({ id: img.id, url: img.url, publicId: img.publicId || "" }));
+      setImages(preloaded);
+      initialImagesRef.current = preloaded;
+      uploadedThisSession.current = [];
+      setCurrentDraftId(null);
     } else if (!currentDraftId) {
       setTitle(""); setContent(""); setCategory(""); setTags([]); setImages([]);
+      initialImagesRef.current = [];
+      uploadedThisSession.current = [];
     }
     setErrors({});
   }, [editPost, isOpen, uid, currentDraftId]);
@@ -387,7 +402,7 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
   const handleCategoryChange = (v) => { setCategory(v); setErrors((prev) => ({ ...prev, category: validarCategoria(v) })); };
   const inputCls = (err) => `w-full px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all ${isDark ? `bg-[#15151f] border ${err ? "border-red-500" : "border-dark-border"} text-dark-text placeholder-dark-text-secondary` : `bg-gray-50 border ${err ? "border-red-500" : "border-gray-200"} text-gray-700 placeholder-gray-400`}`;
   const hasContent = title.trim()||content.trim()||category||tags.length>0;
-  const canPublish = title.trim()&&content.trim()&&category;
+  const canPublish = title.trim()&&content.trim()&&category && !uploadingImages;
   const form = () => ({ title: title.trim(), content: content.trim(), category, tags, images });
   const reset = () => { setCurrentDraftId(null); setTitle(""); setContent(""); setCategory(""); setTags([]); setImages([]); setSaveFeedback(false); };
 
@@ -405,14 +420,39 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
 
   const publish = async () => {
     // Evita publicaciones duplicadas si el usuario presiona varias veces.
-    if (!validate() || publishing) return;
+    if (!validate() || publishing || uploadingImages) return;
     setPublishing(true);
     setProgress(0);
     const progressTimer = setInterval(() => {
       setProgress((prev) => (prev >= 90 ? prev : prev + 8));
     }, 200);
     if (currentDraftId) { const a=loadDrafts(uid); saveDrafts(uid, a.filter(d=>d.id!==currentDraftId)); }
-    const ok = await onSave({ title:title.trim(), content:content.trim(), category, tags, images, status:"published", isPinned:false });
+    // Calcular eliminaciones de imágenes existentes.
+    const idsIniciales = initialImagesRef.current.map((i) => i.id);
+    const idsActuales = images.map((i) => i.id).filter(Boolean);
+    const imagenesEliminar = idsIniciales.filter((id) => !idsActuales.includes(id));
+    // Subida diferida: las imágenes locales (con file) se suben a Cloudinary
+    // SOLO en este momento (al publicar/guardar), no al aplicar el recorte.
+    const imagenesNuevas = [];
+    for (const img of images.filter((i) => !i.id)) {
+      if (img.file) {
+        try {
+          const base64 = await fileToBase64(img.file);
+          const res = await subirImagen("foro", base64);
+          if (img.url && img.url.startsWith("blob:")) URL.revokeObjectURL(img.url);
+          imagenesNuevas.push({ url: res.url, public_id: res.public_id || "" });
+        } catch {
+          clearInterval(progressTimer);
+          setProgress(0);
+          setPublishing(false);
+          setErrors((prev) => ({ ...prev, general: "*No se pudo subir una imagen. Verifica tu conexión e inténtalo de nuevo." }));
+          return;
+        }
+      } else {
+        imagenesNuevas.push({ url: img.url, public_id: img.publicId || "" });
+      }
+    }
+    const ok = await onSave({ title:title.trim(), content:content.trim(), category, tags, images: imagenesNuevas, imagenes_eliminar: imagenesEliminar, status:"published", isPinned:false });
     if (ok === false) {
       clearInterval(progressTimer);
       setProgress(0);
@@ -423,12 +463,36 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
     clearInterval(progressTimer);
     setProgress(100);
     setPublishing(false);
+    // Las imágenes nuevas ya quedaron guardadas: no deben eliminarse al cerrar.
+    uploadedThisSession.current = [];
     reset(); onClose();
   };
 
+  // Limpia de Cloudinary las imágenes subidas en esta sesión y descartadas, y
+  // libera las URLs locales de imágenes aún no subidas.
+  const cleanupOrphanImages = () => {
+    const pendientes = uploadedThisSession.current;
+    uploadedThisSession.current = [];
+    pendientes.forEach((pid) => { if (pid) eliminarImagen(pid).catch(() => {}); });
+    images.forEach((img) => {
+      if (img?.file && img.url && img.url.startsWith("blob:")) URL.revokeObjectURL(img.url);
+    });
+  };
+
+  // Handler del ImageUploader: registra nuevas subidas para limpieza posterior.
+  const handleImagesChange = (newImages) => {
+    newImages.forEach((img) => {
+      if (!img.id && img.publicId && !uploadedThisSession.current.includes(img.publicId)) {
+        uploadedThisSession.current.push(img.publicId);
+      }
+    });
+    setImages(newImages);
+    setErrors((prev) => ({ ...prev, images: "" }));
+  };
+
   const cancel = () => {
-    if (hasContent) setConfirm({ isOpen: true, title: "Descartar cambios", message: "Los cambios no guardados se perderán. ¿Salir?", confirmText: "Salir sin guardar", type: "warning", onConfirm: () => { reset(); onClose(); setConfirm(p=>({...p,isOpen:false})); } });
-    else { reset(); onClose(); }
+    if (hasContent) setConfirm({ isOpen: true, title: "Descartar cambios", message: "Los cambios no guardados se perderán. ¿Salir?", confirmText: "Salir sin guardar", type: "warning", onConfirm: () => { cleanupOrphanImages(); reset(); onClose(); setConfirm(p=>({...p,isOpen:false})); } });
+    else { cleanupOrphanImages(); reset(); onClose(); }
   };
 
   const addTag = (t) => { const c = t.trim().replace(/^#/,""); if(c&&!tags.includes(c)&&tags.length<10) setTags([...tags,c]); setTagInput(""); };
@@ -495,13 +559,20 @@ function CreatePostModal({ isOpen, onClose, onSave, editPost, isDark, user }) {
               {tags.length>0 && <div className="flex flex-wrap gap-1.5 mt-2">{tags.map(tag=>(<span key={tag} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm ${isDark?"bg-rose-500/15 text-rose-300":"bg-rose-50 text-rose-700"}`}>#{tag}<button onClick={()=>removeTag(tag)} className="hover:text-rose-400"><X className="w-3 h-3" /></button></span>))}</div>}
             </div>
 
-            <div><label className={`block text-sm font-medium mb-2 ${isDark?"text-dark-text":"text-gray-700"}`}>Imágenes <span className={`text-xs ml-2 ${isDark?"text-dark-text-secondary":"text-gray-400"}`}>(máx. 5)</span></label>
-              <div className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${isDark?"border-dark-border hover:border-rose-500/30":"border-gray-200 hover:border-rose-300 bg-gray-50/50"}`}>
-                <ImageIcon className={`w-8 h-8 mx-auto mb-2 ${isDark?"text-dark-text-secondary":"text-gray-400"}`} />
-                <p className={`text-sm font-medium ${isDark?"text-dark-text":"text-gray-700"}`}>Arrastra tus imágenes aquí</p>
-                <p className={`text-xs mt-1 ${isDark?"text-dark-text-secondary":"text-gray-500"}`}>o haz clic para seleccionar</p>
-              </div>
-              {images.length>0 && <div className="flex gap-2 mt-2">{images.map((img,idx)=>(<div key={idx} className="relative"><img src={img} alt="" className="w-16 h-16 rounded-lg object-cover" /><button onClick={()=>setImages(images.filter((_,i)=>i!==idx))} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600"><X className="w-3 h-3" /></button></div>))}</div>}
+            <div><label className={`block text-sm font-medium mb-2 ${isDark?"text-dark-text":"text-gray-700"}`}>Imágenes <span className={`text-xs ml-2 ${isDark?"text-dark-text-secondary":"text-gray-400"}`}>(máx. 3)</span></label>
+              <ImageUploader
+                tipo="foro"
+                multiple
+                maxFiles={3}
+                label=""
+                inline
+                diferirSubida
+                value={images}
+                onChange={handleImagesChange}
+                onUploadingChange={setUploadingImages}
+                onError={(msg)=>setErrors((prev)=>({...prev,images:msg}))}
+              />
+              {errors.images && <p className="text-xs font-medium text-red-500 mt-1">{errors.images}</p>}
             </div>
           </div>
 
@@ -672,7 +743,7 @@ function PostDetailModal({ post, isOpen, onClose, isDark, user, onDelete, onPin,
           {post.images && post.images.length > 0 && (
             <div className={`mb-4 rounded-xl overflow-hidden ${post.images.length === 1 ? "" : "grid grid-cols-2 gap-2"}`}>
               {post.images.map((img, idx) => (
-                <img key={idx} src={img} alt="" className="w-full h-56 object-cover rounded-lg" />
+                <img key={idx} src={img.url} alt="" className="w-full h-56 object-cover rounded-lg" />
               ))}
             </div>
           )}
@@ -949,7 +1020,7 @@ function PostCard({ post, isDark, onPostClick, onLike, onSave, onEdit, onDelete,
           <div className="mt-3 grid grid-cols-2 gap-2">
             {post.images.slice(0, 2).map((img, idx) => (
               <div key={idx} className="rounded-lg overflow-hidden">
-                <img src={img} alt="" className="w-full h-28 object-cover hover:scale-105 transition-transform duration-500" />
+                <img src={img.url} alt="" className="w-full h-28 object-cover hover:scale-105 transition-transform duration-500" />
               </div>
             ))}
           </div>
@@ -1026,9 +1097,56 @@ function PostCard({ post, isDark, onPostClick, onLike, onSave, onEdit, onDelete,
 // RIGHT PANEL
 // ============================================================
 
-function ForumRightPanel({ isDark, onCreatePost }) {
+function ForumRightPanel({ isDark, onCreatePost, posts = [] }) {
   const cardClass = `rounded-2xl p-5 ${isDark ? "bg-dark-card border border-dark-border" : "bg-white shadow-md shadow-gray-100/50"}`;
   const sectionTitleClass = `text-sm font-semibold uppercase tracking-wider mb-4 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`;
+
+  // Actividad reciente REAL, derivada de las publicaciones del refugio.
+  const recentActivity = (Array.isArray(posts) ? posts : [])
+    .slice()
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .flatMap((post) => {
+      const items = [
+        {
+          id: `pub-${post.id}`,
+          action: "Publicaste",
+          detail: post.title || "una publicación",
+          time: post.time || "",
+          icon: MessageSquare,
+          color: "text-rose-500",
+        },
+      ];
+      if (post.likes > 0) {
+        items.push({
+          id: `like-${post.id}`,
+          action: "Recibiste",
+          detail: `${post.likes} ${post.likes === 1 ? "like" : "likes"} en tu publicación`,
+          time: post.time || "",
+          icon: ThumbsUp,
+          color: "text-rose-500",
+        });
+      }
+      const nComentarios = (post.comments || []).length;
+      if (nComentarios > 0) {
+        items.push({
+          id: `com-${post.id}`,
+          action: "Recibiste",
+          detail: `${nComentarios} ${nComentarios === 1 ? "comentario" : "comentarios"} en tu publicación`,
+          time: post.time || "",
+          icon: MessageCircle,
+          color: "text-blue-500",
+        });
+      }
+      return items;
+    });
+
+  // Estadísticas de impacto REALES, derivadas de las publicaciones del refugio.
+  const statsImpacto = [
+    { label: "Publicaciones", value: (posts.length || 0).toLocaleString("es-CO"), icon: MessageSquare },
+    { label: "Likes", value: posts.reduce((a, p) => a + (p.likes || 0), 0).toLocaleString("es-CO"), icon: ThumbsUp },
+    { label: "Comentarios", value: posts.reduce((a, p) => a + (p.comments?.length || 0), 0).toLocaleString("es-CO"), icon: MessageCircle },
+    { label: "Alcance", value: posts.reduce((a, p) => a + (p.views || 0), 0).toLocaleString("es-CO"), icon: Eye },
+  ];
 
   const tips = [
     { icon: Camera, title: "Añade imágenes", desc: "Las publicaciones con imágenes reciben 3x más interacción." },
@@ -1070,14 +1188,10 @@ function ForumRightPanel({ isDark, onCreatePost }) {
           <h3 className={sectionTitleClass}>Actividad reciente</h3>
         </div>
         <div className="space-y-3">
-          {[
-            { action: "Publicaste", detail: "Jornada de Adopción", time: "hace 2 horas", icon: MessageSquare, color: "text-rose-500" },
-            { action: "Recibiste", detail: "15 likes en tu publicación", time: "hace 1 día", icon: ThumbsUp, color: "text-rose-500" },
-            { action: "Comentaste", detail: "en una publicación", time: "hace 2 días", icon: MessageCircle, color: "text-blue-500" },
-          ].map((item, idx) => {
+          {recentActivity.length > 0 ? recentActivity.slice(0, 6).map((item) => {
             const Icon = item.icon;
             return (
-              <div key={idx} className={`flex gap-3 p-3 rounded-xl ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all cursor-pointer`}>
+              <div key={item.id} className={`flex gap-3 p-3 rounded-xl ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all`}>
                 <div className={`w-8 h-8 rounded-lg ${isDark ? "bg-white/5" : "bg-gray-100"} flex items-center justify-center shrink-0`}>
                   <Icon className={`w-4 h-4 ${item.color}`} />
                 </div>
@@ -1090,7 +1204,15 @@ function ForumRightPanel({ isDark, onCreatePost }) {
                 </div>
               </div>
             );
-          })}
+          }) : (
+            <div className="text-center py-8">
+              <Clock className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-dark-text-secondary/50" : "text-gray-300"}`} />
+              <p className={`text-sm ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>Aún no hay actividad</p>
+              <p className={`text-xs mt-1 ${isDark ? "text-dark-text-secondary/70" : "text-gray-400"}`}>
+                Tus publicaciones, likes y comentarios aparecerán aquí.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1098,12 +1220,7 @@ function ForumRightPanel({ isDark, onCreatePost }) {
       <div className={`${cardClass} bg-gradient-to-br from-rose-500/5 to-amber-500/5 dark:from-rose-500/10 dark:to-amber-500/10`}>
         <h3 className={sectionTitleClass}>Impacto del foro</h3>
         <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: "Publicaciones", value: "156", icon: MessageSquare },
-            { label: "Interacciones", value: "2.3K", icon: TrendingUp },
-            { label: "Alcance", value: "8.5K", icon: Eye },
-            { label: "Seguidores", value: "456", icon: Users },
-          ].map((stat, idx) => {
+          {statsImpacto.map((stat, idx) => {
             const Icon = stat.icon;
             return (
               <div key={idx} className="text-center p-2">
@@ -1175,6 +1292,7 @@ export default function ShelterForum() {
     drafts: posts.filter(p => p.status === "draft").length,
     totalComments: posts.reduce((acc, p) => acc + (p.comments?.length || 0), 0),
     totalLikes: posts.reduce((acc, p) => acc + (p.likes || 0), 0),
+    totalViews: posts.reduce((acc, p) => acc + (p.views || 0), 0),
   };
 
   // Filter & Sort posts
@@ -1224,6 +1342,8 @@ export default function ShelterForum() {
         contenido: data.content,
         categoria: data.category || "general",
         tags: (data.tags || []).join(","),
+        imagenes: data.images || [],
+        imagenes_eliminar: data.imagenes_eliminar || [],
       });
       setPosts((prev) => [mapPost(creado), ...prev]);
       return true;
@@ -1240,6 +1360,8 @@ export default function ShelterForum() {
         contenido: postData.content,
         categoria: postData.category || "general",
         tags: (postData.tags || []).join(","),
+        imagenes: postData.images || [],
+        imagenes_eliminar: postData.imagenes_eliminar || [],
       });
       setPosts(prev => prev.map(p => p.id === editingPost.id ? mapPost(actualizado) : p));
       setEditingPost(null);
@@ -1345,7 +1467,7 @@ export default function ShelterForum() {
           <StatCard icon={MessageSquare} label="Publicaciones" value={stats.total} gradient="from-rose-500 to-pink-500" isDark={isDark} />
           <StatCard icon={FileText} label="Borradores" value={stats.drafts} gradient="from-amber-500 to-orange-500" isDark={isDark} />
           <StatCard icon={Heart} label="Reacciones" value={stats.totalLikes} gradient="from-rose-500 to-pink-500" isDark={isDark} />
-          <StatCard icon={Users} label="Alcance estimado" value="12.3K" gradient="from-violet-500 to-purple-500" isDark={isDark} />
+          <StatCard icon={Users} label="Alcance" value={stats.totalViews.toLocaleString("es-CO")} gradient="from-violet-500 to-purple-500" isDark={isDark} />
         </div>
 
         {/* ===== SEARCH & FILTERS ===== */}
@@ -1613,6 +1735,7 @@ export default function ShelterForum() {
           <div className="hidden xl:block w-[320px] shrink-0">
             <ForumRightPanel
               isDark={isDark}
+              posts={posts}
               onCreatePost={() => { setEditingPost(null); setShowCreateModal(true); }}
             />
           </div>

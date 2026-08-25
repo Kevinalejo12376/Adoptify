@@ -24,6 +24,28 @@ function tiempoRelativo(iso) {
   return `hace ${Math.floor(h / 24)} d`;
 }
 
+// Logo del refugio con fallback: si hay un logo válido se muestra solo el
+// logo; si no hay logo o la imagen falla (eliminada o URL inválida), se
+// muestra únicamente el ícono como imagen predeterminada.
+function ShelterLogo({ logo, name }) {
+  const [failed, setFailed] = useState(false);
+  const showLogo = logo && !failed;
+  return (
+    <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center group-hover:from-amber-200 group-hover:to-rose-200 transition-all duration-300 overflow-hidden">
+      {showLogo ? (
+        <img
+          src={logo}
+          alt={name}
+          className="w-full h-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <HomeIcon className="w-10 h-10 text-amber-600" />
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("");
@@ -418,9 +440,7 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {refugios.map((shelter) => (
                 <div key={shelter.id} className="group bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 hover:scale-105 border border-gray-100">
-                  <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-amber-100 to-rose-100 flex items-center justify-center group-hover:from-amber-200 group-hover:to-rose-200 transition-all duration-300">
-                    <HomeIcon className="w-10 h-10 text-amber-600" />
-                  </div>
+                  <ShelterLogo logo={shelter.logo_url} name={shelter.nombre} />
                   <h3 className="text-xl font-bold text-gray-900 mb-1 text-center font-display">{shelter.nombre}</h3>
                   <p className="text-sm text-amber-600 font-medium mb-3 text-center">{shelter.ubicacion || "Colombia"}</p>
                   <p className="text-sm text-gray-600 mb-4 text-center leading-relaxed line-clamp-3">

@@ -22,9 +22,10 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import ScrollToTop from "../../components/ScrollToTop";
 import { listarMascotas } from "../../api/mascotas";
+import { ciudadesCoinciden } from "../../utils/ubicacion";
 
 export default function Animals() {
-  const { addFavorite, removeFavorite, isFavorite } = useAuth();
+  const { addFavorite, removeFavorite, isFavorite, currentCity } = useAuth();
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
@@ -59,6 +60,7 @@ export default function Animals() {
             size: m.tamano || "—",
             gender: m.genero || "—",
             shelter: m.refugio_nombre || "Refugio",
+            city: m.refugio_ubicacion || "",
             image:
               m.imagen_url ||
               (m.imagenes && m.imagenes[0]?.url) ||
@@ -82,16 +84,32 @@ export default function Animals() {
     }
   };
 
-  const filteredAnimals = animals.filter(animal => {
-    const matchesSearch = animal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         animal.breed.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = selectedType === "all" || animal.type === selectedType;
-    const matchesSize = selectedSize === "all" || animal.size === selectedSize;
-    const matchesAge = selectedAge === "all" || animal.age.includes(selectedAge);
-    const matchesGender = selectedGender === "all" || animal.gender === selectedGender;
-    
-    return matchesSearch && matchesType && matchesSize && matchesAge && matchesGender;
-  });
+  // Prioriza las mascotas de los refugios activos de la ciudad/municipio actual
+  // del usuario (si fue detectada al iniciar sesión): primero las de su ciudad
+  // y después las de otros refugios/ciudades. Si no hay ubicación, se conserva
+  // el orden original del backend.
+  const priorizarPorCiudad = (lista) => {
+    if (!currentCity) return lista;
+    return [...lista].sort((a, b) => {
+      const aLocal = ciudadesCoinciden(a.city, currentCity);
+      const bLocal = ciudadesCoinciden(b.city, currentCity);
+      if (aLocal !== bLocal) return aLocal ? -1 : 1;
+      return 0;
+    });
+  };
+
+  const filteredAnimals = priorizarPorCiudad(
+    animals.filter(animal => {
+      const matchesSearch = animal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           animal.breed.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = selectedType === "all" || animal.type === selectedType;
+      const matchesSize = selectedSize === "all" || animal.size === selectedSize;
+      const matchesAge = selectedAge === "all" || animal.age.includes(selectedAge);
+      const matchesGender = selectedGender === "all" || animal.gender === selectedGender;
+      
+      return matchesSearch && matchesType && matchesSize && matchesAge && matchesGender;
+    })
+  );
 
   const hasActiveFilters = selectedType !== "all" || selectedSize !== "all" || selectedAge !== "all" || selectedGender !== "all" || searchTerm !== "";
 
@@ -241,7 +259,7 @@ export default function Animals() {
                   <div className="flex items-center gap-2 mb-3">
                     <PawPrint className="w-4 h-4 text-rose-500" />
                     <h4 className="text-sm font-bold text-gray-900 dark:text-dark-text">
-                      Tipo
+                      Especie
                     </h4>
                   </div>
                   <div className="flex flex-wrap gap-2">

@@ -156,7 +156,12 @@ export default function ShelterDetails() {
               {/* Logo */}
               <div className="w-24 h-24 bg-gradient-to-br from-rose-100 to-amber-100 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-105 hover:shadow-lg">
                 {shelter.logo ? (
-                  <img src={shelter.logo} alt={shelter.name} className="w-full h-full object-cover rounded-2xl" />
+                  <img
+                    src={shelter.logo}
+                    alt={shelter.name}
+                    className="w-full h-full object-cover rounded-2xl"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
                 ) : (
                   <PawPrint className="w-12 h-12 text-rose-400" />
                 )}
@@ -473,7 +478,12 @@ export default function ShelterDetails() {
                     className="aspect-square bg-gradient-to-br from-rose-100 to-amber-100 rounded-lg overflow-hidden group cursor-pointer relative hover:shadow-md transition-all duration-300"
                   >
                     {photo.image ? (
-                      <img src={photo.image} alt={`Foto ${photo.id}`} className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110" />
+                      <img
+                        src={photo.image}
+                        alt={`Foto ${photo.id}`}
+                        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center transition-all duration-300 group-hover:bg-rose-200">
                         <PawPrint className="w-5 h-5 text-rose-300 group-hover:text-rose-500 group-hover:scale-125 transition-all duration-300" />

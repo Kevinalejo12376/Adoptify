@@ -44,7 +44,8 @@ _ALINEACIONES = {
 _FORMATOS_EXCEL = {
     TIPO_ENTERO: "#,##0",
     TIPO_NUMERO: "#,##0.00",
-    TIPO_MONEDA: '"$"#,##0.00',
+    # Moneda (COP): sin centavos -> entero. El punto de miles es solo formato.
+    TIPO_MONEDA: '"$"#,##0',
     TIPO_FECHA: "DD/MM/YYYY",
     TIPO_FECHA_HORA: "DD/MM/YYYY HH:MM",
 }

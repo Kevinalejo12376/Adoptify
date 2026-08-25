@@ -50,7 +50,9 @@ DATOS = {
     cat.EstadoPedido: [
         ("pendiente", "Pendiente"),
         ("pagado", "Pagado"),
+        ("preparando", "Preparando"),
         ("enviado", "Enviado"),
+        ("en_camino", "En Camino"),
         ("entregado", "Entregado"),
         ("cancelado", "Cancelado"),
     ],

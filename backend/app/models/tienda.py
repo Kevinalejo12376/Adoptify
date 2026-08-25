@@ -46,6 +46,28 @@ class Tienda(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    # Galería de imágenes de la tienda (Fachada, instalaciones, productos).
+    imagenes = relationship(
+        "TiendaImagen",
+        back_populates="tienda",
+        cascade="all, delete-orphan",
+        order_by="TiendaImagen.orden",
+    )
+
+
+class TiendaImagen(Base):
+    """Imagen de la galería de una tienda (Fachada, instalaciones, productos)."""
+    __tablename__ = "tienda_imagenes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tienda_id = Column(Integer, ForeignKey("tiendas.id", ondelete="CASCADE"), nullable=False)
+    url = Column(Text, nullable=False)
+    public_id = Column(String(255))
+    categoria = Column(String(40))
+    es_portada = Column(Boolean, nullable=False, default=False)
+    orden = Column(Integer, nullable=False, default=0)
+
+    tienda = relationship("Tienda", back_populates="imagenes")
 
 
 class TiendaPermiso(Base):

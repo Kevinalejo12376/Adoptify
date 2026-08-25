@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Text, Numeric, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, Numeric, BigInteger, Boolean, DateTime, ForeignKey, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -11,7 +11,8 @@ class Producto(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(150), nullable=False)
     categoria_id = Column(Integer, ForeignKey("categorias_producto.id"))
-    precio = Column(Numeric(10, 2), nullable=False, default=0)
+    # Moneda: COP sin centavos -> entero (BigInteger). El punto de miles es solo formato.
+    precio = Column(BigInteger, nullable=False, default=0)
     descripcion = Column(Text)
     descripcion_larga = Column(Text)
     calidad = Column(String(30))

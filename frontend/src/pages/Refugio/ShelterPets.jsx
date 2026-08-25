@@ -302,7 +302,7 @@ const PetForm = ({ petData, setPetData, onSubmit, onCancel, title, isEdit }) => 
               className={claseInput(InputClass, !!errors.name)} placeholder="Nombre de la mascota" />
             <FieldError mensaje={errors.name} />
           </FormField>
-          <FormField label="Tipo">
+          <FormField label="Especie">
             <div className="relative">
               <select value={petData.type} onChange={(e) => handleTypeChange(e.target.value)} className={SelectClass}>
                 <option>Perro</option>

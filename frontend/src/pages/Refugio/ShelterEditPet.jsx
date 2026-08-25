@@ -301,7 +301,7 @@ export default function ShelterEditPet() {
                 <FieldError mensaje={errors.name} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Tipo</label>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Especie</label>
                 <div className="relative">
                   <select value={petData.type} onChange={(e) => handleTypeChange(e.target.value)} className={SelectClass}>
                     <option>Perro</option>

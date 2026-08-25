@@ -7,6 +7,8 @@ import StoreHeader from "./components/StoreHeader";
 
 function StoreLayoutContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // Controla si el menú lateral está fijado para ajustar el margen del contenido.
+  const [sidebarFijado, setSidebarFijado] = useState(false);
   const { user, logout } = useAuth();
   const {
     storeNombre, storeLogo, usuarioNombre,
@@ -34,14 +36,17 @@ function StoreLayoutContent() {
         storeNombre={nombreTienda}
         storeLogo={logo}
         onLogout={handleLogout}
+        fijado={sidebarFijado}
+        onToggleFijar={() => setSidebarFijado((prev) => !prev)}
       />
 
-      {/* Contenido principal */}
+      {/* Contenido principal - margen izquierdo dinámico según si el menú está fijado.
+          Colapsado: 72px · Expandido/fijado: 260px (ancho real del sidebar) */}
       <div
         className={`
           transition-all duration-300
-          lg:ml-[260px] pb-16 lg:pb-0
-          ${sidebarCollapsed ? "lg:!ml-[72px]" : ""}
+          pb-16 lg:pb-0
+          ${sidebarFijado ? "lg:ml-[260px]" : "lg:ml-[72px]"}
         `}
       >
         {/* Header */}

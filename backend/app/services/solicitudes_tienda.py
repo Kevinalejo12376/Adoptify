@@ -32,7 +32,7 @@ from app.core.email import (
 from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.core.security import get_password_hash
 from app.models.usuario import Usuario
-from app.models.tienda import Tienda, TiendaUsuario
+from app.models.tienda import Tienda, TiendaImagen, TiendaUsuario
 from app.models.catalogos import Rol
 from app.models.solicitud_refugio import EnlaceCreacionPassword
 from app.models.solicitud_tienda import (
@@ -237,6 +237,35 @@ def serialize_solicitud(s: SolicitudTienda, db: Session, incluir_detalle: bool =
 # Acciones del administrador
 # ---------------------------------------------------------------------------
 
+# Categorías de documentos de la solicitud que son fotografías VISUALES de la
+# tienda (Fachada, instalaciones, productos). Las demás son documentos
+# legales/confidenciales y NO se copian a la galería pública.
+CATEGORIAS_VISUALES_TIENDA = ("fachada", "instalaciones", "productos")
+
+
+def _copiar_imagenes_solicitud_a_galeria(db: Session, solicitud_id: int, tienda_id: int) -> None:
+    """Copia las fotografías visuales de una solicitud aprobada a la galería
+    (TiendaImagen) de la tienda creada. La primera se marca como portada."""
+    docs = (
+        db.query(SolicitudTiendaDocumento)
+        .filter(
+            SolicitudTiendaDocumento.solicitud_id == solicitud_id,
+            SolicitudTiendaDocumento.categoria.in_(CATEGORIAS_VISUALES_TIENDA),
+        )
+        .order_by(SolicitudTiendaDocumento.id.asc())
+        .all()
+    )
+    for idx, doc in enumerate(docs):
+        db.add(TiendaImagen(
+            tienda_id=tienda_id,
+            url=doc.url,
+            public_id=doc.public_id,
+            categoria=doc.categoria,
+            es_portada=(idx == 0),
+            orden=idx,
+        ))
+
+
 def aprobar_solicitud(db: Session, solicitud: SolicitudTienda, admin: Usuario) -> dict:
     """Aprueba la solicitud: crea usuario (rol tienda_aliada), tienda, registro
     de Super Administrador, enlace seguro para crear contraseña (24 h), envía el
@@ -306,7 +335,11 @@ def aprobar_solicitud(db: Session, solicitud: SolicitudTienda, admin: Usuario) -
     db.add(tienda)
     db.flush()
 
-    # 4b. Registrar al representante como Super Administrador de la tienda
+    # 4b. Copiar las fotografías del registro (fachada, instalaciones,
+    #     productos) a la galería de la tienda creada.
+    _copiar_imagenes_solicitud_a_galeria(db, solicitud.id, tienda.id)
+
+    # 4c. Registrar al representante como Super Administrador de la tienda
     db.add(TiendaUsuario(
         tienda_id=tienda.id,
         usuario_id=user.id,

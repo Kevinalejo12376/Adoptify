@@ -9,7 +9,6 @@ import {
   MapPin,
   Users,
   ExternalLink,
-  Bot,
   Lightbulb,
   TrendingUp,
 } from "lucide-react";
@@ -97,56 +96,32 @@ export default function ForumRightPanel() {
 
   return (
     <aside className="space-y-5">
-      {/* ===== AI Assistant Card (próximamente) ===== */}
-      <div className={`${cardClass} relative overflow-hidden`}>
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className={`font-semibold ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-                Asistente IA
-              </h3>
-              <p className={`text-xs ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
-                Respuestas inteligentes
-              </p>
-            </div>
-            <span
-              className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
-                isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
-              }`}
-            >
-              Beta
-            </span>
+      {/* ===== Recomendaciones IA (próximamente) ===== */}
+      <div
+        className={`${cardClass} border-2 border-dashed ${
+          isDark ? "border-violet-500/30" : "border-violet-300/50"
+        }`}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <Sparkles className={`w-4 h-4 ${isDark ? "text-violet-400" : "text-violet-500"}`} />
+          <h3
+            className={`text-sm font-semibold uppercase tracking-wider ${
+              isDark ? "text-violet-300" : "text-violet-700"
+            }`}
+          >
+            Recomendaciones IA
+          </h3>
+        </div>
+        <div className="flex items-center justify-center py-6">
+          <div className="text-center">
+            <Lightbulb className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-violet-400" : "text-violet-500"}`} />
+            <p className={`text-sm font-medium ${isDark ? "text-dark-text" : "text-gray-900"}`}>
+              Recomendaciones inteligentes
+            </p>
+            <p className={`text-xs mt-1 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
+              Próximamente: Contenido personalizado para ti
+            </p>
           </div>
-          <p className={`text-sm mb-3 ${isDark ? "text-dark-text-secondary" : "text-gray-600"}`}>
-            Pregunta sobre adopción, cuidados o encuentra el refugio ideal para ti.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Escribe tu pregunta..."
-              className={`flex-1 px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 ${
-                isDark
-                  ? "bg-[#15151f] border border-dark-border text-dark-text placeholder-dark-text-secondary"
-                  : "bg-gray-50 border border-gray-200 text-gray-700 placeholder-gray-400"
-              }`}
-              disabled
-            />
-            <button
-              className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-700"
-              }`}
-              disabled
-            >
-              <Sparkles className="w-4 h-4" />
-            </button>
-          </div>
-          <p className={`text-xs mt-2 text-center ${isDark ? "text-dark-text-secondary" : "text-gray-400"}`}>
-            Próximamente disponible
-          </p>
         </div>
       </div>
 
@@ -282,35 +257,6 @@ export default function ForumRightPanel() {
           </Link>
         </div>
       )}
-
-      {/* ===== Recomendaciones IA (próximamente) ===== */}
-      <div
-        className={`${cardClass} border-2 border-dashed ${
-          isDark ? "border-violet-500/30" : "border-violet-300/50"
-        }`}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className={`w-4 h-4 ${isDark ? "text-violet-400" : "text-violet-500"}`} />
-          <h3
-            className={`text-sm font-semibold uppercase tracking-wider ${
-              isDark ? "text-violet-300" : "text-violet-700"
-            }`}
-          >
-            Recomendaciones IA
-          </h3>
-        </div>
-        <div className="flex items-center justify-center py-6">
-          <div className="text-center">
-            <Lightbulb className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-violet-400" : "text-violet-500"}`} />
-            <p className={`text-sm font-medium ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-              Recomendaciones inteligentes
-            </p>
-            <p className={`text-xs mt-1 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
-              Próximamente: Contenido personalizado para ti
-            </p>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }
