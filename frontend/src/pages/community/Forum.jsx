@@ -559,7 +559,7 @@ export default function Forum() {
                   <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${
                     isDark ? "text-dark-text-secondary" : "text-gray-500"
                   }`}>
-                    Tipo de mascota
+                    Especie de mascota
                   </label>
                   <select
                     value={petTypeFilter}

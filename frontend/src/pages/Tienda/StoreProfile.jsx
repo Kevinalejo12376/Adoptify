@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Store, MapPin, Phone, Mail, Globe, Clock, Star,
-  Edit3, Save, MessageSquare, ShoppingCart, Package, Loader2, CheckCircle2, AlertCircle, Upload, ShieldCheck,
+  Edit3, Save, MessageSquare, ShoppingCart, Package, Loader2, CheckCircle2, AlertCircle, Upload, ShieldCheck, Image,
 } from "lucide-react";
 import { estadisticasTienda, cambiarLogoTienda, eliminarLogoTienda } from "../../api/tienda";
 import { useStore } from "../../context/StoreContext";
@@ -304,6 +304,45 @@ export default function StoreProfile() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Galería de imágenes (Fachada, instalaciones, productos) */}
+          <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
+              <Image size={16} className="text-rose-500" />
+              Galería de imágenes
+            </h3>
+            {(store?.imagenes || []).length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {(store.imagenes || []).map((img) => (
+                  <div
+                    key={img.id}
+                    className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-dark-border border border-gray-200 dark:border-dark-border"
+                  >
+                    {img.url ? (
+                      <img
+                        src={img.url}
+                        alt={img.categoria || "Foto de la tienda"}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : null}
+                    {!img.url && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Image size={24} className="text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Image size={28} className="text-gray-300 dark:text-dark-text-secondary mb-2" />
+                <p className="text-sm text-gray-400 dark:text-dark-text-secondary">
+                  Aún no hay imágenes de la tienda. Las fotos del registro se mostrarán aquí.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

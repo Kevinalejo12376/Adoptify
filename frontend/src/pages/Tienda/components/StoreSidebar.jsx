@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, BarChart3, Bell, Settings,
@@ -39,22 +39,21 @@ function useMenuItems() {
   });
 }
 
-export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, storeLogo, onLogout }) {
+export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, storeLogo, onLogout, fijado, onToggleFijar }) {
   const location = useLocation();
   const menuItems = useMenuItems();
   const sidebarRef = useRef(null);
-  // "Fijar" mantiene el menú lateral abierto (no se colapsa al salir el mouse).
-  const [fijado, setFijado] = useState(false);
+  // "Fijar" se controla desde StoreLayout para poder ajustar el margen del contenido.
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + "/");
 
   const expandir = () => setCollapsed(false);
   const colapsar = () => { if (!fijado) setCollapsed(true); };
 
-  // Fijar/desfijar: solo cambia el estado abierto/cerrado del menú lateral.
+  // Fijar/desfijar: notifica al layout para ajustar el margen del contenido.
   const toggleFijar = () => {
     const nuevo = !fijado;
-    setFijado(nuevo);
+    onToggleFijar();
     if (nuevo) setCollapsed(false);
     else setCollapsed(true);
   };

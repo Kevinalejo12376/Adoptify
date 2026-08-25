@@ -41,8 +41,58 @@ import {
 } from "../../data/products";
 import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoritesContext";
+import { obtenerTiendaPublica } from "../../api/productos";
 
 const SG = "from-rose-500 to-amber-500";
+
+// Convierte un producto del backend al formato que usa la vista del marketplace.
+const mapProductoBD = (p) => ({
+  id: p.id,
+  name: p.nombre || "",
+  description: p.descripcion || p.descripcion_larga || "",
+  price: Number(p.precio) || 0,
+  category: p.categoria || "General",
+  rating: Number(p.rating) || 0,
+  reviews: Number(p.resenas_count) || Number(p.ventas) || 0,
+  stock: p.stock ?? 0,
+  color: categoryColors[p.categoria] || "from-gray-400 to-gray-500",
+  image: p.imagen_url || null,
+});
+
+// Convierte la tienda real del backend (/api/publico/tiendas/{id}) al formato
+// de la vista, usando el catálogo local solo como respaldo visual.
+const mapTiendaPublica = (data, fallback) => ({
+  id: data.id,
+  name: data.nombre || fallback?.name || "",
+  location: data.ubicacion || fallback?.location || "",
+  slug: data.slug || fallback?.slug || "",
+  description: data.descripcion || fallback?.description || "",
+  rating: Number(data.rating) || 0,
+  reviews: 0,
+  logo: data.logo_url || fallback?.logo || null,
+  color: fallback?.color || "from-violet-500 to-purple-500",
+  phone: data.telefono || fallback?.phone || "",
+  email: data.email || fallback?.email || "",
+  website: data.website || fallback?.website || "",
+  socialMedia: {
+    facebook: data.facebook || "",
+    instagram: data.instagram || "",
+  },
+  hours: {
+    weekdays: data.horario_semana || "",
+    weekends: data.horario_fin_semana || "",
+  },
+  gallery: (data.imagenes || []).map((img) => ({
+    id: img.id,
+    image: img.url,
+    label:
+      img.categoria === "fachada" ? "Fachada"
+      : img.categoria === "instalaciones" ? "Instalaciones"
+      : img.categoria === "productos" ? "Productos"
+      : img.categoria || "Foto",
+  })),
+  productos: (data.productos || []).map(mapProductoBD),
+});
 
 // ──── Entrance Animation Hook ────
 function useEntrance(delay = 0) {
@@ -155,9 +205,32 @@ function StarRating({ rating, size = "sm" }) {
 
 export default function StoreProfile() {
   const { storeId } = useParams();
-  const store = getStoreById(storeId);
-  const storeProducts = store ? getProductsByStore(store.id) : [];
+  const mockStore = getStoreById(storeId);
+  const [store, setStore] = useState(mockStore);
+  const [storeProducts, setStoreProducts] = useState(mockStore ? getProductsByStore(mockStore.id) : []);
   const { addToCart } = useCart();
+
+  // Intenta cargar la tienda real desde la base de datos (datos, galería de
+  // imágenes y productos reales de Cloudinary). Si no existe o falla, se
+  // conserva el catálogo local como fallback visual.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const data = await obtenerTiendaPublica(storeId);
+        if (!activo) return;
+        if (data) {
+          const mapeada = mapTiendaPublica(data, mockStore);
+          setStore(mapeada);
+          setStoreProducts(mapeada.productos);
+        }
+      } catch {
+        // sin tienda en la BD → se mantiene el fallback local
+      }
+    })();
+    return () => { activo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
   const { isStoreFavorite, toggleStoreFavorite } = useFavorites();
   const [addedToCart, setAddedToCart] = useState({});
 
@@ -265,7 +338,7 @@ export default function StoreProfile() {
     );
   }
 
-  const StoreLogo = store.logo || Store;
+  const StoreLogo = typeof store.logo === "string" ? Store : store.logo || Store;
   const gallery = store.gallery || [];
 
   return (
@@ -318,7 +391,16 @@ export default function StoreProfile() {
                     className={`relative w-32 h-32 sm:w-40 sm:h-40 rounded-[2.5rem] bg-gradient-to-br ${store.color} flex items-center justify-center shadow-2xl shadow-black/30 ring-4 ring-white/30 overflow-hidden`}
                   >
                     <div className="absolute inset-0 bg-white/10" />
-                    <StoreLogo className="w-16 h-16 sm:w-20 sm:h-20 text-white drop-shadow-2xl relative z-10" />
+                    {typeof store.logo === "string" && store.logo ? (
+                      <img
+                        src={store.logo}
+                        alt={store.name}
+                        className="w-16 h-16 sm:w-20 sm:h-20 object-cover relative z-10 rounded-[2rem]"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <StoreLogo className="w-16 h-16 sm:w-20 sm:h-20 text-white drop-shadow-2xl relative z-10" />
+                    )}
                   </div>
                   {/* Decorative ring */}
                   <div className="absolute -inset-3 rounded-[3rem] border border-white/10 animate-pulse-soft" />
@@ -619,8 +701,16 @@ export default function StoreProfile() {
                   }}
                 >
                   <div
-                    className={`absolute inset-0 bg-gradient-to-br ${img.color} transition-all duration-500 group-hover:scale-110`}
+                    className={`absolute inset-0 bg-gradient-to-br ${img.color || "from-gray-400 to-gray-500"} transition-all duration-500 group-hover:scale-110`}
                   />
+                  {img.image && (
+                    <img
+                      src={img.image}
+                      alt={img.label || "Foto"}
+                      className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-300 group-hover:scale-125 group-hover:bg-white/30">
@@ -937,6 +1027,14 @@ export default function StoreProfile() {
                       <div
                         className={`absolute inset-0 bg-gradient-to-br ${product.color} opacity-60 dark:opacity-40 transition-transform duration-500 group-hover:scale-105`}
                       />
+                      {product.image && (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        />
+                      )}
                       <div className="absolute inset-0 opacity-20">
                         <div
                           className="w-full h-full"

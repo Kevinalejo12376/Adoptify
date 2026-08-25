@@ -43,6 +43,16 @@ class FavoritoProducto(Base):
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class FavoritoRefugio(Base):
+    """Refugio marcado como favorito por un usuario (persistido en la BD)."""
+    __tablename__ = "favoritos_refugios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    refugio_id = Column(Integer, ForeignKey("refugios.id", ondelete="CASCADE"), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class ForoComentario(Base):
     __tablename__ = "foro_comentarios"
 

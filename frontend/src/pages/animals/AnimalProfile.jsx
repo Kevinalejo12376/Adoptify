@@ -232,7 +232,7 @@ export default function AnimalProfile() {
                   {animal.type === "Perro"
                     ? <Dog className="w-5 h-5 text-rose-500 mx-auto mb-2" />
                     : <Cat className="w-5 h-5 text-amber-500 mx-auto mb-2" />}
-                  <p className="text-sm text-gray-600">Tipo</p>
+                  <p className="text-sm text-gray-600">Especie</p>
                   <p className="font-semibold text-gray-900">{mostrarValor(animal.type)}</p>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-xl">

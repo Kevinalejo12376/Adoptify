@@ -23,6 +23,9 @@ import { Loader2, UploadCloud, X, ImageOff, CheckCircle2, AlertCircle, Trash2 } 
  * @param {string} [props.accept]
  * @param {string} [props.previewClassName] Clases extra para las miniaturas.
  * @param {boolean} [props.disabled]
+ * @param {boolean} [props.inline] Renderiza el editor embebido dentro del
+ *   contenedor (sin overlay flotante), ideal cuando el uploader va dentro de
+ *   otro modal (p. ej. crear/editar publicación del foro).
  */
 export default function ImageUploader({
   tipo,
@@ -39,6 +42,8 @@ export default function ImageUploader({
   accept = "image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml",
   previewClassName = "",
   disabled = false,
+  inline = false,
+  diferirSubida = false,
 }) {
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -49,7 +54,7 @@ export default function ImageUploader({
   const [editingSrc, setEditingSrc] = useState(null);
   const editQueueRef = useRef([]);
 
-  const { uploadDataUrl, uploading, progress, removeFromCloudinary } = useImageUpload({ tipo, temporal, carpetaTemp });
+  const { upload, uploadDataUrl, uploading, progress, removeFromCloudinary } = useImageUpload({ tipo, temporal, carpetaTemp });
 
   // Notifica al padre si hay una subida en curso (para bloquear "Guardar").
   useEffect(() => {
@@ -106,15 +111,34 @@ export default function ImageUploader({
     [disabled, uploading, editingSrc, maxFiles, images, pending.length, addError, openNextEditor]
   );
 
-  // Aplica la imagen ya editada: la sube a Cloudinary y la agrega a la lista.
+  // Aplica la imagen ya editada: recibe un File/Blob recortado (o un data URL
+  // como fallback). Con `diferirSubida` NO sube a Cloudinary todavía: la imagen
+  // queda local (blob URL + file) y se subirá cuando el formulario guarde o
+  // publique. En el flujo normal la sube a Cloudinary y la agrega a la lista.
   const handleEditorApply = useCallback(
-    async (dataUrl) => {
-      const original = editingSrc;
+    async (result) => {
       setEditingSrc(null);
       editQueueRef.current = editQueueRef.current.slice(1);
-      if (pending.length) setPending((p) => [...p, { preview: original }]);
 
-      const res = await uploadDataUrl(dataUrl);
+      // Subida diferida: guardar la imagen editada localmente sin subirla.
+      if (diferirSubida) {
+        if (result instanceof Blob || result instanceof File) {
+          const localUrl = URL.createObjectURL(result);
+          onChange?.([...images, { url: localUrl, file: result, publicId: "" }]);
+        } else {
+          onChange?.([...images, { url: result, publicId: "" }]);
+        }
+        openNextEditor();
+        return;
+      }
+
+      // Miniatura local del recorte mientras sube (Blob URL o data URL).
+      const isBlob = result instanceof Blob || result instanceof File;
+      const previewUrl = isBlob ? URL.createObjectURL(result) : result;
+      setPending((p) => [...p, { preview: previewUrl }]);
+
+      const res = isBlob ? await upload(result) : await uploadDataUrl(result);
+      if (previewUrl && previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
       if (res.ok) {
         const next = [...images, { url: res.url, publicId: res.publicId }];
         onChange?.(next);
@@ -124,7 +148,7 @@ export default function ImageUploader({
       setPending((prev) => prev.slice(1));
       openNextEditor();
     },
-    [editingSrc, pending.length, uploadDataUrl, images, onChange, addError, openNextEditor]
+    [diferirSubida, upload, uploadDataUrl, images, onChange, addError, openNextEditor]
   );
 
   const removeImage = (index) => {
@@ -132,8 +156,11 @@ export default function ImageUploader({
     const img = images[index];
     const next = images.filter((_, i) => i !== index);
     onChange?.(next);
-    // Si es una imagen recién subida (sin id en la BD), se borra de Cloudinary.
-    if (img && img.publicId && !img.id) {
+    // Imagen local aún no subida: solo se libera la URL local.
+    if (img?.file && img.url && img.url.startsWith("blob:")) {
+      URL.revokeObjectURL(img.url);
+    } else if (img && img.publicId && !img.id) {
+      // Si es una imagen recién subida (sin id en la BD), se borra de Cloudinary.
       removeFromCloudinary(img.publicId);
     }
   };
@@ -144,6 +171,10 @@ export default function ImageUploader({
     handleFiles(e.dataTransfer?.files);
   };
 
+  // En modo inline (p. ej. dentro de un modal) el editor se muestra como un
+  // bloque que reemplaza la zona de subida, en lugar de un overlay flotante.
+  const showInlineEditor = inline && !!editingSrc;
+
   return (
     <div>
       {label && (
@@ -152,134 +183,153 @@ export default function ImageUploader({
         </label>
       )}
 
-      {/* Zona de arrastre / selección */}
-      <div
-        onClick={() => !disabled && inputRef.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          if (!disabled) setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
-          disabled
-            ? "opacity-50 cursor-not-allowed"
-            : dragOver
-            ? "border-rose-500 bg-rose-50/60 dark:bg-rose-500/10"
-            : "border-gray-300 dark:border-dark-border hover:border-rose-400 dark:hover:border-rose-500/50 bg-gray-50/50 dark:bg-transparent"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          accept={accept}
-          multiple={multiple}
-          disabled={disabled || uploading}
-          onChange={(e) => {
-            handleFiles(e.target.files);
-            e.target.value = "";
+      {showInlineEditor ? (
+        <ImageEditorModal
+          inline
+          isOpen
+          imageSrc={editingSrc}
+          aspectRatio={aspectRatio}
+          onApply={handleEditorApply}
+          onCancel={() => {
+            editQueueRef.current = editQueueRef.current.slice(1);
+            setEditingSrc(null);
+            openNextEditor();
           }}
         />
-        {uploading ? (
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Subiendo foto ({progress}%)
-            </p>
-            <div className="w-full max-w-xs h-2 rounded-full bg-gray-200 dark:bg-dark-border overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <UploadCloud className="w-8 h-8 text-gray-400 dark:text-dark-text-secondary" />
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Arrastra tus imágenes aquí
-            </p>
-            <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
-              o haz clic para seleccionar archivos · JPG, PNG, WEBP, GIF, AVIF, SVG · máx. {MAX_IMAGE_SIZE_MB} MB
-            </p>
-            <p className="text-xs text-rose-500/80 font-medium">
-              ✂️ Podrás recortar, rotar y voltear antes de subir
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Error local */}
-      {localError && (
-        <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500 dark:text-red-400" />
-          <p className="text-xs text-red-700 dark:text-red-300 flex-1">{localError}</p>
-          <button onClick={() => setLocalError(null)} className="text-red-400 hover:text-red-600">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* Previews: existentes + pendientes */}
-      {(images.length > 0 || pending.length > 0) && (
-        <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {images.map((img, i) => (
-            <div key={img.url || i} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-dark-border">
-              {img.url ? (
-                <img
-                  src={img.url}
-                  alt={label}
-                  className={`w-full h-24 object-cover ${previewClassName}`}
-                  onError={(e) => {
-                    e.currentTarget.src =
-                      "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2VjIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5YWEzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5TSU4gSU1BR0VOPC90ZXh0Pjwvc3ZnPg==";
-                  }}
-                />
-              ) : (
-                <div className="w-full h-24 flex items-center justify-center bg-gray-100 dark:bg-dark-bg">
-                  <ImageOff className="w-6 h-6 text-gray-400" />
+      ) : (
+        <>
+          {/* Zona de arrastre / selección */}
+          <div
+            onClick={() => !disabled && inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!disabled) setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
+              disabled
+                ? "opacity-50 cursor-not-allowed"
+                : dragOver
+                ? "border-rose-500 bg-rose-50/60 dark:bg-rose-500/10"
+                : "border-gray-300 dark:border-dark-border hover:border-rose-400 dark:hover:border-rose-500/50 bg-gray-50/50 dark:bg-transparent"
+            }`}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              accept={accept}
+              multiple={multiple}
+              disabled={disabled || uploading}
+              onChange={(e) => {
+                handleFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            {uploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Subiendo foto ({progress}%)
+                </p>
+                <div className="w-full max-w-xs h-2 rounded-full bg-gray-200 dark:bg-dark-border overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
-              )}
-              {!disabled && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeImage(i);
-                  }}
-                  className="absolute top-1 right-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-semibold opacity-90 hover:bg-red-500 transition-all"
-                  title="Quitar foto"
-                >
-                  <Trash2 className="w-3 h-3" /> Quitar
-                </button>
-              )}
-              <CheckCircle2 className="absolute bottom-1 left-1 w-4 h-4 text-emerald-400 drop-shadow" />
-            </div>
-          ))}
-
-          {pending.map((p, i) => (
-            <div key={`p-${i}`} className="relative rounded-xl overflow-hidden border border-rose-200 dark:border-rose-500/30">
-              <img src={p.preview} alt="Subiendo" className="w-full h-24 object-cover opacity-60" />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                <Loader2 className="w-6 h-6 text-white animate-spin" />
               </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <UploadCloud className="w-8 h-8 text-gray-400 dark:text-dark-text-secondary" />
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Arrastra tus imágenes aquí
+                </p>
+                <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                  o haz clic para seleccionar archivos · JPG, PNG, WEBP, GIF, AVIF, SVG · máx. {MAX_IMAGE_SIZE_MB} MB
+                </p>
+                <p className="text-xs text-rose-500/80 font-medium">
+                  ✂️ Podrás recortar, rotar y voltear antes de subir
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Error local */}
+          {localError && (
+            <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500 dark:text-red-400" />
+              <p className="text-xs text-red-700 dark:text-red-300 flex-1">{localError}</p>
+              <button onClick={() => setLocalError(null)} className="text-red-400 hover:text-red-600">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* Previews: existentes + pendientes */}
+          {(images.length > 0 || pending.length > 0) && (
+            <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {images.map((img, i) => (
+                <div key={img.url || i} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-dark-border">
+                  {img.url ? (
+                    <img
+                      src={img.url}
+                      alt={label}
+                      className={`w-full h-24 object-cover ${previewClassName}`}
+                      onError={(e) => {
+                        e.currentTarget.src =
+                          "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTVlN2VjIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5YWEzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5TSU4gSU1BR0VOPC90ZXh0Pjwvc3ZnPg==";
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-24 flex items-center justify-center bg-gray-100 dark:bg-dark-bg">
+                      <ImageOff className="w-6 h-6 text-gray-400" />
+                    </div>
+                  )}
+                  {!disabled && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeImage(i);
+                      }}
+                      className="absolute top-1 right-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-black/60 text-white text-[10px] font-semibold opacity-90 hover:bg-red-500 transition-all"
+                      title="Quitar foto"
+                    >
+                      <Trash2 className="w-3 h-3" /> Quitar
+                    </button>
+                  )}
+                  <CheckCircle2 className="absolute bottom-1 left-1 w-4 h-4 text-emerald-400 drop-shadow" />
+                </div>
+              ))}
+
+              {pending.map((p, i) => (
+                <div key={`p-${i}`} className="relative rounded-xl overflow-hidden border border-rose-200 dark:border-rose-500/30">
+                  <img src={p.preview} alt="Subiendo" className="w-full h-24 object-cover opacity-60" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Editor interactivo */}
-      <ImageEditorModal
-        isOpen={!!editingSrc}
-        imageSrc={editingSrc}
-        aspectRatio={aspectRatio}
-        onApply={handleEditorApply}
-        onCancel={() => {
-          editQueueRef.current = editQueueRef.current.slice(1);
-          setEditingSrc(null);
-          openNextEditor();
-        }}
-      />
+      {/* Editor interactivo (overlay flotante, solo fuera de modo inline) */}
+      {!inline && (
+        <ImageEditorModal
+          isOpen={!!editingSrc}
+          imageSrc={editingSrc}
+          aspectRatio={aspectRatio}
+          onApply={handleEditorApply}
+          onCancel={() => {
+            editQueueRef.current = editQueueRef.current.slice(1);
+            setEditingSrc(null);
+            openNextEditor();
+          }}
+        />
+      )}
     </div>
   );
 }

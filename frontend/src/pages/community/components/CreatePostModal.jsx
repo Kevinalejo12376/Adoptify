@@ -1203,6 +1203,7 @@ export default function CreatePostModal({ isOpen, onClose, onCreate, editingPost
                 tipo="foro"
                 multiple
                 maxFiles={5}
+                inline
                 label="Imágenes (Máx. 5)"
                 value={images}
                 onChange={handleImagesChange}

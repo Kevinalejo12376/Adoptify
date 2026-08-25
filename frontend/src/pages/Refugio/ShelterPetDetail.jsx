@@ -315,7 +315,7 @@ export default function ShelterPetDetail() {
                   <DetailTile
                     Icon={pet.type === "Perro" ? Dog : Cat}
                     iconCls={{ bg: "bg-rose-50 dark:bg-rose-500/10", text: "text-rose-500" }}
-                    label="Tipo" value={pet.type} />
+                    label="Especie" value={pet.type} />
                   <DetailTile
                     Icon={Tag}
                     iconCls={{ bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-500" }}

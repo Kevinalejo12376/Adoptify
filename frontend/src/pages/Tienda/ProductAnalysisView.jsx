@@ -54,7 +54,7 @@ function AnalysisSummary({ resultadoIA, fotos, onContinuar, onReintentar }) {
               { label: "Nombre", value: datos.nombre },
               { label: "Marca", value: datos.marca },
               { label: "Categoría", value: datos.categoria },
-              { label: "Tipo de mascota", value: datos.tipo_mascota },
+              { label: "Especie de mascota", value: datos.tipo_mascota },
               { label: "Peso", value: datos.peso || "—" },
             ].map((item, i) => (
               <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 dark:border-dark-border last:border-0">

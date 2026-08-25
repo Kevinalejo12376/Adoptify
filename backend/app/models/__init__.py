@@ -34,6 +34,7 @@ from app.models.solicitud_tienda import (
 )
 from app.models.tienda import (
     Tienda,
+    TiendaImagen,
     TiendaPermiso,
     TiendaUsuario,
     TiendaUsuarioPermiso,
@@ -47,7 +48,7 @@ from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdju
 from app.models.pedido import Pedido, PedidoItem
 from app.models.foro import ForoPost
 from app.models.interaccion import (
-    Configuracion, FavoritoMascota, FavoritoProducto, ForoComentario, ForoReaccion, Resena,
+    Configuracion, FavoritoMascota, FavoritoProducto, FavoritoRefugio, ForoComentario, ForoReaccion, Resena,
 )
 from app.models.verificacion import CodigoVerificacion
 from app.models.ia import TareaIA, ChatSesion, ChatMensaje

@@ -3,6 +3,9 @@ import {
   listarProductosFavoritos,
   agregarProductoFavorito,
   quitarProductoFavorito,
+  listarRefugiosFavoritos,
+  agregarRefugioFavorito,
+  quitarRefugioFavorito,
 } from "../api/favoritos";
 import { getToken } from "../api/client";
 
@@ -21,19 +24,25 @@ const mapProductoFav = (p) => ({
   stock: p.stock ?? 0,
 });
 
+// Normaliza un refugio favorito del backend a la forma que usan las vistas.
+// Tolera el formato del backend (nombre/ubicacion/descripcion) y el ya
+// mapeado (name/location/description) por si el frontend lo normalizó.
+const mapRefugioFav = (r) => ({
+  id: r.id,
+  name: r.name || r.nombre || "",
+  location: r.location || r.ubicacion || r.municipio || r.departamento || "",
+  description: r.description || r.descripcion || "",
+  logo_url: r.logo_url || null,
+  rating: Number(r.rating) || 0,
+  animals: Number(r.animals) || 0,
+});
+
 export const FavoritesProvider = ({ children }) => {
   // Favoritos de productos: persistidos en la base de datos.
   const [storeFavorites, setStoreFavorites] = useState([]);
 
-  // Favoritos de refugios: locales (no existe tabla en el backend).
-  const [shelterFavorites, setShelterFavorites] = useState(() => {
-    try {
-      const saved = localStorage.getItem("adoptify_shelter_favorites");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Favoritos de refugios: persistidos en la base de datos (sin valores locales).
+  const [shelterFavorites, setShelterFavorites] = useState([]);
 
   // Carga los productos favoritos reales cuando hay sesion iniciada.
   useEffect(() => {
@@ -46,9 +55,16 @@ export const FavoritesProvider = ({ children }) => {
     })();
   }, []);
 
+  // Carga los refugios favoritos reales desde la base de datos ([] = vacío).
   useEffect(() => {
-    localStorage.setItem("adoptify_shelter_favorites", JSON.stringify(shelterFavorites));
-  }, [shelterFavorites]);
+    if (!getToken()) return;
+    (async () => {
+      try {
+        const data = await listarRefugiosFavoritos();
+        setShelterFavorites((data || []).map(mapRefugioFav));
+      } catch { /* sin favoritos */ }
+    })();
+  }, []);
 
   // ─── Store Favorites (base de datos) ───
 
@@ -86,17 +102,19 @@ export const FavoritesProvider = ({ children }) => {
     []
   );
 
-  // ─── Shelter Favorites ───
+  // ─── Shelter Favorites (base de datos) ───
 
   const addShelterFavorite = useCallback((shelter) => {
     setShelterFavorites((prev) => {
       if (prev.some((item) => item.id === shelter.id)) return prev;
-      return [...prev, shelter];
+      agregarRefugioFavorito(shelter.id).catch(() => {});
+      return [...prev, mapRefugioFav(shelter)];
     });
   }, []);
 
   const removeShelterFavorite = useCallback((shelterId) => {
     setShelterFavorites((prev) => prev.filter((item) => item.id !== shelterId));
+    quitarRefugioFavorito(shelterId).catch(() => {});
   }, []);
 
   const isShelterFavorite = useCallback(
@@ -111,9 +129,11 @@ export const FavoritesProvider = ({ children }) => {
       setShelterFavorites((prev) => {
         const exists = prev.some((item) => item.id === shelter.id);
         if (exists) {
+          quitarRefugioFavorito(shelter.id).catch(() => {});
           return prev.filter((item) => item.id !== shelter.id);
         }
-        return [...prev, shelter];
+        agregarRefugioFavorito(shelter.id).catch(() => {});
+        return [...prev, mapRefugioFav(shelter)];
       });
     },
     []

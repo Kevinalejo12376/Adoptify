@@ -270,6 +270,14 @@ export default function ShelterProfile() {
   // La actividad reciente se alimentara de eventos reales; por ahora vacia.
   const recentActivity = [];
 
+  // El perfil del refugio se considera completo si tiene descripción, teléfono
+  // y al menos una imagen (logo o galería). Si está completo se oculta la alerta.
+  const perfilRefugioCompleto = !!(
+    profile?.description?.trim() &&
+    profile?.phone?.trim() &&
+    (profile?.logo || (profile?.images && profile.images.length > 0))
+  );
+
   const alerts = [
     {
       icon: AlertCircle,
@@ -289,15 +297,17 @@ export default function ShelterProfile() {
       action: "Ver",
       path: "/refugio/mascotas",
     },
-    {
-      icon: ShieldCheck,
-      title: "Completa tu perfil",
-      desc: "Agrega fotos e información para destacar",
-      color: "text-violet-500",
-      bg: "bg-violet-50 dark:bg-violet-500/10",
-      action: "Completar",
-      path: "/refugio/configuracion",
-    },
+    ...(!perfilRefugioCompleto
+      ? [{
+          icon: ShieldCheck,
+          title: "Completa tu perfil",
+          desc: "Agrega fotos e información para destacar",
+          color: "text-violet-500",
+          bg: "bg-violet-50 dark:bg-violet-500/10",
+          action: "Completar",
+          path: "/refugio/configuracion",
+        }]
+      : []),
   ];
 
   const tabs = [
@@ -863,6 +873,7 @@ export default function ShelterProfile() {
                             src={img.url}
                             alt={`Refugio ${index + 1}`}
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
                           />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
                             <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-all transform scale-0 group-hover:scale-100 duration-300" />
