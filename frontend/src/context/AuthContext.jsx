@@ -200,6 +200,7 @@ export const AuthProvider = ({ children }) => {
    *  Recibe el resultado del backend (PUT /profile) para reflejar el estado
    *  REAL: si aún faltan campos obligatorios, el perfil sigue incompleto. */
   const markProfileCompleted = (result) => {
+    setProfileCompleted(true);
     setShowProfileModal(false);
     const completo = result?.perfil_completo === true;
     setProfileCompleted(completo);

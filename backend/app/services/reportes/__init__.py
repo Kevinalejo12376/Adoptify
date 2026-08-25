@@ -54,7 +54,6 @@ REGISTRO_REPORTES: Dict[str, Type[GeneradorReporte]] = {
 
 
 def obtener_generador(codigo: str) -> Optional[GeneradorReporte]:
-<<<<<<< HEAD
     """Instancia el generador de reporte correspondiente al codigo (o None)."""
     clase = REGISTRO_REPORTES.get(codigo)
     if clase is None:
@@ -72,9 +71,7 @@ def listar_reportes():
         }
         for g in REGISTRO_REPORTES.values()
     ]
-=======
-    """Instancia el generador de reporte correspondiente al codigo.
->>>>>>> 28d0014 (solucion de errores vercel)
+
 
 
 def listar_reportes() -> list:
