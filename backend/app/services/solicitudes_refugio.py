@@ -32,7 +32,7 @@ from app.core.email import (
 from app.core.notificaciones import notificar_admins, registrar_auditoria
 from app.core.security import get_password_hash
 from app.models.usuario import Usuario
-from app.models.refugio import Refugio
+from app.models.refugio import Refugio, RefugioImagen
 from app.models.catalogos import Rol
 from app.models.solicitud_refugio import (
     SolicitudRefugio,
@@ -244,6 +244,33 @@ def serialize_solicitud(s: SolicitudRefugio, db: Session, incluir_detalle: bool 
 # Acciones del administrador (automatizaciones)
 # ---------------------------------------------------------------------------
 
+# Categorías de documentos de la solicitud que son fotografías VISUALES del
+# refugio (Fachada, vista exterior, instalaciones, animales). Las demás son
+# documentos legales/confidenciales y NO se copian a la galería pública.
+CATEGORIAS_VISUALES_REFUGIO = ("fachada", "fotografias", "instalaciones", "animales")
+
+
+def _copiar_imagenes_solicitud_a_galeria(db: Session, solicitud_id: int, refugio_id: int) -> None:
+    """Copia las fotografías visuales de una solicitud aprobada a la galería
+    (RefugioImagen) del refugio creado. La primera se marca como portada."""
+    docs = (
+        db.query(SolicitudRefugioDocumento)
+        .filter(
+            SolicitudRefugioDocumento.solicitud_id == solicitud_id,
+            SolicitudRefugioDocumento.categoria.in_(CATEGORIAS_VISUALES_REFUGIO),
+        )
+        .order_by(SolicitudRefugioDocumento.id.asc())
+        .all()
+    )
+    for idx, doc in enumerate(docs):
+        db.add(RefugioImagen(
+            refugio_id=refugio_id,
+            url=doc.url,
+            es_portada=(idx == 0),
+            orden=idx,
+        ))
+
+
 def aprobar_solicitud(db: Session, solicitud: SolicitudRefugio, admin: Usuario) -> dict:
     """Aprueba la solicitud: crea usuario (rol refugio), refugio, username,
     enlace seguro para crear contraseña (24 h), envía el correo de bienvenida
@@ -314,6 +341,10 @@ def aprobar_solicitud(db: Session, solicitud: SolicitudRefugio, admin: Usuario) 
     )
     db.add(refugio)
     db.flush()
+
+    # 4b. Copiar las fotografías del registro (fachada, vista exterior,
+    #     instalaciones, animales) a la galería del refugio creado.
+    _copiar_imagenes_solicitud_a_galeria(db, solicitud.id, refugio.id)
 
     # 5. Generar enlace seguro para crear contraseña (24 h)
     enlace = crear_enlace_password(db, user.id)

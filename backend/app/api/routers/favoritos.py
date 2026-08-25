@@ -11,9 +11,11 @@ from app.core.security import get_current_user
 from app.models.usuario import Usuario
 from app.models.mascota import Mascota
 from app.models.producto import Producto
-from app.models.interaccion import FavoritoMascota, FavoritoProducto
+from app.models.refugio import Refugio
+from app.models.interaccion import FavoritoMascota, FavoritoProducto, FavoritoRefugio
 from app.schemas.serializers import serialize_mascota, serialize_producto
-from app.core.disponibilidad import mascota_de_refugio_visible
+from app.schemas.refugio import RefugioResponse
+from app.core.disponibilidad import mascota_de_refugio_visible, refugio_visible
 
 router = APIRouter()
 
@@ -87,6 +89,40 @@ def agregar_producto_fav(producto_id: int, current_user: Usuario = Depends(get_c
 def quitar_producto_fav(producto_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
     db.query(FavoritoProducto).filter(
         FavoritoProducto.usuario_id == current_user.id, FavoritoProducto.producto_id == producto_id
+    ).delete()
+    db.commit()
+    return None
+
+
+# ===================== REFUGIOS =====================
+@router.get("/refugios", response_model=List[RefugioResponse])
+def listar_refugios_fav(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Refugios favoritos del usuario autenticado (solo refugios activos/visibles)."""
+    favs = db.query(FavoritoRefugio).filter(FavoritoRefugio.usuario_id == current_user.id).all()
+    ids = [f.refugio_id for f in favs]
+    if not ids:
+        return []
+    return db.query(Refugio).filter(
+        Refugio.id.in_(ids),
+        refugio_visible(),
+    ).order_by(Refugio.nombre.asc()).all()
+
+
+@router.post("/refugios/{refugio_id}", status_code=status.HTTP_201_CREATED)
+def agregar_refugio_fav(refugio_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    existe = db.query(FavoritoRefugio).filter(
+        FavoritoRefugio.usuario_id == current_user.id, FavoritoRefugio.refugio_id == refugio_id
+    ).first()
+    if not existe:
+        db.add(FavoritoRefugio(usuario_id=current_user.id, refugio_id=refugio_id))
+        db.commit()
+    return {"ok": True}
+
+
+@router.delete("/refugios/{refugio_id}", status_code=status.HTTP_204_NO_CONTENT)
+def quitar_refugio_fav(refugio_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
+    db.query(FavoritoRefugio).filter(
+        FavoritoRefugio.usuario_id == current_user.id, FavoritoRefugio.refugio_id == refugio_id
     ).delete()
     db.commit()
     return None

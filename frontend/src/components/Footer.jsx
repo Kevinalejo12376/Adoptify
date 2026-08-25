@@ -261,7 +261,7 @@ export default function Footer() {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider">Teléfono</p>
-                  <span className="text-gray-300 group-hover:text-white transition-colors duration-300 font-medium">+57 300 123 4567</span>
+                  <span className="text-gray-300 group-hover:text-white transition-colors duration-300 font-medium">+57 318 4050242</span>
                 </div>
               </li>
               <li className="group flex items-center gap-3 p-3 bg-gray-800/50 rounded-xl hover:bg-gray-800 transition-all duration-300 hover:translate-x-1">

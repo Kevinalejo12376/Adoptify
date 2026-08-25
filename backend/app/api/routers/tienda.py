@@ -145,6 +145,18 @@ def _serialize_tienda(t: Tienda, u: Usuario) -> dict:
         "responsable_email": u.email if u else None,
         "responsable_telefono": u.telefono if u else None,
         "creado_en": t.creado_en.isoformat() if t.creado_en else None,
+        # Galería de imágenes de la tienda (Fachada, instalaciones, productos).
+        "imagenes": [
+            {
+                "id": img.id,
+                "url": img.url,
+                "public_id": img.public_id,
+                "categoria": img.categoria,
+                "es_portada": img.es_portada,
+                "orden": img.orden,
+            }
+            for img in (t.imagenes or [])
+        ],
     }
 
 

@@ -7,9 +7,34 @@ import {
 import ScrollToTop from "../../components/ScrollToTop";
 import { useFavorites } from "../../context/FavoritesContext";
 import { listarRefugios } from "../../api/refugios";
+import { useAuth } from "../../context/AuthContext";
+import { ciudadesCoinciden } from "../../utils/ubicacion";
+
+// Logo del refugio con fallback: si hay un logo válido se muestra solo el
+// logo; si no hay logo o la imagen falla (eliminada o URL inválida), se
+// muestra únicamente el ícono como imagen predeterminada.
+function ShelterCardLogo({ logo, name }) {
+  const [failed, setFailed] = useState(false);
+  const showLogo = logo && !failed;
+  return (
+    <div className="relative w-full h-48 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
+      {showLogo ? (
+        <img
+          src={logo}
+          alt={name}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Home className="w-20 h-20 text-rose-400" />
+      )}
+    </div>
+  );
+}
 
 export default function Shelters() {
   const { isShelterFavorite, toggleShelterFavorite } = useFavorites();
+  const { currentCity } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -34,6 +59,7 @@ export default function Shelters() {
           phone: r.telefono || "",
           email: r.email || "",
           rating: 0,
+          logo: r.logo_url || null,
           description: r.descripcion || "Refugio comprometido con el bienestar animal.",
         })));
       } catch (e) {
@@ -48,13 +74,28 @@ export default function Shelters() {
   // Ciudades generadas dinamicamente a partir de los refugios reales.
   const cities = ["all", ...Array.from(new Set(shelters.map((s) => s.location).filter(Boolean)))];
 
-  const filteredShelters = shelters.filter((shelter) => {
-    const matchesSearch =
-      shelter.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      shelter.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCity = selectedCity === "all" || shelter.location === selectedCity;
-    return matchesSearch && matchesCity;
-  });
+  // Prioriza los refugios activos de la ciudad/municipio actual del usuario
+  // (si fue detectada al iniciar sesión): primero los de su ciudad y después
+  // los de otras ciudades. Si no hay ubicación, se conserva el orden original.
+  const priorizarPorCiudad = (lista) => {
+    if (!currentCity) return lista;
+    return [...lista].sort((a, b) => {
+      const aLocal = ciudadesCoinciden(a.location, currentCity);
+      const bLocal = ciudadesCoinciden(b.location, currentCity);
+      if (aLocal !== bLocal) return aLocal ? -1 : 1;
+      return 0;
+    });
+  };
+
+  const filteredShelters = priorizarPorCiudad(
+    shelters.filter((shelter) => {
+      const matchesSearch =
+        shelter.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shelter.location.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCity = selectedCity === "all" || shelter.location === selectedCity;
+      return matchesSearch && matchesCity;
+    })
+  );
 
   const hasActiveFilters = selectedCity !== "all" || searchTerm !== "";
 
@@ -178,9 +219,7 @@ export default function Shelters() {
                   className="bg-white dark:bg-dark-card rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:scale-[1.02] group border border-gray-100 dark:border-dark-border"
                 >
                   <div className="relative">
-                    <div className="w-full h-48 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                      <Home className="w-20 h-20 text-rose-400" />
-                    </div>
+                    <ShelterCardLogo logo={shelter.logo} name={shelter.name} />
                     {shelter.rating > 0 && (
                       <div className="absolute top-4 right-4 px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-sm font-medium text-gray-700 flex items-center gap-1">
                         <Star className="w-4 h-4 text-amber-500 fill-amber-500" />

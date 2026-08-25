@@ -8,6 +8,7 @@ import {
   agregarMascotaFavorita,
   quitarMascotaFavorita,
 } from "../api/favoritos";
+import { obtenerCiudadActual } from "../utils/ubicacion";
 
 // Normaliza una mascota del backend a la forma que usan las vistas de favoritos.
 const mapMascotaFav = (m) => ({
@@ -32,6 +33,10 @@ export const AuthProvider = ({ children }) => {
   const [profileCompleted, setProfileCompleted] = useState(false);
   // Evita sincronizar el perfil completo más de una vez por usuario (anti-bucle).
   const syncUserRef = useRef(null);
+  // Ciudad/municipio actual detectado al iniciar sesión (solo si el usuario ya
+  // concedió permiso de ubicación). Es independiente de la ciudad del perfil y
+  // se usa únicamente para priorizar Refugios y Mascotas. null => sin priorización.
+  const [currentCity, setCurrentCity] = useState(null);
 
   // ─── Verificar si el perfil del usuario está completo ───
   const checkProfileStatus = useCallback(async () => {
@@ -89,6 +94,8 @@ export const AuthProvider = ({ children }) => {
           // para que el sistema vuelva a su último modo (claro u oscuro).
           markAuthenticated(true);
           loadUserTheme();
+          // Prioriza el contenido según la ciudad/municipio actual (si hay permiso).
+          detectarUbicacionActual();
           // Carga los favoritos de mascotas reales desde la base de datos.
           try {
             const favs = await listarMascotasFavoritas();
@@ -122,6 +129,22 @@ export const AuthProvider = ({ children }) => {
     }
   }, [user, checkProfileStatus]);
 
+  // ─── Ubicación actual (priorización de Refugios y Mascotas) ───
+  // Detecta la ciudad/municipio actual del usuario SOLO si ya concedió permiso
+  // de ubicación. No modifica la ciudad registrada del perfil. Si no se puede
+  // obtener (permiso denegado/indefinido, error, etc.) queda null y el sistema
+  // conserva su comportamiento actual. Se dispara en cada inicio de sesión para
+  // que un cambio de ciudad se refleje al volver a iniciar sesión.
+  const detectarUbicacionActual = useCallback(async () => {
+    let ciudad = null;
+    try {
+      ciudad = await obtenerCiudadActual();
+    } catch {
+      ciudad = null;
+    }
+    setCurrentCity(ciudad);
+  }, []);
+
   // ===== AUTENTICACION REAL (usuario / refugio) contra el backend =====
   /** Login real. Devuelve el usuario (incluye .role). */
   const apiLogin = async (email, password) => {
@@ -130,6 +153,8 @@ export const AuthProvider = ({ children }) => {
     // Recupera la preferencia de tema guardada del usuario.
     markAuthenticated(true);
     loadUserTheme();
+    // Prioriza el contenido según la ciudad/municipio actual (si hay permiso).
+    detectarUbicacionActual();
     try {
       const favs = await listarMascotasFavoritas();
       setFavorites((favs || []).map(mapMascotaFav));
@@ -149,6 +174,8 @@ export const AuthProvider = ({ children }) => {
     // Recupera la preferencia de tema guardada del usuario.
     markAuthenticated(true);
     loadUserTheme();
+    // Prioriza el contenido según la ciudad/municipio actual (si hay permiso).
+    detectarUbicacionActual();
     try {
       const favs = await listarMascotasFavoritas();
       setFavorites((favs || []).map(mapMascotaFav));
@@ -169,12 +196,16 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  /** Marcar perfil como completado (llamar desde el modal). */
-  const markProfileCompleted = () => {
-    setProfileCompleted(true);
+  /** Marcar perfil como completado tras guardar (llamar desde el modal).
+   *  Recibe el resultado del backend (PUT /profile) para reflejar el estado
+   *  REAL: si aún faltan campos obligatorios, el perfil sigue incompleto. */
+  const markProfileCompleted = (result) => {
     setShowProfileModal(false);
-    // Actualizar el user en cache
-    setUser((prev) => ({ ...prev, perfil_completo: true }));
+    const completo = result?.perfil_completo === true;
+    setProfileCompleted(completo);
+    setUser((prev) => ({ ...prev, perfil_completo: completo, ...(result || {}) }));
+    // Revalida contra la BD por si hubo cambios adicionales.
+    if (getToken()) checkProfileStatus();
   };
 
   /** Abrir el modal de completar perfil manualmente. */
@@ -199,6 +230,7 @@ export const AuthProvider = ({ children }) => {
     setFavorites([]);
     setShowProfileModal(false);
     setProfileCompleted(false);
+    setCurrentCity(null);       // la ubicación se vuelve a detectar al iniciar sesión
     localStorage.removeItem("user");
     localStorage.removeItem("favorites");
     // IMPORTANTE: la preferencia de tema del usuario NO se elimina. Solo se
@@ -254,7 +286,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider
       value={{
-        user, loading, favorites,
+        user, loading, favorites, currentCity,
         showProfileModal, setShowProfileModal,
         profileCompleted,
         apiLogin, apiRegister, googleLogin,  // reales (usuario/refugio/google)

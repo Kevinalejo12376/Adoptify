@@ -6,6 +6,8 @@ import AdminHeader from "./components/AdminHeader";
 
 export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Controla si el menú lateral está fijado para ajustar el margen del contenido.
+  const [sidebarFijado, setSidebarFijado] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -23,14 +25,18 @@ export default function AdminLayout() {
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
         onLogout={handleLogout}
+        fijado={sidebarFijado}
+        onToggleFijar={() => setSidebarFijado((prev) => !prev)}
       />
 
-      {/* Contenido principal - se ajusta automáticamente */}
+      {/* Contenido principal - margen izquierdo dinámico según si el menú está fijado.
+          Colapsado: 80px · Expandido/fijado: 280px (ancho real del sidebar) */}
       <div
-        className="
+        className={`
           transition-all duration-[280ms] ease-out
-          lg:ml-[80px] pb-16 lg:pb-0
-        "
+          pb-16 lg:pb-0
+          ${sidebarFijado ? "lg:ml-[280px]" : "lg:ml-[80px]"}
+        `}
       >
         {/* Header */}
         <AdminHeader

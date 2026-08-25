@@ -642,9 +642,34 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
     return data
 
 
+def _calcular_perfil_completo(u: Usuario) -> bool:
+    """Determina si el perfil del usuario está completo consultando sus campos
+    obligatorios directamente en la BD: bio, telefono, ubicacion y al menos una
+    red social (website, twitter o instagram)."""
+    tiene_bio = bool(u.bio and u.bio.strip())
+    tiene_telefono = bool(u.telefono and u.telefono.strip())
+    tiene_ubicacion = bool(u.ubicacion and u.ubicacion.strip())
+    tiene_social = bool(
+        (u.website and u.website.strip())
+        or (u.twitter and u.twitter.strip())
+        or (u.instagram and u.instagram.strip())
+    )
+    return bool(tiene_bio and tiene_telefono and tiene_ubicacion and tiene_social)
+
+
 @router.get("/profile", response_model=ProfileResponse)
 def get_profile(current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Devuelve el perfil completo del usuario autenticado."""
+    """Devuelve el perfil completo del usuario autenticado.
+
+    Recalcula ``perfil_completo`` consultando los campos obligatorios en la
+    base de datos para que el banner "Completa tu perfil" refleje siempre el
+    estado real (y lo persiste si cambió).
+    """
+    nuevo_completo = _calcular_perfil_completo(current_user)
+    if nuevo_completo != current_user.perfil_completo:
+        current_user.perfil_completo = nuevo_completo
+        db.commit()
+        db.refresh(current_user)
     tipo_doc = current_user.tipo_documento.codigo if current_user.tipo_documento else None
     return ProfileResponse(
         id=current_user.id,
@@ -685,22 +710,8 @@ def update_profile(
     for field, value in update_data.items():
         setattr(current_user, field, value)
 
-    # Verificar si el perfil esta completo (campos minimos deseables)
-    # Consideramos "completo" si tiene bio, telefono, ubicacion y al menos
-    # uno de: website, twitter, instagram
-    tiene_bio = bool(current_user.bio and current_user.bio.strip())
-    tiene_telefono = bool(current_user.telefono and current_user.telefono.strip())
-    tiene_ubicacion = bool(current_user.ubicacion and current_user.ubicacion.strip())
-    tiene_social = bool(
-        (current_user.website and current_user.website.strip())
-        or (current_user.twitter and current_user.twitter.strip())
-        or (current_user.instagram and current_user.instagram.strip())
-    )
-
-    if tiene_bio and tiene_telefono and tiene_ubicacion and tiene_social:
-        current_user.perfil_completo = True
-    else:
-        current_user.perfil_completo = False
+    # Recalcular el estado del perfil consultando los campos obligatorios.
+    current_user.perfil_completo = _calcular_perfil_completo(current_user)
 
     db.commit()
     db.refresh(current_user)

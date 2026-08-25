@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Building2, PawPrint, Store,
-  ClipboardList, ChevronLeft, ShoppingBag, Package,
+  ChevronLeft, ShoppingBag, Package,
   BarChart3, ChevronDown, LogOut, Pin, PinOff, FileDown,
 } from "lucide-react";
 
@@ -18,20 +18,18 @@ const menuItems = [
     submenu: [
       { icon: Package, label: "Productos", path: "/admin/marketplace" },
       { icon: ShoppingBag, label: "Tiendas Aliadas", path: "/admin/tiendas" },
-      { icon: ClipboardList, label: "Solicitudes Tiendas", path: "/admin/tiendas/solicitudes" },
       { icon: BarChart3, label: "Estadísticas", path: "/admin/marketplace/estadisticas" },
     ],
   },
   { icon: FileDown, label: "Reportes", path: "/admin/reportes-descargables" },
 ];
 
-export default function AdminSidebar({ mobileOpen, onMobileClose, onLogout }) {
+export default function AdminSidebar({ mobileOpen, onMobileClose, onLogout, fijado, onToggleFijar }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
-  // "Fijar" mantiene el menú lateral abierto (no se colapsa al salir el mouse).
-  const [fijado, setFijado] = useState(false);
+  // "Fijar" se controla desde AdminLayout para poder ajustar el margen del contenido.
   const sidebarRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
 
@@ -59,10 +57,10 @@ export default function AdminSidebar({ mobileOpen, onMobileClose, onLogout }) {
     }, 50);
   };
 
-  // Fijar/desfijar: solo cambia el estado abierto/cerrado del menú lateral.
+  // Fijar/desfijar: notifica al layout para ajustar el margen del contenido.
   const toggleFijar = () => {
     const nuevo = !fijado;
-    setFijado(nuevo);
+    onToggleFijar();
     setIsHovered(nuevo);
     if (nuevo && isMarketplaceActive) setMarketplaceOpen(true);
   };

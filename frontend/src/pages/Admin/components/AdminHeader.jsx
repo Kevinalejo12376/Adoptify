@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search, Bell, Sun, Moon, ChevronDown, Settings,
-  Shield, BarChart3, HelpCircle, Info, UserCircle,
+  Shield, BarChart3, HelpCircle, Info,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../../api/notificaciones";
@@ -95,7 +95,6 @@ export default function AdminHeader({ adminNombre, onLogout, onMenuToggle }) {
 
   // Opciones del menú del perfil (sin duplicados), con el mismo estilo del rol Tienda.
   const opcionesPerfil = [
-    { icon: UserCircle, label: "Perfil", path: "/admin/usuarios" },
     { icon: Settings, label: "Configuración", path: "/admin/configuracion" },
     { icon: Shield, label: "Administradores", path: "/admin/administradores" },
     { icon: BarChart3, label: "Estadísticas", path: "/admin/estadisticas" },

@@ -14,6 +14,10 @@ export async function listarProductos(filtros = {}) {
 /** Detalle publico de un producto. */
 export const obtenerProducto = (id) => apiFetch(`${base}/${id}`, { auth: false });
 
+/** Perfil público de una Tienda Aliada (datos + galería + productos). */
+export const obtenerTiendaPublica = (id) =>
+  apiFetch(`/api/publico/tiendas/${id}`, { auth: false });
+
 /** Productos de la tienda/refugio autenticado. */
 export const misProductos = () => apiFetch(`${base}/mios`);
 
