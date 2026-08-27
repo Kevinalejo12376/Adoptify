@@ -364,7 +364,7 @@ def construir_pdf(
     filas: List[Dict[str, Any]],
     usuario: Any = None,
 ) -> bytes:
-    """Construye un PDF tabular en memoria con la identidad visual de Adoptify".
+    """Construye un PDF tabular en memoria con la identidad visual de Adoptify.
 
     Args:
         titulo: Titulo del reporte.

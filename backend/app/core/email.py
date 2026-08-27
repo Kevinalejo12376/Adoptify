@@ -729,7 +729,7 @@ def enviar_correo_aprobacion_tienda(
 
         <div class="caja">
             <p style="margin:0 0 6px;">Tu cuenta fue creada con el siguiente <strong>usuario</strong>:</p>
-            <p style="margin:0; font-size:22px; font-weight:800; color:#ea580c; letter-spacing:1px;">{username}</p>
+            <p style="margin:0; font-size:22px; font-weight:800; color:#BE185D; letter-spacing:1px;">{username}</p>
         </div>
 
         <p>Para terminar de activar tu cuenta, crea tu contraseña con el siguiente botón.
@@ -743,7 +743,7 @@ def enviar_correo_aprobacion_tienda(
             Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
             {enlace_crear_password}
         </p>
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(email_destino, asunto, _build_base_html("¡Solicitud aprobada!", contenido))
 
@@ -772,7 +772,7 @@ def enviar_correo_solicitud_informacion_tienda(
             <a href="{enlace_completar}" class="btn" target="_blank">Completar información</a>
         </p>
 
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(
         email_destino,
@@ -803,7 +803,7 @@ def enviar_correo_rechazo_tienda(
             no dudes en contactarnos. Estamos aquí para ayudarte a construir una comunidad
             segura y confiable para las mascotas.
         </p>
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(
         email_destino,
