@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from typing import List, Optional
+import logging
+import secrets
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel
 
@@ -20,10 +22,15 @@ from app.models.catalogos import Rol
 from app.models.refugio import (
     Refugio, RefugioImagen, RefugioPermiso, RefugioEmpleado, RefugioEmpleadoPermiso,
 )
+from app.core.config import settings
+from app.core.email import enviar_correo_cuenta_creada
+from app.services.solicitudes_refugio import crear_enlace_password
 from app.schemas.refugio import RefugioResponse, RefugioUpdate, RefugioImagenIn
 from app.schemas.refugio_equipo import (
     RefugioPermisoResponse, RefugioEmpleadoResponse, RefugioEmpleadoCreate, RefugioEmpleadoUpdate,
 )
+
+logger = logging.getLogger("refugios")
 
 router = APIRouter()
 
@@ -308,7 +315,9 @@ def crear_empleado(payload: RefugioEmpleadoCreate, current_user: Usuario = Depen
         apellido=(payload.apellido or "").strip() or None,
         email=email,
         telefono=payload.telefono,
-        hashed_password=get_password_hash(payload.password),
+        # Si no se define contraseña al crear, se usa un placeholder y el
+        # empleado la establece con el enlace seguro (flujo de refugios).
+        hashed_password=get_password_hash(payload.password or secrets.token_urlsafe(16)),
         rol_id=rol_empleado.id,
         activo=payload.activo,
     )
@@ -326,6 +335,28 @@ def crear_empleado(payload: RefugioEmpleadoCreate, current_user: Usuario = Depen
     db.commit()
     db.refresh(nuevo)
     db.refresh(vinculo)
+
+    # Genera un enlace seguro (24 h) y envía correo cuando el empleado se crea
+    # SIN contraseña definida (flujo de refugios). Nunca se envía la contraseña
+    # en texto plano.
+    if not payload.password:
+        try:
+            enlace = crear_enlace_password(db, nuevo.id)
+            db.commit()
+            url_crear = f"{settings.FRONTEND_URL}/crear-password/{enlace.token}"
+            ok = enviar_correo_cuenta_creada(
+                email_destino=nuevo.email,
+                nombre=f"{payload.nombre or ''} {payload.apellido or ''}".strip(),
+                enlace_crear_password=url_crear,
+                rol=f"empleado del refugio {refugio.nombre}",
+            )
+            if ok:
+                logger.info("Correo de cuenta creada ENVIADO a %s", nuevo.email)
+            else:
+                logger.warning("Correo de cuenta creada NO enviado a %s (correo no configurado?)", nuevo.email)
+        except Exception as exc:
+            logger.error("Error al enviar correo de cuenta creada a %s: %s", nuevo.email, exc)
+
     return _serializar_miembro(db, refugio, nuevo, es_representante=False, vinculo=vinculo)
 
 

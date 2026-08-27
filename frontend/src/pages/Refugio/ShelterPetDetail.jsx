@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
 import { obtenerMascota } from "../../api/mascotas";
+import { normalizarPersonalidad } from "../../utils/personalidad";
 
 // Convierte un valor vacío (null/undefined/"") en un texto amigable.
 const mostrarValor = (v) => {
@@ -52,9 +53,10 @@ const mapearMascota = (m) => ({
   weight: m.peso || "",
   color: m.color || "",
   health: m.salud || "",
-  personality: Array.isArray(m.personalidad)
-    ? m.personalidad
-    : (m.personalidad ? m.personalidad.split(",").map((t) => t.trim()).filter(Boolean) : []),
+  // Normaliza la personalidad a una lista plana para mostrar TODOS los rasgos
+  // (el backend puede enviarla como array, string o array con un único
+  // elemento que contiene comas).
+  personality: normalizarPersonalidad(m.personalidad),
   vaccinated: !!m.vacunado,
   sterilized: !!m.esterilizado,
   fecha_ingreso: m.fecha_ingreso || null,
@@ -83,11 +85,11 @@ const DetailTile = ({ Icon: IconComp, iconCls, label, value }) => {
 // Fila de estado de salud (sí/no con indicador visual).
 const HealthRow = ({ Icon: IconComp, label, valor, ok, iconCls = "text-emerald-500" }) => (
   <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50 border border-gray-100 dark:border-dark-border">
-    <span className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-dark-text-secondary min-w-0">
+    <span className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-dark-text-secondary min-w-0">
       <IconComp className={`w-4 h-4 ${iconCls} shrink-0`} />
       <span className="truncate">{label}</span>
     </span>
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold shrink-0 ${ok ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+    <span className={`inline-flex items-center gap-1 text-sm font-semibold shrink-0 ${ok ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
       {ok ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
       {valor}
     </span>
@@ -274,8 +276,8 @@ export default function ShelterPetDetail() {
                   <div className="flex flex-wrap gap-2">
                     {pet.personality.map((trait, i) => (
                       <span key={i}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/20">
-                        <Star className="w-3 h-3" /> {trait}
+                        className="px-3 py-1.5 rounded-xl text-sm font-medium bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/20">
+                        {trait}
                       </span>
                     ))}
                   </div>
@@ -351,11 +353,11 @@ export default function ShelterPetDetail() {
                 </h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-gray-50 dark:bg-dark-bg/50 border border-gray-100 dark:border-dark-border">
-                    <span className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-dark-text-secondary min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-dark-text-secondary min-w-0">
                       <Heart className="w-4 h-4 text-rose-500 shrink-0" />
                       <span className="truncate">Estado de adopción</span>
                     </span>
-                    <span className={`inline-flex items-center gap-1 text-xs font-semibold shrink-0 ${statusColor}`}>
+                    <span className={`inline-flex items-center gap-1 text-sm font-semibold shrink-0 ${statusColor}`}>
                       {statusLabel}
                     </span>
                   </div>
@@ -396,22 +398,6 @@ export default function ShelterPetDetail() {
                   </div>
                 </div>
               )}
-
-              {/* Action Buttons */}
-              <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border p-6 animate-fade-in-up">
-                <div className="space-y-3">
-                  <button onClick={handleEdit}
-                    className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all">
-                    <Edit3 className="w-4 h-4" />
-                    Editar {pet.name}
-                  </button>
-                  <button onClick={() => setShowDeleteModal(true)}
-                    className="w-full flex items-center justify-center gap-2 py-3 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all">
-                    <Trash2 className="w-4 h-4" />
-                    Eliminar mascota
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         )}

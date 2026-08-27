@@ -232,10 +232,6 @@ export default function ShelterTeam() {
       const err = validarCampo(campo, form[campo]);
       if (err) e[campo] = err;
     }
-    if (!editing) {
-      const err = validarCampo("password", form.password);
-      if (err) e.password = err;
-    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -256,16 +252,16 @@ export default function ShelterTeam() {
         await actualizarEmpleado(editing.usuario_id, payload);
         notify("Empleado actualizado correctamente");
       } else {
+        // La contraseña se establece mediante el enlace seguro enviado por correo.
         await crearEmpleado({
           nombre: form.nombre.trim(),
           apellido: form.apellido.trim() || null,
           email: form.email.trim(),
           telefono: form.telefono?.trim() || null,
-          password: form.password,
           activo: form.activo,
           permisos: form.permisos,
         });
-        notify("Empleado creado correctamente");
+        notify("Empleado creado correctamente. Se envió un enlace seguro al correo.");
       }
       setModalOpen(false);
       await loadAll();
@@ -579,37 +575,12 @@ export default function ShelterTeam() {
               </div>
 
               {!editing && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-text mb-1.5">Contraseña *</label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => handleChange("password", e.target.value)}
-                      placeholder="Mínimo 8 caracteres"
-                      className={`${inputCls(isDark)} ${errors.password ? (isDark ? "border-red-500/70" : "border-red-400") : ""}`}
-                    />
-                    <KeyRound className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? "text-dark-text-secondary" : "text-gray-400"}`} />
-                  </div>
-                  {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
-                  {/* Requisitos de la contraseña */}
-                  <div className="mt-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-dark-border p-3">
-                    <p className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Requisitos:</p>
-                    <ul className="space-y-1 text-xs">
-                      {[
-                        { ok: /[A-Z]/.test(form.password), texto: "Una mayúscula." },
-                        { ok: /[a-z]/.test(form.password), texto: "Una minúscula." },
-                        { ok: /[0-9]/.test(form.password), texto: "Un número." },
-                        { ok: /[^A-Za-z0-9]/.test(form.password), texto: "Un carácter especial." },
-                        { ok: (form.password || "").length >= 8, texto: "Mínimo 8 caracteres." },
-                      ].map((r) => (
-                        <li key={r.texto} className={`flex items-center gap-2 ${r.ok ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-dark-text-secondary"}`}>
-                          <span className={`inline-block w-1.5 h-1.5 rounded-full ${r.ok ? "bg-emerald-500" : "bg-gray-300 dark:bg-dark-border"}`} />
-                          {r.texto}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 flex items-start gap-2">
+                  <Mail size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                    Al crear el empleado se enviará un <strong>enlace seguro</strong> al correo
+                    para que establezca su contraseña (válido 24 horas).
+                  </p>
                 </div>
               )}
 

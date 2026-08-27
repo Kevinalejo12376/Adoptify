@@ -41,7 +41,9 @@ class RefugioEmpleadoCreate(BaseModel):
     apellido: Optional[str] = None
     email: str
     telefono: Optional[str] = None
-    password: str
+    # Opcional: la contraseña se establece mediante el enlace seguro enviado por
+    # correo al crear la cuenta. Si se envía, se ignora en el backend.
+    password: Optional[str] = None
     activo: bool = True
     permisos: List[str] = []     # códigos de permiso (de refugio_permisos)
 
@@ -70,8 +72,8 @@ class RefugioEmpleadoCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def _validar_password(cls, v):
-        if not v:
-            raise ValueError("La contraseña es obligatoria")
+        if v is None or str(v).strip() == "":
+            return None
         return validar_password(v)
 
 

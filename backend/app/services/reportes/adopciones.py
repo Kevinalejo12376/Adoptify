@@ -25,7 +25,6 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from reportlab.graphics.shapes import Circle, Drawing, Ellipse
-from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -39,17 +38,37 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from app.services.reportes.base import obtener_logo_bytes
+from app.services.reportes.base import (
+    obtener_logo_bytes,
+    Columna as ColumnaBase,
+    TIPO_FECHA,
+    HEX_ACENTO,
+    HEX_AMBAR_100,
+    HEX_AMBAR_50,
+    HEX_BORDE,
+    HEX_ENCABEZADO_TEXTO,
+    HEX_PRIMARIO,
+    HEX_ROSA_100,
+    HEX_ROSA_50,
+    HEX_TEXTO,
+    HEX_TEXTO_SUAVE,
+)
+from app.services.reportes.pdf import _color_gradiente, _dibujar_gradiente, _hex
+from app.services.reportes.excel import construir_excel
 
 # ---------------------------------------------------------------------------
-# Paleta de colores (identidad Adoptify) - identica a app/services/reportes
+# Paleta de colores sutil (identidad Adoptify) - misma de app/services/reportes
 # ---------------------------------------------------------------------------
-COLOR_PRIMARIO = colors.HexColor("#E11D48")  # Rose-600
-COLOR_ACENTO = colors.HexColor("#F59E0B")  # Amber-500
-COLOR_ZEBRA = colors.HexColor("#FFF7ED")  # Orange-50
-COLOR_TEXTO = colors.HexColor("#1F2937")  # Gray-800
-COLOR_TEXTO_SUAVE = colors.HexColor("#6B7280")  # Gray-500
-COLOR_BORDE = colors.HexColor("#E5E7EB")  # Gray-200
+COLOR_PRIMARIO = _hex(HEX_PRIMARIO)  # Rose-500
+COLOR_ACENTO = _hex(HEX_ACENTO)  # Amber-500
+COLOR_ROSA_100 = _hex(HEX_ROSA_100)
+COLOR_AMBAR_100 = _hex(HEX_AMBAR_100)
+COLOR_ZEBRA = _hex(HEX_ROSA_50)  # Rose-50
+COLOR_ZEBRA2 = _hex(HEX_AMBAR_50)  # Amber-50
+COLOR_TEXTO = _hex(HEX_TEXTO)  # Gray-800
+COLOR_TEXTO_SUAVE = _hex(HEX_TEXTO_SUAVE)  # Gray-500
+COLOR_BORDE = _hex(HEX_BORDE)
+COLOR_ENCABEZADO_TEXTO = _hex(HEX_ENCABEZADO_TEXTO)  # Rose-800
 
 _ALINEACIONES = {
     "left": TA_LEFT,
@@ -110,26 +129,6 @@ def _valor_pdf(fila: Dict[str, Any], col: Dict[str, Any]) -> str:
     return str(valor)
 
 
-def _valor_excel(fila: Dict[str, Any], col: Dict[str, Any]):
-    """Normaliza el valor para escribirlo en una celda de Excel.
-
-    Las fechas se convierten a ``date`` (sin hora) para que el formato
-    ``DD/MM/YYYY`` se aplique de forma limpia.
-    """
-    valor = fila.get(col["clave"])
-    if valor is None:
-        return None
-    if col["tipo"] == "fecha":
-        if isinstance(valor, datetime):
-            # Normaliza a fecha (sin hora) para aplicar el formato DD/MM/YYYY
-            dt = valor.replace(tzinfo=None) if valor.tzinfo else valor
-            if (dt.hour, dt.minute, dt.second) == (0, 0, 0):
-                return dt.date()
-            return dt
-        return valor  # ya es un date
-    return valor
-
-
 # ===========================================================================
 # Logo vectorial (huella de Adoptify)
 # ===========================================================================
@@ -178,7 +177,7 @@ def _estilos_pdf() -> Dict[str, ParagraphStyle]:
         ),
         "celda_header": ParagraphStyle(
             "HistorialCeldaHeader", parent=base["Normal"], fontName="Helvetica-Bold",
-            fontSize=8.5, leading=11, textColor=colors.white,
+            fontSize=8.5, leading=11, textColor=COLOR_ENCABEZADO_TEXTO,
         ),
         "vacio": ParagraphStyle(
             "HistorialVacio", parent=base["Normal"], fontName="Helvetica-Oblique",
@@ -230,7 +229,7 @@ class _CanvasNumerado(_pdf_canvas.Canvas):
         self.saveState()
         margen = self._margen_izq
         ancho = self._ancho
-        self.setStrokeColor(COLOR_ACENTO)
+        self.setStrokeColor(COLOR_BORDE)
         self.setLineWidth(0.6)
         self.line(margen, 12 * mm, ancho - margen, 12 * mm)
         self.setFont("Helvetica", 8)
@@ -293,9 +292,12 @@ def _dibujar_encabezado(canvas, doc):
     alto = doc.pagesize[1]
     margen = doc.leftMargin
 
-    # Barra superior institucional
-    canvas.setFillColor(COLOR_PRIMARIO)
-    canvas.rect(0, alto - 2 * mm, ancho, 2 * mm, stroke=0, fill=1)
+    # Franja superior sutil (degradado rose-100 -> ambar-100)
+    alto_franja = 14 * mm
+    _dibujar_gradiente(
+        canvas, 0, alto - alto_franja, ancho, alto_franja,
+        COLOR_ROSA_100, COLOR_AMBAR_100,
+    )
 
     # Logo (Cloudinary) + marca Adoptify
     ancho_logo = _dibujar_logo_encabezado(canvas, margen, alto)
@@ -344,16 +346,15 @@ def _tabla_meta(usuario, total: int, generado: str) -> Table:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("LINEBELOW", (0, 0), (-1, -2), 0.4, COLOR_BORDE),
         ("BOX", (0, 0), (-1, -1), 0.8, COLOR_PRIMARIO),
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FFF1F2")),  # Rose-50
+        ("BACKGROUND", (0, 0), (0, -1), COLOR_ZEBRA),  # Rose-50
     ]))
     return tabla
 
 
 def _estilo_tabla(n_filas: int) -> TableStyle:
-    """Estilo visual profesional de la tabla de datos."""
+    """Estilo visual profesional y sutil de la tabla de datos."""
     commands = [
-        ("BACKGROUND", (0, 0), (-1, 0), COLOR_PRIMARIO),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("TEXTCOLOR", (0, 0), (-1, 0), COLOR_ENCABEZADO_TEXTO),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, 0), 8.5),
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
@@ -365,12 +366,17 @@ def _estilo_tabla(n_filas: int) -> TableStyle:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("LINEBELOW", (0, 0), (-1, 0), 1.2, COLOR_ACENTO),
+        ("LINEBELOW", (0, 0), (-1, 0), 1.0, COLOR_ACENTO),
     ]
-    # Alternancia de filas (zebra)
+    # Encabezado con degradado suave rose-100 -> ambar-100
+    n_cols = max(len(COLUMNAS), 1)
+    for i in range(n_cols):
+        frac = (i + 0.5) / n_cols
+        commands.append(("BACKGROUND", (i, 0), (i, 0), _color_gradiente(frac, COLOR_ROSA_100, COLOR_AMBAR_100)))
+    # Alternancia de filas (zebra) en tonos muy claros de la marca
     for r in range(1, n_filas + 1):
-        if r % 2 == 0:
-            commands.append(("BACKGROUND", (0, r), (-1, r), COLOR_ZEBRA))
+        color_zebra = COLOR_ZEBRA if r % 2 == 1 else COLOR_ZEBRA2
+        commands.append(("BACKGROUND", (0, r), (-1, r), color_zebra))
     return TableStyle(commands)
 
 
@@ -458,25 +464,12 @@ def generar_pdf_historial(usuario, solicitudes: List[Any]) -> bytes:
 # ===========================================================================
 # Excel
 # ===========================================================================
-def _autoajustar_columnas(hoja, filas: List[Any], header_row: int):
-    """Ajusta automaticamente el ancho de cada columna segun su contenido."""
-    from openpyxl.utils import get_column_letter
-
-    for j, col in enumerate(COLUMNAS, start=1):
-        ancho = len(col["titulo"]) + 2
-        for solicitud in filas:
-            fila = _fila_valores(solicitud)
-            valor = fila.get(col["clave"])
-            if isinstance(valor, str):
-                ancho = max(ancho, len(valor) + 2)
-        # Las fechas necesitan espacio para DD/MM/YYYY
-        if col["tipo"] == "fecha":
-            ancho = max(ancho, 12)
-        hoja.column_dimensions[get_column_letter(j)].width = min(max(ancho, 10), 45)
-
-
 def generar_excel_historial(usuario, solicitudes: List[Any]) -> bytes:
     """Construye el libro Excel "Historial de Solicitudes de Adopción" en memoria.
+
+    Reutiliza el motor comun de Excel de Adoptify (``construir_excel``) para que
+    el diseno sea identico al resto de reportes del sistema: logo acomodado,
+    metadatos del usuario, encabezado sutil y ajuste de columnas/filas.
 
     Args:
         usuario: Objeto Usuario autenticado (para nombre y correo).
@@ -485,124 +478,29 @@ def generar_excel_historial(usuario, solicitudes: List[Any]) -> bytes:
     Returns:
         bytes con el contenido del archivo .xlsx.
     """
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-    from openpyxl.utils import get_column_letter
-
-    color_primario = "E11D48"  # Rose-600
-    color_zebra = "FFF7ED"  # Orange-50
-    color_texto = "1F2937"
-    color_texto_suave = "6B7280"
-    color_borde = "E5E7EB"
-
-    workbook = Workbook()
-    hoja = workbook.active
-    hoja.title = "Historial de Solicitudes"
-
-    fuente_titulo = Font(name="Calibri", size=14, bold=True, color=color_primario)
-    fuente_sub = Font(name="Calibri", size=9, italic=True, color=color_texto_suave)
-    fuente_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    relleno_header = PatternFill(fill_type="solid", start_color=color_primario, end_color=color_primario)
-    relleno_zebra = PatternFill(fill_type="solid", start_color=color_zebra, end_color=color_zebra)
-    fuente_celda = Font(name="Calibri", size=10, color=color_texto)
-    borde_fino = Side(style="thin", color=color_borde)
-    borde = Border(left=borde_fino, right=borde_fino, top=borde_fino, bottom=borde_fino)
-
-    ncols = len(COLUMNAS)
+    columnas = [
+        ColumnaBase(
+            clave=c["clave"],
+            titulo=c["titulo"],
+            tipo=(TIPO_FECHA if c["tipo"] == "fecha" else "texto"),
+            ancho_pdf=c["ancho_pdf"],
+            ancho_excel=c["ancho_excel"],
+            alinear=c["alinear"],
+        )
+        for c in COLUMNAS
+    ]
+    filas = [_fila_valores(s) for s in solicitudes]
     nombre_usuario = f"{usuario.nombre} {usuario.apellido or ''}".strip() or "—"
     ahora = datetime.now(timezone.utc)
     generado = ahora.strftime("%d/%m/%Y %H:%M") + " (UTC)"
-
-    # ------------------------------------------------------------------
-    # Logo institucional (Cloudinary) en la esquina superior izquierda
-    # ------------------------------------------------------------------
-    from app.services.reportes.excel import _agregar_logo
-
-    _agregar_logo(hoja)
-
-    # ------------------------------------------------------------------
-    # Encabezado del documento (titulo + subtitulo)
-    # ------------------------------------------------------------------
-    hoja.cell(
-        row=1, column=2, value="Historial de Solicitudes de Adopción"
-    ).font = fuente_titulo
-    hoja.cell(
-        row=2, column=2,
-        value=f"Adoptify · Usuario: {nombre_usuario} · Generado: {generado}",
-    ).font = fuente_sub
-    hoja.merge_cells(start_row=1, start_column=2, end_row=1, end_column=ncols + 1)
-    hoja.merge_cells(start_row=2, start_column=2, end_row=2, end_column=ncols + 1)
-    hoja.row_dimensions[1].height = 26
-    hoja.row_dimensions[2].height = 14
-    hoja.column_dimensions["A"].width = 16
-
-    # ------------------------------------------------------------------
-    # Fila de encabezado de columnas (fila 4)
-    # ------------------------------------------------------------------
-    header_row = 4
-    for j, col in enumerate(COLUMNAS, start=1):
-        celda = hoja.cell(row=header_row, column=j, value=col["titulo"])
-        celda.font = fuente_header
-        celda.fill = relleno_header
-        celda.alignment = Alignment(
-            horizontal=_ALINEACIONES_EXCEL.get(col["alinear"], "left"),
-            vertical="center",
-        )
-        celda.border = borde
-    hoja.row_dimensions[header_row].height = 20
-
-    # ------------------------------------------------------------------
-    # Datos
-    # ------------------------------------------------------------------
-    fila_inicio = header_row + 1
-    for i, solicitud in enumerate(solicitudes):
-        fila_excel = fila_inicio + i
-        fila = _fila_valores(solicitud)
-        for j, col in enumerate(COLUMNAS, start=1):
-            celda = hoja.cell(row=fila_excel, column=j, value=_valor_excel(fila, col))
-            celda.font = fuente_celda
-            celda.alignment = Alignment(
-                horizontal=_ALINEACIONES_EXCEL.get(col["alinear"], "left"),
-                vertical="center",
-                wrap_text=True,
-            )
-            celda.border = borde
-            if col["tipo"] == "fecha":
-                celda.number_format = "DD/MM/YYYY"
-            if i % 2 == 1:
-                celda.fill = relleno_zebra
-        hoja.row_dimensions[fila_excel].height = 18
-
-    # ------------------------------------------------------------------
-    # Ajustes de la hoja
-    # ------------------------------------------------------------------
-    _autoajustar_columnas(hoja, solicitudes, header_row)
-
-    ultima_fila = max(fila_inicio + len(solicitudes) - 1, header_row)
-    ultima_col = ncols
-    if solicitudes:
-        hoja.auto_filter.ref = f"A{header_row}:{get_column_letter(ultima_col)}{ultima_fila}"
-    # Congela el encabezado (y titulo) para mantenerlo visible al desplazarse
-    hoja.freeze_panes = f"A{fila_inicio}"
-
-    # Vista de impresion
-    hoja.page_setup.orientation = "landscape"
-    hoja.page_setup.fitToWidth = 1
-    hoja.page_setup.fitToHeight = 0
-    hoja.sheet_properties.pageSetUpPr.fitToPage = True
-    hoja.print_title_rows = f"{header_row}:{header_row}"
-
-    buffer = BytesIO()
-    workbook.save(buffer)
-    return buffer.getvalue()
-
-
-# Alineaciones de Excel (se reutiliza el mapeo de la identidad visual)
-_ALINEACIONES_EXCEL = {
-    "left": "left",
-    "center": "center",
-    "right": "right",
-}
+    subtitulo = f"Adoptify · Usuario: {nombre_usuario} · Generado: {generado}"
+    return construir_excel(
+        titulo="Historial de Solicitudes de Adopción",
+        subtitulo=subtitulo,
+        columnas=columnas,
+        filas=filas,
+        usuario=usuario,
+    )
 
 
 # Exposicion util para pruebas/uso desde otros modulos
