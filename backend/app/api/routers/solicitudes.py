@@ -27,7 +27,7 @@ from app.models.solicitud import SolicitudAdopcion
 from app.models.catalogos import EstadoSolicitud
 from app.schemas.solicitud import SolicitudCreate, SolicitudResponse, SolicitudEstadoUpdate
 from app.schemas.serializers import serialize_solicitud
-from app.services.reportes.base import Columna, TIPO_ENTERO, TIPO_FECHA_HORA
+from app.services.reportes.base import Columna, TIPO_FECHA_HORA
 from app.services.reportes import pdf as pdf_utils, excel as excel_utils
 
 router = APIRouter()
@@ -146,7 +146,6 @@ def reporte_solicitudes_usuario(
         )
 
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("mascota", "Mascota", ancho_pdf=110, ancho_excel=20),
         Columna("estado", "Estado", ancho_pdf=80, ancho_excel=14),
         Columna("ubicacion", "Ubicación", ancho_pdf=90, ancho_excel=16),
@@ -159,7 +158,6 @@ def reporte_solicitudes_usuario(
         mascota_nombre = row[0] if row else "—"
         estado = db.query(EstadoSolicitud.nombre).filter(EstadoSolicitud.id == s.estado_id).scalar()
         filas.append({
-            "id": s.id,
             "mascota": mascota_nombre,
             "estado": estado or "—",
             "ubicacion": s.ubicacion or "—",
@@ -175,6 +173,7 @@ def reporte_solicitudes_usuario(
             subtitulo=subtitulo,
             columnas=columnas,
             filas=filas,
+            usuario=current_user,
         )
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ext = ".xlsx"
@@ -184,6 +183,7 @@ def reporte_solicitudes_usuario(
             subtitulo=subtitulo,
             columnas=columnas,
             filas=filas,
+            usuario=current_user,
         )
         media_type = "application/pdf"
         ext = ".pdf"
@@ -242,7 +242,6 @@ def reporte_solicitudes_refugio(
         )
 
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("contacto", "Solicitante", ancho_pdf=110, ancho_excel=20),
         Columna("email", "Correo", ancho_pdf=130, ancho_excel=24),
         Columna("telefono", "Teléfono", ancho_pdf=90, ancho_excel=14),
@@ -258,7 +257,6 @@ def reporte_solicitudes_refugio(
         mascota_nombre = row[0] if row else "—"
         estado = db.query(EstadoSolicitud.nombre).filter(EstadoSolicitud.id == s.estado_id).scalar()
         filas.append({
-            "id": s.id,
             "contacto": s.nombre_contacto or "—",
             "email": s.email_contacto or "—",
             "telefono": s.telefono_contacto or "—",
@@ -277,6 +275,7 @@ def reporte_solicitudes_refugio(
             subtitulo=subtitulo,
             columnas=columnas,
             filas=filas,
+            usuario=current_user,
         )
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ext = ".xlsx"
@@ -286,6 +285,7 @@ def reporte_solicitudes_refugio(
             subtitulo=subtitulo,
             columnas=columnas,
             filas=filas,
+            usuario=current_user,
         )
         media_type = "application/pdf"
         ext = ".pdf"

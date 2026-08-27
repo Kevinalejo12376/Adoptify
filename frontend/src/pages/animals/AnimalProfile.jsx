@@ -4,6 +4,7 @@ import { Heart, PawPrint, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Sta
 import { useAuth } from "../../context/AuthContext";
 import { obtenerMascota } from "../../api/mascotas";
 import { crearSolicitud } from "../../api/solicitudes";
+import { normalizarPersonalidad } from "../../utils/personalidad";
 
 const getStatusBadge = (status) => {
   const config = {
@@ -64,9 +65,10 @@ export default function AnimalProfile() {
           shelterPhone: m.refugio_telefono || "",
           shelterLocation: m.refugio_ubicacion || m.refugio_direccion || "",
           description: m.descripcion || "",
-          personality: Array.isArray(m.personalidad)
-            ? m.personalidad
-            : (m.personalidad ? m.personalidad.split(",").map((p) => p.trim()) : []),
+          // Normaliza la personalidad a una lista plana para mostrar TODOS los
+          // rasgos (el backend puede enviarla como array, string o array con un
+          // único elemento que contiene comas).
+          personality: normalizarPersonalidad(m.personalidad),
           health: [m.vacunado && "Vacunado", m.esterilizado && "Esterilizado", m.desparasitado && "Desparasitado"].filter(Boolean).join(", ") || "Sin información de salud",
           healthExtra: m.salud || "",
           vacunado: !!m.vacunado,
@@ -280,10 +282,10 @@ export default function AnimalProfile() {
 
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Personalidad</h3>
-                {animal.personality && animal.personality.length > 0 ? (
+                {animal.personality.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {animal.personality.map((trait, index) => (
-                      <span key={index} className="px-4 py-2 bg-gradient-to-r from-rose-100 to-amber-100 text-gray-700 rounded-full text-sm">
+                      <span key={index} className="px-4 py-2 bg-gradient-to-r from-rose-100 to-amber-100 text-gray-700 rounded-full text-base font-medium shadow-sm">
                         {trait}
                       </span>
                     ))}

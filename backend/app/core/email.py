@@ -12,202 +12,232 @@ from app.core.webhooks import n8n_activo, disparar_webhook_sync
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Identidad visual de Adoptify (misma del frontend, adaptada a correos)
+# ---------------------------------------------------------------------------
+LOGO_URL = (
+    "https://res.cloudinary.com/kj0wube2/image/upload/"
+    "v1786743743/frontend-assets/logo/logo.png"
+)
+COLOR_ROSA = "#F43F5E"  # rose-500 (primario de la marca)
+COLOR_AMBAR = "#F59E0B"  # amber-500 (acento de la marca)
+COLOR_ROSA_OSCURO = "#9F1239"  # rose-800 (títulos y jerarquía)
+COLOR_ROSA_SUAVE = "#FFF1F2"  # rose-50 (fondos suaves)
+COLOR_AMBAR_SUAVE = "#FFFBEB"  # amber-50 (fondos suaves)
+COLOR_TEXTO = "#374151"  # gray-700
+COLOR_TEXTO_SUAVE = "#9CA3AF"  # gray-400
+
 
 def _generar_codigo(longitud: int = 6) -> str:
     """Genera un código numérico aleatorio de la longitud especificada."""
     return "".join(random.choices("0123456789", k=longitud))
 
 
-def _build_welcome_html(nombre: str, apellido: str | None = None) -> str:
-    """Construye el HTML del correo de bienvenida con diseño naranja."""
-    nombre_completo = f"{nombre} {apellido or ''}".strip()
+def _plantilla_base(titulo: str, contenido_html: str, subtitulo_html: str = "") -> str:
+    """Envuelve el cuerpo de un correo en el diseño base de Adoptify.
+
+    Estructura: logo + título en el encabezado, barra de gradiente de la marca,
+    contenido y pie con enlaces. El CSS usa estilos en cascada (compatibles con
+    Gmail/Outlook) y media queries para una correcta vista en celular.
+    """
+    subtitulo = (
+        f'<p style="margin:10px 0 0;font-size:14px;color:#6B7280;'
+        f'font-weight:400;line-height:1.5;">{subtitulo_html}</p>'
+        if subtitulo_html
+        else ""
+    )
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{titulo}</title>
     <style>
         body {{
             margin: 0;
             padding: 0;
-            background-color: #f4f4f4;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f6f4f2;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
         }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }}
-        .header {{
-            background: linear-gradient(135deg, #FF8C00, #ea580c);
-            padding: 30px 30px 25px;
-            text-align: center;
-        }}
-        .header-logo {{
-            font-size: 42px;
-            font-weight: 800;
-            color: #ffffff;
-            letter-spacing: 2px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.15);
-            margin-bottom: 8px;
-        }}
-        .header-logo .paw {{
-            display: inline-block;
-            margin-right: 6px;
-        }}
-        .header h1 {{
-            color: #ffffff;
-            margin: 12px 0 0;
-            font-size: 26px;
-            font-weight: 700;
-        }}
-        .header p {{
-            color: #ffedd5;
-            margin: 8px 0 0;
-            font-size: 15px;
-        }}
-        .content {{
-            padding: 40px 30px;
-            color: #333333;
-        }}
-        .content h2 {{
-            color: #ea580c;
-            font-size: 22px;
-            margin-top: 0;
-        }}
-        .content p {{
-            line-height: 1.8;
-            font-size: 15px;
-            margin: 16px 0;
-        }}
+        table {{ border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }}
+        img {{ border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }}
+        h1, h2, p {{ margin: 0; }}
         .btn {{
             display: inline-block;
-            background: linear-gradient(135deg, #FF8C00, #ea580c);
+            padding: 14px 34px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
             color: #ffffff !important;
             text-decoration: none;
-            padding: 14px 36px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 20px 0;
-            box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3);
+            background-color: {COLOR_ROSA};
+            background-image: linear-gradient(90deg, {COLOR_ROSA}, {COLOR_AMBAR});
+            box-shadow: 0 6px 18px rgba(244, 63, 94, 0.25);
         }}
-        .btn:hover {{
-            box-shadow: 0 6px 20px rgba(234, 88, 12, 0.4);
-        }}
-        .features {{
-            background: linear-gradient(135deg, #fff7ed, #fffbeb);
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            border-left: 4px solid #FF8C00;
-        }}
-        .features li {{
-            margin: 10px 0;
-            font-size: 14px;
-            color: #555555;
-        }}
-        .codigo-box {{
-            background: linear-gradient(135deg, #fff7ed, #fffbeb);
+        .caja {{
+            background: linear-gradient(135deg, {COLOR_ROSA_SUAVE}, {COLOR_AMBAR_SUAVE});
+            border: 1px solid #FCE3E6;
+            border-left: 4px solid {COLOR_ROSA};
             border-radius: 12px;
-            padding: 24px;
+            padding: 20px 22px;
             margin: 20px 0;
+        }}
+        .caja strong {{ color: #BE185D; }}
+        .footnote {{ font-size: 13px; color: #9CA3AF; line-height: 1.6; word-break: break-all; }}
+        .codigo-box {{
+            background: linear-gradient(135deg, {COLOR_ROSA_SUAVE}, {COLOR_AMBAR_SUAVE});
+            border: 2px dashed #FDA4AF;
+            border-radius: 14px;
+            padding: 28px 24px;
+            margin: 24px 0;
             text-align: center;
-            border: 2px dashed #FF8C00;
         }}
         .codigo-box .codigo {{
-            font-size: 36px;
+            font-size: 38px;
             font-weight: 800;
-            color: #ea580c;
-            letter-spacing: 8px;
+            color: #BE185D;
+            letter-spacing: 10px;
             font-family: 'Courier New', monospace;
+            user-select: all;
+            -webkit-user-select: all;
         }}
-        .codigo-box .validez {{
+        .codigo-box .validez {{ font-size: 13px; color: #8A8686; margin-top: 14px; }}
+        .aviso {{
+            background-color: {COLOR_AMBAR_SUAVE};
+            border: 1px solid #FDE68A;
+            border-radius: 10px;
+            padding: 14px 18px;
             font-size: 13px;
-            color: #888;
-            margin-top: 12px;
-        }}
-        .footer {{
-            background-color: #f4f4f4;
-            padding: 25px 30px;
-            text-align: center;
-            color: #888888;
-            font-size: 13px;
-        }}
-        .footer a {{
-            color: #ea580c;
-            text-decoration: none;
-        }}
-        .footer a:hover {{
-            text-decoration: underline;
+            color: #92400E;
+            margin: 20px 0;
+            line-height: 1.6;
         }}
         @media only screen and (max-width: 480px) {{
-            .header {{ padding: 25px 20px; }}
-            .header h1 {{ font-size: 22px; }}
-            .content {{ padding: 30px 20px; }}
+            .header {{ padding: 26px 18px 20px !important; }}
+            .content {{ padding: 28px 18px !important; }}
+            .footer {{ padding: 22px 18px !important; }}
+            .btn {{ display: block !important; text-align: center !important; padding: 14px 20px !important; }}
+            .codigo-box .codigo {{ font-size: 30px; letter-spacing: 6px; }}
+            .header-titulo {{ font-size: 20px !important; }}
         }}
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-logo">
-                <span class="paw">🐾</span> ADOPTIFY
-            </div>
-            <h1>&iexcl;Bienvenido a la familia!</h1>
-            <p>Un hogar para cada mascota</p>
-        </div>
-
-        <div class="content">
-            <h2>&iexcl;Hola, {nombre_completo}! 👋</h2>
-
-            <p>
-                Gracias por registrarte en <strong>Adoptify</strong>, la plataforma que conecta
-                mascotas en busca de un hogar con personas amorosas como t&uacute;.
-            </p>
-
-            <p>Estamos emocionados de tenerte en nuestra comunidad. Con tu nueva cuenta puedes:</p>
-
-            <div class="features">
-                <ul>
-                    <li>🐶 <strong>Explorar mascotas</strong> disponibles para adopci&oacute;n cerca de ti</li>
-                    <li>🏪 <strong>Visitar tiendas aliadas</strong> y encontrar productos para tu mascota</li>
-                    <li>💬 <strong>Participar en el foro</strong> y compartir experiencias con otros amantes de los animales</li>
-                    <li>❤️ <strong>Guardar tus favoritos</strong> y dar el primer paso hacia una adopci&oacute;n</li>
-                </ul>
-            </div>
-
-            <p style="text-align: center;">
-                <a href="{settings.FRONTEND_URL}" class="btn" target="_blank">
-                    Explorar Adoptify
-                </a>
-            </p>
-
-            <p>
-                Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos.
-                &iexcl;Estamos aqu&iacute; para ayudarte!
-            </p>
-
-            <p>Con cari&ntilde;o,<br><strong>El equipo de Adoptify</strong></p>
-        </div>
-
-        <div class="footer">
-            <p>&copy; 2026 Adoptify. Todos los derechos reservados.</p>
-            <p>
-                <a href="{settings.FRONTEND_URL}/privacy">Pol&iacute;tica de privacidad</a> &bull;
-                <a href="{settings.FRONTEND_URL}/terms">T&eacute;rminos de servicio</a>
-            </p>
-            <p style="margin-top:10px; font-size:11px;">
-                Este correo fue enviado autom&aacute;ticamente al registrarte en Adoptify.
-                Por favor no respondas a este mensaje.
-            </p>
-        </div>
-    </div>
+<body style="margin:0;padding:0;background-color:#f6f4f2;">
+    <center role="article" aria-roledescription="email">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="background-color:#f6f4f2;padding:24px 12px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0"
+                           style="width:100%;max-width:600px;background-color:#ffffff;border-radius:16px;
+                                  overflow:hidden;box-shadow:0 8px 30px rgba(31,41,55,0.08);">
+                        <!-- Encabezado: logo + título -->
+                        <tr>
+                            <td class="header" align="center"
+                                style="padding:34px 32px 26px;background-color:#ffffff;">
+                                <img src="{LOGO_URL}" alt="Adoptify" width="168"
+                                     style="display:inline-block;width:168px;max-width:168px;height:auto;
+                                            border:0;outline:none;text-decoration:none;">
+                                <h1 class="header-titulo"
+                                    style="margin:20px 0 0;font-size:24px;line-height:1.25;color:{COLOR_ROSA_OSCURO};
+                                           font-weight:800;font-family:'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;">
+                                    {titulo}
+                                </h1>
+                                {subtitulo}
+                            </td>
+                        </tr>
+                        <!-- Barra de gradiente de la marca -->
+                        <tr>
+                            <td style="height:6px;font-size:0;line-height:0;background-color:{COLOR_ROSA};
+                                       background-image:linear-gradient(90deg,{COLOR_ROSA},{COLOR_AMBAR});">
+                                &nbsp;
+                            </td>
+                        </tr>
+                        <!-- Contenido -->
+                        <tr>
+                            <td class="content"
+                                style="padding:36px 32px;color:{COLOR_TEXTO};font-size:15px;line-height:1.7;
+                                       font-family:'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;">
+                                {contenido_html}
+                            </td>
+                        </tr>
+                        <!-- Pie -->
+                        <tr>
+                            <td class="footer" align="center"
+                                style="background-color:#FAF9F8;padding:28px 32px;text-align:center;
+                                       color:{COLOR_TEXTO_SUAVE};font-size:12px;line-height:1.7;
+                                       border-top:1px solid #F1EEEC;font-family:Arial,sans-serif;">
+                                <p style="margin:0 0 6px;">&copy; 2026 Adoptify. Todos los derechos reservados.</p>
+                                <p style="margin:0 0 6px;">
+                                    <a href="{settings.FRONTEND_URL}" target="_blank"
+                                       style="color:{COLOR_ROSA};text-decoration:none;font-weight:600;">Ir a Adoptify</a>
+                                    &nbsp;&bull;&nbsp;
+                                    <a href="{settings.FRONTEND_URL}/privacy" target="_blank"
+                                       style="color:{COLOR_ROSA};text-decoration:none;">Privacidad</a>
+                                    &nbsp;&bull;&nbsp;
+                                    <a href="{settings.FRONTEND_URL}/terms" target="_blank"
+                                       style="color:{COLOR_ROSA};text-decoration:none;">T&eacute;rminos</a>
+                                </p>
+                                <p style="margin:0;font-size:11px;color:#B4AEAD;">
+                                    Este correo fue enviado autom&aacute;ticamente. Por favor no respondas a este mensaje.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </center>
 </body>
 </html>"""
+
+
+def _build_welcome_html(nombre: str, apellido: str | None = None) -> str:
+    """Construye el HTML del correo de bienvenida con la identidad de Adoptify."""
+    nombre_completo = f"{nombre} {apellido or ''}".strip()
+    contenido = f"""
+        <h2 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:{COLOR_ROSA_OSCURO};font-weight:800;">
+            &iexcl;Hola, {nombre_completo}! 👋
+        </h2>
+
+        <p>
+            Gracias por registrarte en <strong>Adoptify</strong>, la plataforma que conecta
+            mascotas en busca de un hogar con personas amorosas como t&uacute;.
+        </p>
+
+        <p>Estamos emocionados de tenerte en nuestra comunidad. Con tu nueva cuenta puedes:</p>
+
+        <div class="caja">
+            <ul style="margin:0;padding-left:20px;">
+                <li>🐶 <strong>Explorar mascotas</strong> disponibles para adopci&oacute;n cerca de ti</li>
+                <li>🏪 <strong>Visitar tiendas aliadas</strong> y encontrar productos para tu mascota</li>
+                <li>💬 <strong>Participar en el foro</strong> y compartir experiencias con otros amantes de los animales</li>
+                <li>❤️ <strong>Guardar tus favoritos</strong> y dar el primer paso hacia una adopci&oacute;n</li>
+            </ul>
+        </div>
+
+        <p style="text-align:center;">
+            <a href="{settings.FRONTEND_URL}" class="btn" target="_blank">Explorar Adoptify</a>
+        </p>
+
+        <p>
+            Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos.
+            &iexcl;Estamos aqu&iacute; para ayudarte!
+        </p>
+
+        <p style="margin-top:26px;">
+            Con cari&ntilde;o,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong>
+        </p>
+    """
+    return _plantilla_base(
+        "¡Bienvenido a la familia!",
+        contenido,
+        "Un hogar para cada mascota",
+    )
 
 
 def _build_codigo_html(codigo: str, tipo: str, nombre: str = "") -> str:
@@ -223,145 +253,30 @@ def _build_codigo_html(codigo: str, tipo: str, nombre: str = "") -> str:
     )
     nombre_saludo = f"{nombre}, " if nombre else ""
 
-    return f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {{
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }}
-        .header {{
-            background: linear-gradient(135deg, #FF8C00, #ea580c);
-            padding: 30px 30px 25px;
-            text-align: center;
-        }}
-        .header-logo {{
-            font-size: 42px;
-            font-weight: 800;
-            color: #ffffff;
-            letter-spacing: 2px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.15);
-        }}
-        .header h1 {{
-            color: #ffffff;
-            margin: 12px 0 0;
-            font-size: 24px;
-            font-weight: 700;
-        }}
-        .content {{
-            padding: 40px 30px;
-            color: #333333;
-        }}
-        .content h2 {{
-            color: #ea580c;
-            font-size: 20px;
-            margin-top: 0;
-        }}
-        .content p {{
-            line-height: 1.8;
-            font-size: 15px;
-            margin: 16px 0;
-        }}
-        .codigo-box {{
-            background: linear-gradient(135deg, #fff7ed, #fffbeb);
-            border-radius: 12px;
-            padding: 28px 24px;
-            margin: 24px 0;
-            text-align: center;
-            border: 2px dashed #FF8C00;
-        }}
-        .codigo-box .codigo {{
-            font-size: 40px;
-            font-weight: 800;
-            color: #ea580c;
-            letter-spacing: 10px;
-            font-family: 'Courier New', monospace;
-            user-select: all;
-        }}
-        .codigo-box .validez {{
-            font-size: 13px;
-            color: #888888;
-            margin-top: 14px;
-        }}
-        .aviso {{
-            background-color: #fef3c7;
-            border-radius: 8px;
-            padding: 14px 18px;
-            font-size: 13px;
-            color: #92400e;
-            margin: 20px 0;
-        }}
-        .footer {{
-            background-color: #f4f4f4;
-            padding: 25px 30px;
-            text-align: center;
-            color: #888888;
-            font-size: 13px;
-        }}
-        .footer a {{
-            color: #ea580c;
-            text-decoration: none;
-        }}
-        @media only screen and (max-width: 480px) {{
-            .header {{ padding: 25px 20px; }}
-            .header h1 {{ font-size: 20px; }}
-            .content {{ padding: 30px 20px; }}
-            .codigo-box .codigo {{ font-size: 32px; letter-spacing: 6px; }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-logo">🐾 ADOPTIFY</div>
-            <h1>{titulo}</h1>
+    contenido = f"""
+        <h2 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:{COLOR_ROSA_OSCURO};font-weight:800;">
+            &iexcl;Hola{', ' + nombre_saludo if nombre_saludo else '!'} 👋
+        </h2>
+
+        <p>{mensaje_principal}</p>
+
+        <div class="codigo-box">
+            <div class="codigo">{codigo}</div>
+            <div class="validez">Este c&oacute;digo es v&aacute;lido por 10 minutos</div>
         </div>
 
-        <div class="content">
-            <h2>&iexcl;Hola{', ' + nombre_saludo if nombre_saludo else '!'} 👋</h2>
-
-            <p>{mensaje_principal}</p>
-
-            <div class="codigo-box">
-                <div class="codigo">{codigo}</div>
-                <div class="validez">Este código es válido por 10 minutos</div>
-            </div>
-
-            <div class="aviso">
-                ⚠️ Si no solicitaste este código, ignora este mensaje. 
-                Nunca compartas este código con nadie.
-            </div>
-
-            <p>
-                Si tienes alguna pregunta, no dudes en contactarnos.
-            </p>
-
-            <p>Con cari&ntilde;o,<br><strong>El equipo de Adoptify</strong></p>
+        <div class="aviso">
+            ⚠️ Si no solicitaste este c&oacute;digo, ignora este mensaje.
+            Nunca compartas este c&oacute;digo con nadie.
         </div>
 
-        <div class="footer">
-            <p>&copy; 2026 Adoptify. Todos los derechos reservados.</p>
-            <p>
-                <a href="{settings.FRONTEND_URL}/privacy">Pol&iacute;tica de privacidad</a> &bull;
-                <a href="{settings.FRONTEND_URL}/terms">T&eacute;rminos de servicio</a>
-            </p>
-        </div>
-    </div>
-</body>
-</html>"""
+        <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+
+        <p style="margin-top:26px;">
+            Con cari&ntilde;o,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong>
+        </p>
+    """
+    return _plantilla_base(titulo, contenido)
 
 
 def _enviar_correo(email_destino: str, asunto: str, html: str) -> bool:
@@ -485,84 +400,8 @@ def enviar_codigo_verificacion(
 # ============================================================
 
 def _build_base_html(titulo: str, contenido_html: str) -> str:
-    """Envuelve un contenido en el diseño base de Adoptify (naranja/rosa)."""
-    return f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {{
-            margin: 0; padding: 0; background-color: #f4f4f5;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }}
-        .container {{
-            max-width: 600px; margin: 24px auto; background-color: #ffffff;
-            border-radius: 16px; overflow: hidden;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-        }}
-        .header {{
-            background: linear-gradient(135deg, #FF8C00, #f43f5e);
-            padding: 32px 30px 26px; text-align: center;
-        }}
-        .header-logo {{
-            font-size: 40px; font-weight: 800; color: #ffffff;
-            letter-spacing: 2px; text-shadow: 0 2px 6px rgba(0,0,0,0.18);
-            margin-bottom: 6px;
-        }}
-        .header h1 {{
-            color: #ffffff; margin: 10px 0 0; font-size: 24px; font-weight: 700;
-        }}
-        .content {{ padding: 36px 30px; color: #333333; }}
-        .content p {{ line-height: 1.8; font-size: 15px; margin: 14px 0; }}
-        .caja {{
-            background: linear-gradient(135deg, #fff7ed, #fff1f2);
-            border-radius: 12px; padding: 20px 22px; margin: 20px 0;
-            border-left: 4px solid #FF8C00;
-        }}
-        .caja strong {{ color: #ea580c; }}
-        .btn {{
-            display: inline-block; background: linear-gradient(135deg, #FF8C00, #f43f5e);
-            color: #ffffff !important; text-decoration: none; padding: 14px 38px;
-            border-radius: 12px; font-size: 16px; font-weight: 600; margin: 22px 0;
-            box-shadow: 0 6px 18px rgba(244, 63, 94, 0.3);
-        }}
-        .footnote {{ font-size: 13px; color: #888888; line-height: 1.6; }}
-        .footer {{
-            background-color: #fafafa; padding: 24px 30px; text-align: center;
-            color: #999999; font-size: 13px; border-top: 1px solid #f0f0f0;
-        }}
-        .footer a {{ color: #ea580c; text-decoration: none; }}
-        @media only screen and (max-width: 480px) {{
-            .header {{ padding: 24px 18px; }}
-            .header h1 {{ font-size: 20px; }}
-            .content {{ padding: 26px 18px; }}
-            .btn {{ padding: 12px 28px; font-size: 15px; }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <div class="header-logo">🐾 ADOPTIFY</div>
-            <h1>{titulo}</h1>
-        </div>
-        <div class="content">
-            {contenido_html}
-        </div>
-        <div class="footer">
-            <p>&copy; 2026 Adoptify. Todos los derechos reservados.</p>
-            <p>
-                <a href="{settings.FRONTEND_URL}">Ir a Adoptify</a> &bull;
-                <a href="{settings.FRONTEND_URL}/privacy">Privacidad</a>
-            </p>
-            <p style="margin-top:8px; font-size:11px;">
-                Este correo fue enviado automáticamente. Por favor no respondas a este mensaje.
-            </p>
-        </div>
-    </div>
-</body>
-</html>"""
+    """Envuelve un contenido en el diseño base de Adoptify (rosa/ámbar)."""
+    return _plantilla_base(titulo, contenido_html)
 
 
 def enviar_correo_aprobacion_refugio(
@@ -580,7 +419,7 @@ def enviar_correo_aprobacion_refugio(
 
         <div class="caja">
             <p style="margin:0 0 6px;">Tu cuenta fue creada con el siguiente <strong>usuario</strong>:</p>
-            <p style="margin:0; font-size:22px; font-weight:800; color:#ea580c; letter-spacing:1px;">{username}</p>
+            <p style="margin:0; font-size:22px; font-weight:800; color:#BE185D; letter-spacing:1px;">{username}</p>
         </div>
 
         <p>Para terminar de activar tu cuenta, crea tu contraseña con el siguiente botón.
@@ -594,9 +433,52 @@ def enviar_correo_aprobacion_refugio(
             Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
             {enlace_crear_password}
         </p>
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(email_destino, asunto, _build_base_html("¡Solicitud aprobada!", contenido))
+
+
+def enviar_correo_cuenta_creada(
+    email_destino: str,
+    nombre: str,
+    enlace_crear_password: str,
+    rol: str = "",
+) -> bool:
+    """Correo informando que la cuenta fue creada, con enlace seguro (24 h)
+    para que el usuario establezca su contraseña.
+
+    ``rol`` es la descripción legible del rol/entidad asignado (p. ej.
+    "Subadministrador de Adoptify", "empleado del refugio X"). Si se omite, se
+    usa un mensaje genérico. Nunca se envía la contraseña en texto plano.
+    """
+    if rol:
+        linea_rol = f'<p>Has sido creado exitosamente como <strong>{rol}</strong>.</p>'
+    else:
+        linea_rol = (
+            '<p>Tu cuenta en <strong>Adoptify</strong> ha sido creada correctamente.</p>'
+        )
+    asunto = f"🎉 ¡Tu cuenta en Adoptify fue creada, {nombre}!"
+    contenido = f"""
+        <p>¡Hola, <strong>{nombre}</strong>! 👋</p>
+        {linea_rol}
+        <p>Para terminar de activar tu cuenta, establece tu contraseña con el siguiente botón.
+        El enlace es <strong>seguro y expira en 24 horas</strong>.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_crear_password}" class="btn" target="_blank">Establecer mi contraseña</a>
+        </p>
+
+        <p class="footnote">
+            Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+            {enlace_crear_password}
+        </p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(
+        email_destino,
+        asunto,
+        _build_base_html("¡Tu cuenta fue creada!", contenido),
+    )
 
 
 def enviar_correo_solicitud_informacion(
@@ -623,7 +505,7 @@ def enviar_correo_solicitud_informacion(
             <a href="{enlace_completar}" class="btn" target="_blank">Completar información</a>
         </p>
 
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(
         email_destino,
@@ -655,7 +537,7 @@ def enviar_correo_contenido_inapropiado(
 
         <p>Si crees que esto es un error, contacta a nuestro equipo de soporte y lo
         revisaremos con gusto.</p>
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(
         email_destino,
@@ -686,7 +568,7 @@ def enviar_correo_rechazo_refugio(
             no dudes en contactarnos. Estamos aquí para ayudarte a construir una comunidad
             segura y confiable para las mascotas.
         </p>
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(
         email_destino,
@@ -714,7 +596,7 @@ def enviar_correo_aprobacion_tienda(
 
         <div class="caja">
             <p style="margin:0 0 6px;">Tu cuenta fue creada con el siguiente <strong>usuario</strong>:</p>
-            <p style="margin:0; font-size:22px; font-weight:800; color:#ea580c; letter-spacing:1px;">{username}</p>
+            <p style="margin:0; font-size:22px; font-weight:800; color:#BE185D; letter-spacing:1px;">{username}</p>
         </div>
 
         <p>Para terminar de activar tu cuenta, crea tu contraseña con el siguiente botón.
@@ -728,7 +610,7 @@ def enviar_correo_aprobacion_tienda(
             Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
             {enlace_crear_password}
         </p>
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(email_destino, asunto, _build_base_html("¡Solicitud aprobada!", contenido))
 
@@ -757,7 +639,7 @@ def enviar_correo_solicitud_informacion_tienda(
             <a href="{enlace_completar}" class="btn" target="_blank">Completar información</a>
         </p>
 
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(
         email_destino,
@@ -788,7 +670,7 @@ def enviar_correo_rechazo_tienda(
             no dudes en contactarnos. Estamos aquí para ayudarte a construir una comunidad
             segura y confiable para las mascotas.
         </p>
-        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+        <p>Con cariño,<br><strong style="color:#BE185D;">El equipo de Adoptify</strong></p>
     """
     return _enviar_correo(
         email_destino,

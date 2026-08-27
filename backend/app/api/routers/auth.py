@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
 import logging
+import secrets
 # pyrefly: ignore [missing-import]
 from datetime import timedelta, datetime, timezone
 # pyrefly: ignore [missing-import]
@@ -11,6 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, ValidationError
+from typing import Optional
 # pyrefly: ignore [missing-import]
 from google.oauth2 import id_token
 # pyrefly: ignore [missing-import]
@@ -36,6 +38,7 @@ from app.models.usuario import Usuario
 from app.models.refugio import Refugio, RefugioEmpleado, RefugioPermiso
 from app.models.catalogos import Rol, TipoDocumento
 from app.models.verificacion import CodigoVerificacion
+from app.models.solicitud_refugio import EnlaceCreacionPassword
 from app.schemas.usuario import (
     UsuarioCreate,
     UsuarioResponse,
@@ -920,3 +923,62 @@ def eliminar_avatar(
             logger.warning("[auth] No se pudo eliminar avatar '%s': %s", public_id, exc)
 
     return {"avatar_url": None}
+
+
+class CrearPasswordCuentaRequest(BaseModel):
+    token: str
+    password: str
+    confirmar_password: Optional[str] = None
+
+
+@router.post("/crear-password", status_code=status.HTTP_200_OK)
+def crear_password_cuenta(
+    payload: CrearPasswordCuentaRequest,
+    db: Session = Depends(get_db),
+):
+    """Establece la contraseña de una cuenta creada por administración (usuario,
+    administrador de tienda o empleado de refugio) usando el enlace seguro de
+    24 horas generado al crearla. Reutiliza el mismo mecanismo del registro de
+    refugios (tabla `enlaces_creacion_password`)."""
+    now = datetime.now(timezone.utc)
+    enlace = (
+        db.query(EnlaceCreacionPassword)
+        .filter(EnlaceCreacionPassword.token == payload.token)
+        .first()
+    )
+    if not enlace:
+        raise HTTPException(status_code=404, detail="El enlace no es válido")
+    if enlace.usado == "usado":
+        raise HTTPException(status_code=400, detail="Este enlace ya fue utilizado")
+    if enlace.expira_en < now:
+        enlace.usado = "expirado"
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail="El enlace ha expirado. Solicita uno nuevo al administrador.",
+        )
+
+    user = db.query(Usuario).filter(Usuario.id == enlace.usuario_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="El enlace no es válido")
+
+    password = payload.password or ""
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres.")
+    if payload.confirmar_password is not None and password != payload.confirmar_password:
+        raise HTTPException(status_code=400, detail="Las contraseñas no coinciden.")
+
+    user.hashed_password = get_password_hash(password)
+    user.activo = True
+    enlace.usado = "usado"
+    db.commit()
+    registrar_auditoria(
+        db,
+        user.id,
+        "crear_password_cuenta",
+        "usuarios",
+        user.id,
+        f"Contraseña establecida por enlace seguro para {user.email}",
+    )
+    db.commit()
+    return {"mensaje": "Contraseña establecida correctamente"}

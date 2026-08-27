@@ -43,7 +43,6 @@ class ReporteUsuarios(GeneradorReporte):
     descripcion = "Listado de todos los usuarios registrados en la plataforma."
     nombre_archivo = "reporte_usuarios"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("nombre", "Nombre", ancho_pdf=90, ancho_excel=18),
         Columna("apellido", "Apellido", ancho_pdf=90, ancho_excel=16),
         Columna("email", "Correo", ancho_pdf=130, ancho_excel=26),
@@ -57,7 +56,6 @@ class ReporteUsuarios(GeneradorReporte):
         usuarios = db.query(Usuario).order_by(Usuario.creado_en.desc()).all()
         return [
             {
-                "id": u.id,
                 "nombre": u.nombre,
                 "apellido": u.apellido,
                 "email": u.email,
@@ -79,7 +77,6 @@ class ReporteMascotas(GeneradorReporte):
     descripcion = "Listado de las mascotas registradas por los refugios."
     nombre_archivo = "reporte_mascotas"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("nombre", "Nombre", ancho_pdf=90, ancho_excel=18),
         Columna("tipo", "Tipo", ancho_pdf=70, ancho_excel=14),
         Columna("raza", "Raza", ancho_pdf=100, ancho_excel=20),
@@ -97,7 +94,6 @@ class ReporteMascotas(GeneradorReporte):
         )
         return [
             {
-                "id": m.id,
                 "nombre": m.nombre,
                 "tipo": m.tipo.nombre if m.tipo else "—",
                 "raza": m.raza or "—",
@@ -119,7 +115,6 @@ class ReporteRefugios(GeneradorReporte):
     descripcion = "Listado de los refugios registrados y verificados."
     nombre_archivo = "reporte_refugios"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("nombre", "Nombre", ancho_pdf=110, ancho_excel=24),
         Columna("ubicacion", "Ubicación", ancho_pdf=90, ancho_excel=18),
         Columna("email", "Correo", ancho_pdf=120, ancho_excel=24),
@@ -133,7 +128,6 @@ class ReporteRefugios(GeneradorReporte):
         refugios = db.query(Refugio).order_by(Refugio.creado_en.desc()).all()
         return [
             {
-                "id": r.id,
                 "nombre": r.nombre,
                 "ubicacion": r.ubicacion or r.municipio or "—",
                 "email": r.email or "—",
@@ -155,7 +149,6 @@ class ReporteTiendas(GeneradorReporte):
     descripcion = "Listado de las tiendas aliadas al marketplace."
     nombre_archivo = "reporte_tiendas"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("nombre", "Nombre", ancho_pdf=110, ancho_excel=24),
         Columna("estado", "Estado", ancho_pdf=70, ancho_excel=12),
         Columna("ciudad", "Ciudad", ancho_pdf=90, ancho_excel=18),
@@ -169,7 +162,6 @@ class ReporteTiendas(GeneradorReporte):
         tiendas = db.query(Tienda).order_by(Tienda.creado_en.desc()).all()
         return [
             {
-                "id": t.id,
                 "nombre": t.nombre,
                 "estado": (t.estado or "activa").capitalize(),
                 "ciudad": t.ciudad or t.ubicacion or "—",
@@ -191,7 +183,6 @@ class ReporteProductos(GeneradorReporte):
     descripcion = "Listado de los productos del marketplace con su vendedor."
     nombre_archivo = "reporte_productos"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("nombre", "Nombre", ancho_pdf=110, ancho_excel=24),
         Columna("categoria", "Categoría", ancho_pdf=80, ancho_excel=16),
         Columna("precio", "Precio", TIPO_MONEDA, ancho_pdf=65, ancho_excel=12, alinear="right"),
@@ -209,7 +200,6 @@ class ReporteProductos(GeneradorReporte):
             refs = {r.id: r.nombre for r in db.query(Refugio).filter(Refugio.id.in_(ref_ids)).all()}
         return [
             {
-                "id": p.id,
                 "nombre": p.nombre,
                 "categoria": p.categoria.nombre if p.categoria else "—",
                 "precio": float(p.precio) if p.precio is not None else 0,
@@ -231,7 +221,6 @@ class ReportePedidos(GeneradorReporte):
     descripcion = "Listado de pedidos realizados en el marketplace."
     nombre_archivo = "reporte_pedidos"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("contacto", "Contacto", ancho_pdf=100, ancho_excel=20),
         Columna("estado", "Estado", ancho_pdf=80, ancho_excel=14),
         Columna("subtotal", "Subtotal", TIPO_MONEDA, ancho_pdf=60, ancho_excel=12, alinear="right"),
@@ -245,8 +234,7 @@ class ReportePedidos(GeneradorReporte):
         pedidos = db.query(Pedido).order_by(Pedido.creado_en.desc()).all()
         return [
             {
-                "id": p.id,
-                "contacto": p.nombre_contacto or f"Usuario #{p.usuario_id}" if p.usuario_id else "—",
+                "contacto": p.nombre_contacto or "—",
                 "estado": p.estado.nombre if p.estado else "—",
                 "subtotal": float(p.subtotal or 0),
                 "costo_envio": float(p.costo_envio or 0),
@@ -267,7 +255,6 @@ class ReporteSolicitudes(GeneradorReporte):
     descripcion = "Listado de solicitudes de adopción enviadas por los usuarios."
     nombre_archivo = "reporte_solicitudes"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("contacto", "Contacto", ancho_pdf=100, ancho_excel=20),
         Columna("email", "Correo", ancho_pdf=120, ancho_excel=24),
         Columna("mascota", "Mascota", ancho_pdf=90, ancho_excel=18),
@@ -280,7 +267,6 @@ class ReporteSolicitudes(GeneradorReporte):
         solicitudes = db.query(SolicitudAdopcion).order_by(SolicitudAdopcion.creada_en.desc()).all()
         return [
             {
-                "id": s.id,
                 "contacto": s.nombre_contacto,
                 "email": s.email_contacto or "—",
                 "mascota": s.mascota.nombre if s.mascota else "—",
@@ -301,7 +287,6 @@ class ReportePqrs(GeneradorReporte):
     descripcion = "Listado de peticiones, quejas, reclamos y sugerencias."
     nombre_archivo = "reporte_pqrs"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("tipo", "Tipo", ancho_pdf=70, ancho_excel=12),
         Columna("asunto", "Asunto", ancho_pdf=150, ancho_excel=30),
         Columna("estado", "Estado", ancho_pdf=80, ancho_excel=14),
@@ -320,7 +305,6 @@ class ReportePqrs(GeneradorReporte):
             }
         return [
             {
-                "id": p.id,
                 "tipo": p.tipo.capitalize(),
                 "asunto": p.asunto,
                 "estado": p.estado.replace("_", " ").capitalize(),
@@ -340,9 +324,7 @@ class ReporteContenido(GeneradorReporte):
     descripcion = "Listado de reportes/denuncias realizadas por los usuarios."
     nombre_archivo = "reporte_denuncias"
     columnas = [
-        Columna("id", "ID", TIPO_ENTERO, ancho_pdf=35, ancho_excel=8, alinear="center"),
         Columna("tipo_objeto", "Objeto", ancho_pdf=80, ancho_excel=14),
-        Columna("objeto_id", "ID Objeto", TIPO_ENTERO, ancho_pdf=50, ancho_excel=10, alinear="center"),
         Columna("motivo", "Motivo", ancho_pdf=180, ancho_excel=40),
         Columna("estado", "Estado", ancho_pdf=80, ancho_excel=14),
         Columna("creado_en", "Fecha", TIPO_FECHA_HORA, ancho_pdf=85, ancho_excel=16),
@@ -352,9 +334,7 @@ class ReporteContenido(GeneradorReporte):
         reportes = db.query(Reporte).order_by(Reporte.creado_en.desc()).all()
         return [
             {
-                "id": r.id,
                 "tipo_objeto": r.tipo_objeto,
-                "objeto_id": r.objeto_id or 0,
                 "motivo": r.motivo,
                 "estado": r.estado.replace("_", " ").capitalize(),
                 "creado_en": _fecha(r.creado_en),

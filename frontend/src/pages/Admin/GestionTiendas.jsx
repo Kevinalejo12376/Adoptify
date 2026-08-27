@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Store, Plus, Search, X, SlidersHorizontal, ChevronDown, MoreVertical,
-  Eye, Edit3, Package, BarChart3, Lock, Unlock, RefreshCw, Mail, Trash2,
+  Eye, EyeOff, Edit3, Package, BarChart3, Lock, Unlock, RefreshCw, Mail, Trash2,
   Building2, CheckCircle, Clock, AlertTriangle, ShoppingBag, TrendingUp,
   ChevronLeft, ChevronRight, Image as ImageIcon, ExternalLink, MapPin,
   Globe, Phone, Mail as MailIcon, User, Calendar, Shield,
@@ -574,6 +574,7 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [generarPassword, setGenerarPassword] = useState(true);
+  const [showPassword, setShowPassword] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -769,13 +770,22 @@ function ModalCrearTienda({ isOpen, onClose, onCreated }) {
               <label className="block text-xs font-semibold text-gray-600 dark:text-dark-text-secondary mb-1.5">Contraseña temporal *</label>
               <div className="flex gap-2">
                 <div className="flex-1 relative">
-                  <input name="password" type="text" value={formData.password} onChange={handleChange} onBlur={handleBlur}
-                    className={`w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                  <input name="password" type={showPassword ? "text" : "password"} value={formData.password} onChange={handleChange} onBlur={handleBlur}
+                    className={`w-full px-3 pr-10 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border rounded-xl focus:outline-none focus:ring-2 transition-all ${
                       touched.password && fieldErrors.password
                         ? "border-red-300 dark:border-red-500/50 focus:ring-red-500/20 focus:border-red-500"
                         : "border-gray-200 dark:border-dark-border focus:ring-rose-500/20 focus:border-rose-500"
                     }`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className={`absolute top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-text-secondary dark:hover:text-white transition-colors ${touched.password && fieldErrors.password ? "right-9" : "right-3"}`}
+                    aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                   {touched.password && fieldErrors.password && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>

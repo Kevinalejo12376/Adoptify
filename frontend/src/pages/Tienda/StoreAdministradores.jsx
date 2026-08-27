@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Users, Plus, Search, Pencil, Trash2, Power, PowerOff, KeyRound,
+  Users, Plus, Search, Pencil, Trash2, Power, PowerOff, KeyRound, Eye, EyeOff,
   Loader2, ShieldCheck, User, Mail, Clock, X, CheckCircle2, AlertCircle, ListChecks,
   LayoutDashboard, Store, HeartHandshake, MessageSquare, Settings,
 } from "lucide-react";
@@ -146,6 +146,8 @@ export default function StoreAdministradores() {
   const [confirm, setConfirm] = useState(null); // { tipo: 'eliminar'|'toggle'|'password', admin }
   const [nuevaPass, setNuevaPass] = useState("");
   const [errorPassReset, setErrorPassReset] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNuevaPass, setShowNuevaPass] = useState(false);
   const [toast, setToast] = useState(null);
   const notificar = (mensaje, tipo = "success") => setToast({ mensaje, tipo });
 
@@ -240,7 +242,7 @@ export default function StoreAdministradores() {
       case "telefono":
         return validarTelefonoAdmin(valor);
       case "password":
-        return validarPassword(valor, { obligatorio: !editando });
+        return valor ? validarPassword(valor) : "";
       default:
         return "";
     }
@@ -252,7 +254,7 @@ export default function StoreAdministradores() {
       apellido: validarApellido(form.apellido),
       email: editando ? "" : validarEmail(form.email),
       telefono: validarTelefonoAdmin(form.telefono),
-      password: editando ? (form.password ? validarPassword(form.password) : "") : validarPassword(form.password),
+      password: editando ? (form.password ? validarPassword(form.password) : "") : "",
       permisos: validarPermisos(permisosSel, { mensaje: "Debes asignar al menos un permiso al administrador." }),
     };
     setErrors(nuevos);
@@ -283,9 +285,9 @@ export default function StoreAdministradores() {
         await actualizarAdministradorTienda(editando.id, payload);
         notificar("Administrador actualizado correctamente");
       } else {
-        payload.password = form.password;
+        // La contraseña se establece mediante el enlace seguro enviado por correo.
         await crearAdministradorTienda(payload);
-        notificar("Administrador creado correctamente");
+        notificar("Administrador creado correctamente. Se envió un enlace seguro al correo.");
       }
       setModalOpen(false);
       cargar();
@@ -502,13 +504,40 @@ export default function StoreAdministradores() {
                   <input type="email" value={form.email} onChange={(e) => handleChangeCampo("email", e.target.value)} className={claseInput(inputCls, !!errors.email)} disabled={!!editando} />
                   <FieldError mensaje={errors.email} />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">
-                    {editando ? "Nueva contraseña (opcional)" : "Contraseña *"}
-                  </label>
-                  <input type="password" value={form.password} onChange={(e) => handleChangeCampo("password", e.target.value)} className={claseInput(inputCls, !!errors.password)} placeholder={editando ? "••••••••" : ""} />
-                  <FieldError mensaje={errors.password} />
-                </div>
+                {editando ? (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">
+                      Nueva contraseña (opcional)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) => handleChangeCampo("password", e.target.value)}
+                        className={`${claseInput(inputCls, !!errors.password)} pr-10`}
+                        placeholder="••••••••"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-text-secondary dark:hover:text-white transition-colors"
+                        aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <FieldError mensaje={errors.password} />
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 flex items-start gap-2">
+                    <Mail size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                      Al crear el administrador se enviará un <strong>enlace seguro</strong> al correo
+                      para que establezca su contraseña (válido 24 horas).
+                    </p>
+                  </div>
+                )}
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Teléfono *</label>
                   <input
@@ -618,14 +647,25 @@ export default function StoreAdministradores() {
             <div className="h-1.5 w-full bg-gradient-to-r from-rose-500 to-amber-500" />
             <div className="p-6">
               <h3 className="text-base font-bold text-gray-900 dark:text-dark-text mb-3">Nueva contraseña para {confirm.admin?.nombre}</h3>
-              <input
-                type="password"
-                value={nuevaPass}
-                onChange={(e) => { setNuevaPass(e.target.value); setErrorPassReset(""); }}
-                placeholder="Mínimo 8 caracteres"
-                className={claseInput(inputCls, !!errorPassReset)}
-                autoFocus
-              />
+              <div className="relative">
+                <input
+                  type={showNuevaPass ? "text" : "password"}
+                  value={nuevaPass}
+                  onChange={(e) => { setNuevaPass(e.target.value); setErrorPassReset(""); }}
+                  placeholder="Mínimo 8 caracteres"
+                  className={`${claseInput(inputCls, !!errorPassReset)} pr-10`}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNuevaPass((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-text-secondary dark:hover:text-white transition-colors"
+                  aria-label={showNuevaPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  tabIndex={-1}
+                >
+                  {showNuevaPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               <FieldError mensaje={errorPassReset} />
               <div className="flex justify-end gap-3 mt-6">
                 <button onClick={() => setConfirm(null)} className="px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-dark-text-secondary hover:bg-gray-50 dark:hover:bg-dark-border rounded-xl transition-colors">
