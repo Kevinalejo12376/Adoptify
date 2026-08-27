@@ -763,6 +763,8 @@ CREATE TABLE productos (
     categoria_id           BIGINT REFERENCES categorias_producto(id),
     -- Moneda: COP sin centavos -> entero (BIGINT). El punto de miles es solo formato.
     precio                 BIGINT NOT NULL DEFAULT 0,
+    -- Descuento en porcentaje (0-100). 0 = sin descuento.
+    descuento              SMALLINT NOT NULL DEFAULT 0,
     descripcion            TEXT,
     descripcion_larga      TEXT,
     calidad                VARCHAR(30),

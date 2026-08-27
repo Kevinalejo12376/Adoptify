@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Store, Plus, Search, X, SlidersHorizontal, ChevronDown, MoreVertical,
+  Store, Plus, Search, X, SlidersHorizontal, ChevronDown,
   Eye, Edit3, Package, BarChart3, Lock, Unlock, RefreshCw, Mail, Trash2,
+  Loader2, Save,
   Building2, CheckCircle, Clock, AlertTriangle, ShoppingBag, TrendingUp,
   ChevronLeft, ChevronRight, Image as ImageIcon, ExternalLink, MapPin,
   Globe, Phone, Mail as MailIcon, User, Calendar, Shield,
@@ -10,7 +11,7 @@ import {
 import {
   getResumenTiendas, listarTiendas, obtenerTienda,
   crearTienda, actualizarTienda, cambiarEstadoTienda,
-  restablecerPasswordTienda, eliminarTienda,
+  enviarEnlacePasswordTienda, eliminarTienda,
   listarProductosTienda, ocultarProductoTienda, eliminarProductoTienda,
 } from "../../api/tiendas";
 import SolicitudesTiendas from "./SolicitudesTiendas";
@@ -194,98 +195,13 @@ function ConfirmModal({ isOpen, onClose, onConfirm, title, message, icon: Icono,
 }
 
 // ========================================================
-// COMPONENTE: Menú de acciones (tres puntos)
-// ========================================================
-function ActionMenu({ tienda, onAction, isOpen, onToggle }) {
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        onToggle(null);
-      }
-    };
-    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen, onToggle]);
-
-  const items = [
-    { id: "ver", icon: Eye, label: "Ver detalles", color: "text-blue-600" },
-    { id: "editar", icon: Edit3, label: "Editar tienda", color: "text-amber-600" },
-    { id: "productos", icon: Package, label: "Ver productos", color: "text-violet-600" },
-    { id: "estadisticas", icon: BarChart3, label: "Ver estadísticas", color: "text-teal-600" },
-    { type: "divider" },
-  ];
-
-  if (tienda.estado === "suspendida") {
-    items.push({ id: "reactivar", icon: Unlock, label: "Reactivar", color: "text-emerald-600" });
-  } else if (tienda.estado === "activa") {
-    items.push({ id: "suspender", icon: Lock, label: "Suspender", color: "text-orange-600" });
-  }
-
-  items.push(
-    { type: "divider" },
-    { id: "restablecer", icon: RefreshCw, label: "Restablecer contraseña", color: "text-gray-600" },
-    { id: "reenviar", icon: Mail, label: "Reenviar credenciales", color: "text-gray-600" },
-    { type: "divider" },
-    { id: "eliminar", icon: Trash2, label: "Eliminar", color: "text-red-600" },
-  );
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggle(isOpen ? null : tienda.id); }}
-        className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border dark:hover:text-dark-text-secondary transition-colors"
-      >
-        <MoreVertical size={18} />
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-dark-card rounded-2xl shadow-xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden z-30 py-1">
-          {items.map((item, idx) => {
-            if (item.type === "divider") {
-              return <div key={idx} className="border-t border-gray-100 dark:border-dark-border my-1" />;
-            }
-            const Icono = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={(e) => { e.stopPropagation(); onAction(item.id, tienda); onToggle(null); }}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-gray-50 dark:hover:bg-dark-border ${item.color}`}
-              >
-                <Icono size={16} />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ========================================================
 // COMPONENTE: Tarjeta de tienda (Desktop)
 // ========================================================
-function StoreCard({ tienda, selected, onSelect, onAction, menuOpen, onMenuToggle }) {
+function StoreCard({ tienda, onAction }) {
   return (
-    <div
-      className={`group bg-white dark:bg-dark-card rounded-2xl border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
-        selected ? "border-rose-300 dark:border-rose-500/50 shadow-sm shadow-rose-500/10" : "border-gray-100 dark:border-dark-border"
-      }`}
-    >
+    <div className="group bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
       <div className="p-4">
         <div className="flex items-start gap-4">
-          {/* Checkbox */}
-          <div className="pt-1">
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={() => onSelect(tienda.id)}
-              className="w-4 h-4 rounded border-gray-300 dark:border-dark-border text-rose-500 focus:ring-rose-500/30 accent-rose-500 cursor-pointer"
-            />
-          </div>
-
           {/* Avatar */}
           <StoreAvatar nombre={tienda.nombre} logoUrl={tienda.logo_url} size="md" />
 
@@ -344,14 +260,8 @@ function StoreCard({ tienda, selected, onSelect, onAction, menuOpen, onMenuToggl
             </div>
           </div>
 
-          {/* Acciones */}
+          {/* Acciones (solo ícono de ojo -> abre el modal de detalle) */}
           <div className="flex-shrink-0">
-            <ActionMenu
-              tienda={tienda}
-              isOpen={menuOpen === tienda.id}
-              onToggle={onMenuToggle}
-              onAction={onAction}
-            />
             <button
               onClick={() => onAction("ver", tienda)}
               className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors"
@@ -369,27 +279,16 @@ function StoreCard({ tienda, selected, onSelect, onAction, menuOpen, onMenuToggl
 // ========================================================
 // COMPONENTE: Tarjeta de tienda (Mobile)
 // ========================================================
-function StoreCardMobile({ tienda, selected, onSelect, onAction, menuOpen, onMenuToggle }) {
+function StoreCardMobile({ tienda, onAction }) {
   return (
-    <div
-      className={`bg-white dark:bg-dark-card rounded-2xl border transition-all duration-200 ${
-        selected ? "border-rose-300 dark:border-rose-500/50" : "border-gray-100 dark:border-dark-border"
-      }`}
-    >
+    <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border transition-all duration-200">
       <div className="p-4">
         <div className="flex items-start gap-3 mb-3">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={() => onSelect(tienda.id)}
-            className="w-4 h-4 rounded border-gray-300 dark:border-dark-border text-rose-500 focus:ring-rose-500/30 accent-rose-500 cursor-pointer mt-1"
-          />
           <StoreAvatar nombre={tienda.nombre} logoUrl={tienda.logo_url} size="sm" />
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text truncate">{tienda.nombre}</h3>
             <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">{tienda.ciudad || "Sin ciudad"}</p>
           </div>
-          <ActionMenu tienda={tienda} isOpen={menuOpen === tienda.id} onToggle={onMenuToggle} onAction={onAction} />
           <button
             onClick={() => onAction("ver", tienda)}
             className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 transition-colors flex-shrink-0"
@@ -901,16 +800,6 @@ function ModalDetalleCompleto({ isOpen, onClose, tiendaId, tienda: tiendaInicial
             <InfoRow label="Ventas realizadas" value={String(tienda.total_ventas || 0)} />
           </div>
 
-          {/* Botones rápidos */}
-          <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-dark-border">
-            <button className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors flex items-center gap-1.5">
-              <Edit3 size={14} /> Editar
-            </button>
-            <button className="px-4 py-2 rounded-xl text-xs font-semibold bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors flex items-center gap-1.5">
-              <Package size={14} /> Ver productos
-            </button>
-          </div>
-
           {/* Acciones CRUD completas */}
           <div className="pt-4 border-t border-gray-100 dark:border-dark-border">
             <p className="text-[10px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-3">Acciones</p>
@@ -1152,6 +1041,122 @@ function EmptyState({ onCrear }) {
 }
 
 // ========================================================
+// MODAL: Editar Tienda Aliada
+// ========================================================
+function ModalEditarTienda({ isOpen, onClose, tienda, onSaved }) {
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isOpen && tienda) {
+      setForm({
+        nombre: tienda.nombre || "",
+        descripcion: tienda.descripcion || "",
+        email: tienda.email || "",
+        telefono: tienda.telefono || "",
+        ciudad: tienda.ciudad || "",
+        direccion: tienda.direccion || "",
+        website: tienda.website || "",
+        responsable_nombre: tienda.responsable_nombre || "",
+        responsable_email: tienda.responsable_email || "",
+        responsable_telefono: tienda.responsable_telefono || "",
+      });
+      setError("");
+    }
+  }, [isOpen, tienda]);
+
+  const handleChange = (campo, valor) => {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!tienda) return;
+    setSaving(true);
+    setError("");
+    try {
+      await actualizarTienda(tienda.id, form);
+      onSaved();
+    } catch (err) {
+      setError(err?.message || "No se pudo actualizar la tienda");
+      setSaving(false);
+    }
+  };
+
+  const inputCls = "w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-gray-900 dark:text-dark-text";
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Editar tienda — ${tienda?.nombre || ""}`} icon={Edit3} size="lg">
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Nombre de la tienda</label>
+            <input type="text" value={form.nombre || ""} onChange={(e) => handleChange("nombre", e.target.value)} className={inputCls} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Descripción</label>
+            <textarea rows={2} value={form.descripcion || ""} onChange={(e) => handleChange("descripcion", e.target.value)} className={`${inputCls} resize-none`} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Correo de contacto</label>
+            <input type="email" value={form.email || ""} onChange={(e) => handleChange("email", e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Teléfono</label>
+            <input type="text" value={form.telefono || ""} onChange={(e) => handleChange("telefono", e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Ciudad</label>
+            <input type="text" value={form.ciudad || ""} onChange={(e) => handleChange("ciudad", e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Dirección</label>
+            <input type="text" value={form.direccion || ""} onChange={(e) => handleChange("direccion", e.target.value)} className={inputCls} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Sitio web</label>
+            <input type="text" value={form.website || ""} onChange={(e) => handleChange("website", e.target.value)} className={inputCls} placeholder="https://..." />
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 dark:border-dark-border pt-4">
+          <p className="text-[10px] font-semibold text-gray-400 dark:text-dark-text-secondary uppercase tracking-wider mb-3">Responsable</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Nombre</label>
+              <input type="text" value={form.responsable_nombre || ""} onChange={(e) => handleChange("responsable_nombre", e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Correo</label>
+              <input type="email" value={form.responsable_email || ""} onChange={(e) => handleChange("responsable_email", e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Teléfono</label>
+              <input type="text" value={form.responsable_telefono || ""} onChange={(e) => handleChange("responsable_telefono", e.target.value)} className={inputCls} />
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm">{error}</div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 dark:text-dark-text-secondary bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-60">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {saving ? "Guardando..." : "Guardar cambios"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ========================================================
 // COMPONENTE PRINCIPAL: GestionTiendas
 // ========================================================
 export default function GestionTiendas() {
@@ -1173,17 +1178,10 @@ export default function GestionTiendas() {
   const [porPagina] = useState(10);
   const [filtrosVisibles, setFiltrosVisibles] = useState(false);
 
-  // Selección múltiple
-  const [selectedIds, setSelectedIds] = useState([]);
-
-  // Menú de acciones
-  const [menuOpen, setMenuOpen] = useState(null);
-
-  // Modales
-  const [modalVer, setModalVer] = useState({ open: false, id: null });
   // Modales
   const [modalCrear, setModalCrear] = useState(false);
   const [modalDetalle, setModalDetalle] = useState({ open: false, id: null, tienda: null });
+  const [modalEditar, setModalEditar] = useState({ open: false, tienda: null });
   const [modalProductos, setModalProductos] = useState({ open: false, id: null, nombre: "" });
   const [confirmAction, setConfirmAction] = useState(null);
 
@@ -1251,32 +1249,14 @@ export default function GestionTiendas() {
     setPagina(1);
   };
 
-  const handleSelect = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedIds.length === tiendas.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(tiendas.map((t) => t.id));
-    }
-  };
-
   const handleAccion = (accion, tienda) => {
     switch (accion) {
       case "ver":
-        setModalVer({ open: true, id: tienda.id });
-        break;
-      case "editar":
-        // Por ahora redirigimos a ver detalle
-        setModalVer({ open: true, id: tienda.id });
+        // Abre el modal de detalle (fondo oscuro + bloqueo del contenido).
         setModalDetalle({ open: true, id: tienda.id, tienda });
         break;
       case "editar":
-        setModalDetalle({ open: true, id: tienda.id, tienda });
+        setModalEditar({ open: true, tienda });
         break;
       case "productos":
         setModalProductos({ open: true, id: tienda.id, nombre: tienda.nombre });
@@ -1326,42 +1306,28 @@ export default function GestionTiendas() {
     }
   };
 
-  const handleAccionMasiva = (accion) => {
-    if (selectedIds.length === 0) return;
-    setConfirmAction({
-      tipo: accion,
-      masivo: true,
-      ids: selectedIds,
-    });
-  };
-
   const ejecutarConfirmAction = async () => {
     if (!confirmAction) return;
-    const { tipo, tiendaId, ids, masivo } = confirmAction;
-    const idsAfectar = masivo ? ids : [tiendaId];
+    const { tipo, tiendaId } = confirmAction;
 
     try {
       switch (tipo) {
         case "suspender":
-          await Promise.all(idsAfectar.map((id) => cambiarEstadoTienda(id, "suspendida")));
+          await cambiarEstadoTienda(tiendaId, "suspendida");
           break;
         case "reactivar":
-          await Promise.all(idsAfectar.map((id) => cambiarEstadoTienda(id, "activa")));
+          await cambiarEstadoTienda(tiendaId, "activa");
           break;
         case "restablecer":
-          // Para cada tienda, restablecer con contraseña temporal
-          if (!masivo && tiendaId) {
-            const tempPwd = "Temp" + Math.random().toString(36).slice(2, 10) + "!";
-            await restablecerPasswordTienda(tiendaId, tempPwd);
-          }
+          // Envía un correo de verificación para que la tienda restablezca su contraseña
+          await enviarEnlacePasswordTienda(tiendaId);
           break;
         case "eliminar":
-          await Promise.all(idsAfectar.map((id) => eliminarTienda(id)));
+          await eliminarTienda(tiendaId);
           break;
         default:
           break;
       }
-      setSelectedIds([]);
       setConfirmAction(null);
       cargarDatos();
     } catch (err) {
@@ -1374,39 +1340,43 @@ export default function GestionTiendas() {
     cargarDatos();
   };
 
+  const handleTiendaActualizada = () => {
+    setModalEditar({ open: false, tienda: null });
+    cargarDatos();
+  };
+
   // ============================================
   // Configuración del modal de confirmación
   // ============================================
   const getConfirmConfig = () => {
     if (!confirmAction) return null;
-    const { tipo, tiendaNombre, masivo, ids } = confirmAction;
-    const count = masivo ? ids.length : 1;
+    const { tipo, tiendaNombre } = confirmAction;
 
     const configs = {
       suspender: {
         icon: Lock,
-        title: masivo ? `¿Suspender ${count} tiendas?` : `¿Suspender ${tiendaNombre}?`,
+        title: `¿Suspender ${tiendaNombre}?`,
         message: "Al suspender, la tienda no podrá iniciar sesión y sus productos dejarán de mostrarse en el Marketplace. Podrás reactivarla después.",
         confirmText: "Suspender",
         confirmColor: "amber",
       },
       reactivar: {
         icon: Unlock,
-        title: masivo ? `¿Reactivar ${count} tiendas?` : `¿Reactivar ${tiendaNombre}?`,
+        title: `¿Reactivar ${tiendaNombre}?`,
         message: "La tienda podrá acceder nuevamente al sistema y sus productos volverán a mostrarse en el Marketplace.",
         confirmText: "Reactivar",
         confirmColor: "emerald",
       },
       restablecer: {
         icon: RefreshCw,
-        title: `¿Restablecer contraseña de ${tiendaNombre}?`,
-        message: "Se generará una nueva contraseña temporal para el acceso de la tienda. Deberás comunicarla al responsable.",
-        confirmText: "Restablecer",
+        title: `¿Enviar correo para restablecer la contraseña de ${tiendaNombre}?`,
+        message: "Se enviará un correo de verificación al responsable de la tienda para que pueda restablecer su contraseña. El enlace es seguro y expira en 24 horas.",
+        confirmText: "Enviar correo",
         confirmColor: "amber",
       },
       eliminar: {
         icon: AlertTriangle,
-        title: masivo ? `¿Eliminar ${count} tiendas?` : `¿Eliminar ${tiendaNombre}?`,
+        title: `¿Eliminar ${tiendaNombre}?`,
         message: "¿Está seguro de eliminar esta Tienda Aliada? Esta acción eliminará el acceso de la tienda al sistema y no podrá deshacerse.",
         confirmText: "Eliminar definitivamente",
         confirmColor: "red",
@@ -1599,26 +1569,6 @@ export default function GestionTiendas() {
         </div>
       </div>
 
-      {/* ========== BARRA DE ACCIONES MASIVAS ========== */}
-      {selectedIds.length > 0 && (
-        <div className="animate-slide-down bg-white dark:bg-dark-card rounded-2xl border border-rose-200 dark:border-rose-500/30 shadow-sm p-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-gray-700 dark:text-dark-text">
-            <span className="font-bold text-rose-600">{selectedIds.length}</span> tienda(s) seleccionada(s)
-          </p>
-          <div className="flex gap-2">
-            <button onClick={() => handleAccionMasiva("suspender")} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
-              Suspender
-            </button>
-            <button onClick={() => handleAccionMasiva("reactivar")} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors">
-              Reactivar
-            </button>
-            <button onClick={() => handleAccionMasiva("eliminar")} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors">
-              Eliminar
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ========== LISTA DE TIENDAS ========== */}
       {loading ? (
         <div className="space-y-3">
@@ -1632,30 +1582,13 @@ export default function GestionTiendas() {
         <EmptyState onCrear={() => setModalCrear(true)} />
       ) : (
         <>
-          {/* Checkbox "Seleccionar todo" + contador */}
-          <div className="flex items-center gap-2 px-1">
-            <input
-              type="checkbox"
-              checked={selectedIds.length === tiendas.length && tiendas.length > 0}
-              onChange={handleSelectAll}
-              className="w-4 h-4 rounded border-gray-300 dark:border-dark-border text-rose-500 focus:ring-rose-500/30 accent-rose-500 cursor-pointer"
-            />
-            <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
-              {selectedIds.length > 0 ? `${selectedIds.length} seleccionados` : "Seleccionar todo"}
-            </span>
-          </div>
-
           {/* Vista Desktop */}
           <div className="hidden sm:block space-y-2">
             {tiendas.map((tienda, i) => (
               <div key={tienda.id} className="animate-fade-in" style={{ animationDelay: `${i * 0.03}s` }}>
                 <StoreCard
                   tienda={tienda}
-                  selected={selectedIds.includes(tienda.id)}
-                  onSelect={handleSelect}
                   onAction={handleAccion}
-                  menuOpen={menuOpen}
-                  onMenuToggle={setMenuOpen}
                 />
               </div>
             ))}
@@ -1667,11 +1600,7 @@ export default function GestionTiendas() {
               <div key={tienda.id} className="animate-fade-in" style={{ animationDelay: `${i * 0.03}s` }}>
                 <StoreCardMobile
                   tienda={tienda}
-                  selected={selectedIds.includes(tienda.id)}
-                  onSelect={handleSelect}
                   onAction={handleAccion}
-                  menuOpen={menuOpen}
-                  onMenuToggle={setMenuOpen}
                 />
               </div>
             ))}
@@ -1707,6 +1636,14 @@ export default function GestionTiendas() {
         tiendaId={modalDetalle.id}
         tienda={modalDetalle.tienda}
         onAction={handleAccion}
+      />
+
+      {/* Modal Editar Tienda */}
+      <ModalEditarTienda
+        isOpen={modalEditar.open}
+        onClose={() => setModalEditar({ open: false, tienda: null })}
+        tienda={modalEditar.tienda}
+        onSaved={handleTiendaActualizada}
       />
 
       {/* Modal Productos */}

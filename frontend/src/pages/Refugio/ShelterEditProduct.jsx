@@ -11,6 +11,7 @@ import ConfirmModal from "../../components/ConfirmModal";
 import ImageUploader from "../../components/ImageUploader";
 import FieldError from "../../components/FieldError";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -18,7 +19,10 @@ const MAX_IMAGES = 5;
 const toPayload = (d) => ({
   nombre: d.name,
   categoria: d.category,
-  precio: parseFloat(d.price) || 0,
+  precio: parsePrecio(d.price),
+  descuento: d.discount === "" || d.discount == null
+    ? 0
+    : Math.min(100, Math.max(0, parseInt(d.discount) || 0)),
   stock: parseInt(d.stock) || 0,
   descripcion: d.description,
   marca: d.brand,
@@ -106,6 +110,7 @@ export default function ShelterEditProduct() {
   const [productData, setProductData] = useState(initialProduct ? {
     ...initialProduct,
     price: initialProduct.price?.toString() || "",
+    discount: initialProduct.discount != null ? initialProduct.discount.toString() : "",
     stock: initialProduct.stock?.toString() || "",
     features: Array.isArray(initialProduct.features) ? initialProduct.features.join(", ") : (initialProduct.features || ""),
     sizes: initialProduct.sizes || [],
@@ -144,14 +149,20 @@ export default function ShelterEditProduct() {
         return "";
       case "price": {
         if (valor === "" || valor == null) return "El precio es obligatorio.";
-        const precio = parseFloat(valor);
-        if (isNaN(precio) || precio <= 0) return "El precio debe ser un número mayor a 0.";
+        const precio = parsePrecio(valor);
+        if (precio <= 0) return "El precio debe ser un número mayor a 0.";
         return "";
       }
       case "stock": {
         if (valor === "" || valor == null) return "El stock es obligatorio.";
         const stock = parseInt(valor, 10);
         if (isNaN(stock) || stock < 0) return "El stock debe ser un número mayor o igual a 0.";
+        return "";
+      }
+      case "discount": {
+        if (valor === "" || valor == null) return "";
+        const d = parseInt(valor, 10);
+        if (isNaN(d) || d < 0 || d > 100) return "El descuento debe estar entre 0 y 100.";
         return "";
       }
       case "description":
@@ -171,7 +182,7 @@ export default function ShelterEditProduct() {
   const handleChange = (field, value) => {
     setProductData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
-    if (["name", "price", "stock", "description"].includes(field)) {
+    if (["name", "price", "stock", "discount", "description"].includes(field)) {
       setErrors(prev => ({ ...prev, [field]: validarCampo(field, value) }));
       setSubmitError("");
     }
@@ -189,6 +200,7 @@ export default function ShelterEditProduct() {
       name: validarCampo("name", productData.name),
       price: validarCampo("price", productData.price),
       stock: validarCampo("stock", productData.stock),
+      discount: validarCampo("discount", productData.discount),
       description: validarCampo("description", productData.description),
     };
     setErrors(nuevosErrores);
@@ -269,10 +281,10 @@ export default function ShelterEditProduct() {
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Precio ($) *</label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="number" step="0.01" min="0" value={productData.price}
+                  <input type="text" inputMode="decimal" value={productData.price}
                     onChange={(e) => handleChange("price", e.target.value)}
                     className={claseInput("w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.price)}
-                    placeholder="0.00" />
+                    placeholder="0" />
                 </div>
                 <FieldError mensaje={errors.price} />
               </div>
@@ -283,6 +295,20 @@ export default function ShelterEditProduct() {
                   className={claseInput(InputClass, !!errors.stock)} placeholder="0" />
                 <FieldError mensaje={errors.stock} />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Descuento (%)</label>
+                <input type="number" min="0" max="100" value={productData.discount}
+                  onChange={(e) => handleChange("discount", e.target.value)}
+                  className={claseInput(InputClass, !!errors.discount)} placeholder="0" />
+                <FieldError mensaje={errors.discount} />
+              </div>
+              {Number(productData.discount) > 0 && parsePrecio(productData.price) > 0 && (
+                <p className="sm:col-span-2 text-xs text-emerald-600 dark:text-emerald-400">
+                  Precio con descuento:{" "}
+                  <strong>{formatPrice(precioConDescuento(productData.price, productData.discount))}</strong>{" "}
+                  <span className="text-gray-400 line-through">{formatPrice(productData.price)}</span>
+                </p>
+              )}
             </div>
           </FormSection>
 

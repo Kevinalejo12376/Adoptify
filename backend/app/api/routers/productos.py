@@ -138,6 +138,7 @@ def crear_producto(
         nombre=payload.nombre,
         categoria_id=id_por_codigo(db, CategoriaProducto, payload.categoria),
         precio=payload.precio,
+        descuento=payload.descuento,
         descripcion=payload.descripcion,
         descripcion_larga=payload.descripcion_larga,
         calidad=payload.calidad,

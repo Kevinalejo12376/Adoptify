@@ -733,6 +733,37 @@ def enviar_correo_aprobacion_tienda(
     return _enviar_correo(email_destino, asunto, _build_base_html("¡Solicitud aprobada!", contenido))
 
 
+def enviar_correo_restablecer_password_tienda(
+    email_destino: str,
+    nombre_tienda: str,
+    enlace_restablecer: str,
+) -> bool:
+    """Correo con enlace seguro para que la Tienda Aliada restablezca su contraseña.
+
+    El enlace apunta al frontend (``/crear-password/<token>``), es seguro y
+    expira en 24 horas.
+    """
+    asunto = f"🔑 Restablece tu contraseña — {nombre_tienda}"
+    contenido = f"""
+        <p>¡Hola, <strong>{nombre_tienda}</strong>! 👋</p>
+        <p>Se solicitó <strong>restablecer la contraseña</strong> de tu cuenta de
+        Tienda Aliada en Adoptify. Para elegir una nueva contraseña, usa el
+        siguiente botón. El enlace es <strong>seguro y expira en 24 horas</strong>.</p>
+
+        <p style="text-align:center;">
+            <a href="{enlace_restablecer}" class="btn" target="_blank">Restablecer mi contraseña</a>
+        </p>
+
+        <p class="footnote">
+            Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+            {enlace_restablecer}
+        </p>
+        <p>Si no solicitaste este cambio, ignora este correo.</p>
+        <p>Con cariño,<br><strong>El equipo de Adoptify</strong></p>
+    """
+    return _enviar_correo(email_destino, asunto, _build_base_html("Restablecer contraseña", contenido))
+
+
 def enviar_correo_solicitud_informacion_tienda(
     email_destino: str,
     nombre_tienda: str,

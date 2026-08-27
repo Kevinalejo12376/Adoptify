@@ -209,7 +209,7 @@ export default function SolicitudRefugioDetalle() {
           </button>
           <div>
             <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              Solicitud #{solicitud.id}
+              Solicitud de Refugio
               <BadgeEstado estado={solicitud.estado} />
             </h1>
             <p className="text-sm text-gray-500">

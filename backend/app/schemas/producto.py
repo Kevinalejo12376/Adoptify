@@ -11,6 +11,8 @@ class ProductoCreate(BaseModel):
     # codigo del catalogo categorias_producto (o nombre)
     categoria: Optional[str] = None
     precio: float = 0
+    # Porcentaje de descuento (0-100). 0 o ausente = sin descuento.
+    descuento: int = Field(0, ge=0, le=100, description="Porcentaje de descuento (0-100)")
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None
@@ -71,6 +73,8 @@ class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
     categoria: Optional[str] = None
     precio: Optional[float] = None
+    # Porcentaje de descuento (0-100). Se envía para activar/ajustar/quitar.
+    descuento: Optional[int] = Field(None, ge=0, le=100, description="Porcentaje de descuento (0-100)")
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None
@@ -115,6 +119,9 @@ class ProductoResponse(BaseModel):
     id: int
     nombre: str
     precio: float = 0
+    # Descuento en porcentaje (0-100) y precio final calculado (precio original - %).
+    descuento: int = 0
+    precio_descuento: float = 0
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None

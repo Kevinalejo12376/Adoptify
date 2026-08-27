@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 import {
   ArrowLeft,
   ShoppingCart,
@@ -176,7 +176,11 @@ export default function ProductProfile() {
           ...p,
           name: p.nombre,
           category: p.categoria,
-          price: Number(p.precio) || 0,
+          // Descuento real del backend: precio original + porcentaje; el precio
+          // que se muestra (y se cobra) es el final con precioConDescuento.
+          descuento: Number(p.descuento) || 0,
+          originalPrice: parsePrecio(p.precio),
+          price: precioConDescuento(p.precio, p.descuento),
           quality: p.calidad || "Estándar",
           brand: p.marca || "—",
           material: p.material || "—",
@@ -359,8 +363,10 @@ export default function ProductProfile() {
     setActiveImageIndex((prev) => (prev === gallery.length - 1 ? 0 : prev + 1));
   };
 
-  const discountPercent = 15;
-  const originalPrice = product.price * (1 + discountPercent / 100);
+  // Descuento real del producto (0 = sin descuento). product.price ya es el
+  // precio final calculado en el mapeo con precioConDescuento.
+  const discountPercent = product.descuento || 0;
+  const originalPrice = product.originalPrice || product.price;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
@@ -950,22 +956,26 @@ export default function ProductProfile() {
                   <p className="text-xs text-rose-600/80 dark:text-rose-400/80 uppercase tracking-widest font-bold">
                     Precio
                   </p>
-                  <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full">
-                    {discountPercent}% OFF
-                  </span>
+                  {discountPercent > 0 && (
+                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full">
+                      -{discountPercent}% OFF
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-dark-text font-display tracking-tight">
                     {formatPrice(product.price)}
                   </span>
-                  <div className="flex flex-col">
-                    <span className="text-sm text-gray-400 dark:text-dark-text-secondary line-through">
-                      {formatPrice(originalPrice)}
-                    </span>
-                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full text-center mt-0.5">
-                      Ahorras {formatPrice(originalPrice - product.price)}
-                    </span>
-                  </div>
+                  {discountPercent > 0 && (
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-400 dark:text-dark-text-secondary line-through">
+                        {formatPrice(originalPrice)}
+                      </span>
+                      <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full text-center mt-0.5">
+                        Ahorras {formatPrice(originalPrice - product.price)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
