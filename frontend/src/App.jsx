@@ -89,6 +89,7 @@ import ShelterDetails from "./pages/shelters/ShelterDetails";
 import Store from "./pages/marketplace/Store";
 import ProductProfile from "./pages/marketplace/ProductProfile";
 import Cart from "./pages/marketplace/Cart";
+import PagoResultado from "./pages/marketplace/PagoResultado";
 import MarketplaceStoreProfile from "./pages/marketplace/StoreProfile";
 import Forum from "./pages/community/Forum";
 
@@ -255,6 +256,7 @@ function AppContent() {
           <Route path="/store-profile/:storeId" element={<UserRoute><MarketplaceStoreProfile /></UserRoute>} />
           <Route path="/product/:id" element={<UserRoute><ProductProfile /></UserRoute>} />
           <Route path="/cart" element={<UserRoute><Cart /></UserRoute>} />
+          <Route path="/pago-resultado" element={<UserRoute><PagoResultado /></UserRoute>} />
           <Route path="/forum" element={<UserRoute><Forum /></UserRoute>} />
 
           {/* Fallback route */}

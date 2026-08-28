@@ -8,6 +8,8 @@ python-jose[cryptography]==3.5.0
 bcrypt==5.0.0
 python-multipart==0.0.32
 httpx==0.27.0
+# Stripe (pasarela de pagos: Checkout, Webhooks y Connect)
+stripe==11.6.0
 google-auth==2.38.0
 requests==2.32.3
 # Dependencias transitorias de requests fijadas a versiones compatibles con requests 2.32.3

@@ -17,7 +17,7 @@ from app.db.seed import seed_catalogos
 from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
-    tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
+    tienda, pedidos, pagos, solicitudes_refugio, solicitudes_refugio_admin,
     reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
     ia,
 )
@@ -139,6 +139,8 @@ def _run_migrations():
         _paso("backfill super admin tiendas", _backfill_super_admin_tiendas)
         _paso("tablas nuevas de tienda", _crear_tablas_nuevas_tienda)
         _paso("equipo de refugio", _crear_tablas_equipo_refugio)
+        _paso("pagos (Stripe)", _crear_tabla_pagos)
+        _paso("tiendas (Stripe Connect)", _migrar_stripe_connect_tiendas)
 
         # --- Resumen final ---
         ok = sum(1 for _, s in resultados if s)
@@ -217,6 +219,86 @@ def _soft_delete_migrations(db):
             _agregar_columna_si_no_existe(db, tabla, columna, tipo)
     db.commit()
     print("[migracion] Columnas de soft delete verificadas.")
+
+
+def _crear_tabla_pagos(db):
+    """Crea/actualiza la tabla 'pagos' para Stripe (idempotente, Supabase).
+
+    - Si la tabla no existe, se crea con el esquema de Stripe.
+    - Si ya existía con el esquema de dLocal, se agregan las columnas nuevas
+      SIN borrar datos históricos: los registros previos quedan marcados con
+      ``proveedor='dlocal'`` y los nuevos serán ``proveedor='stripe'``.
+    - En SQLite local las tablas las crea Base.metadata.create_all.
+    """
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS pagos (
+            id BIGSERIAL PRIMARY KEY,
+            pedido_id BIGINT NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            proveedor VARCHAR(20) NOT NULL DEFAULT 'stripe',
+            order_id VARCHAR(125) NOT NULL,
+            estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+            estado_stripe VARCHAR(80),
+            monto BIGINT NOT NULL DEFAULT 0,
+            moneda VARCHAR(3) NOT NULL DEFAULT 'COP',
+            metodo_pago VARCHAR(30),
+            redirect_url TEXT,
+            stripe_checkout_session_id VARCHAR(255),
+            stripe_payment_intent_id VARCHAR(255),
+            stripe_amount BIGINT,
+            stripe_currency VARCHAR(3),
+            comision_plataforma BIGINT,
+            monto_distribuido BIGINT,
+            detalle_distribucion TEXT,
+            stripe_transfer_ids TEXT,
+            respuesta_stripe TEXT,
+            notificacion TEXT,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            actualizado_en TIMESTAMPTZ
+        )
+    """))
+    # Columnas que pudieron faltar si la tabla ya existía (migración dLocal).
+    for col, tipo in [
+        ("proveedor", "VARCHAR(20) NOT NULL DEFAULT 'stripe'"),
+        ("estado_stripe", "VARCHAR(80)"),
+        ("stripe_checkout_session_id", "VARCHAR(255)"),
+        ("stripe_payment_intent_id", "VARCHAR(255)"),
+        ("stripe_amount", "BIGINT"),
+        ("stripe_currency", "VARCHAR(3)"),
+        ("comision_plataforma", "BIGINT"),
+        ("monto_distribuido", "BIGINT"),
+        ("detalle_distribucion", "TEXT"),
+        ("stripe_transfer_ids", "TEXT"),
+        ("respuesta_stripe", "TEXT"),
+    ]:
+        _agregar_columna_si_no_existe(db, "pagos", col, tipo)
+    # Marca los registros históricos de dLocal (la columna ya no existe en el
+    # modelo, pero los datos previos se conservan identificados por proveedor).
+    db.execute(text(
+        "UPDATE pagos SET proveedor='dlocal' WHERE proveedor IS NULL OR proveedor=''"
+    ))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_pedido ON pagos(pedido_id)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_order_id ON pagos(order_id)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_estado ON pagos(estado)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_proveedor ON pagos(proveedor)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_session ON pagos(stripe_checkout_session_id)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_pi ON pagos(stripe_payment_intent_id)"))
+    db.commit()
+    print("[migracion] Tabla 'pagos' (Stripe) verificada.")
+
+
+def _migrar_stripe_connect_tiendas(db):
+    """Agrega las columnas de Stripe Connect a 'tiendas' si no existen."""
+    from sqlalchemy import text
+    for col, tipo in [
+        ("stripe_account_id", "VARCHAR(255)"),
+        ("stripe_account_status", "VARCHAR(30) NOT NULL DEFAULT 'no_configurada'"),
+        ("stripe_connect_activa", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ]:
+        _agregar_columna_si_no_existe(db, "tiendas", col, tipo)
+    db.commit()
+    print("[migracion] Columnas de Stripe Connect en 'tiendas' verificadas.")
 
 
 def _crear_tabla_foro_imagenes(db):
@@ -854,6 +936,7 @@ app.include_router(favoritos.router, prefix="/api/favoritos", tags=["Favoritos"]
 app.include_router(foro.router, prefix="/api/foro", tags=["Foro"])
 app.include_router(tienda.router, prefix="/api/tienda", tags=["Tienda (self-service)"])
 app.include_router(pedidos.router, prefix="/api/pedidos", tags=["Pedidos"])
+app.include_router(pagos.router, prefix="/api/pagos", tags=["Pagos"])
 app.include_router(
     solicitudes_refugio.router,
     prefix="/api/solicitudes-refugio",

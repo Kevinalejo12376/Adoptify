@@ -46,6 +46,7 @@ from app.models.soporte import Notificacion, Pqrs, Reporte, Auditoria
 from app.models.donacion import Donacion, DonacionItem
 from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdjunto
 from app.models.pedido import Pedido, PedidoItem
+from app.models.pago import Pago
 from app.models.foro import ForoPost
 from app.models.interaccion import (
     Configuracion, FavoritoMascota, FavoritoProducto, FavoritoRefugio, ForoComentario, ForoReaccion, Resena,
