@@ -1,42 +1,41 @@
 import { useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Package, ShoppingCart, Store, BarChart3, Bell, Settings,
+  LayoutDashboard, Package, ShoppingCart, BarChart3,
   ChevronLeft, ChevronRight, LogOut, PawPrint as LogoIcon, Star, ClipboardList,
   History, HeartHandshake, Pin, PinOff,
 } from "lucide-react";
 import { useStore } from "../../../context/StoreContext";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard" },
-  { icon: Package, label: "Productos", path: "/tienda/productos" },
-  { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
-  { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos" },
-  { icon: Store, label: "Perfil Tienda", path: "/tienda/perfil" },
-  { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas" },
-  { icon: Bell, label: "Notificaciones", path: "/tienda/notificaciones" },
-  { icon: Settings, label: "Configuración", path: "/tienda/configuracion" },
-];
-// El menu lateral se simplifica a las opciones principales de trabajo.
+// El menu lateral muestra las opciones de trabajo esenciales de la tienda
+// (Dashboard, Productos, Kardex, Pedidos y Estadisticas) para cualquier
+// miembro activo (super admin o admin) SIN depender de permisos finos. Esto
+// evita que el menu colapse a un solo item ("Kardex") mientras el contexto de
+// permisos carga o cuando el administrador aun no tiene permisos asignados.
+// Las opciones avanzadas (Historial de actividad y Donaciones) solo se
+// muestran si el usuario posee el permiso correspondiente.
 // Las demas funcionalidades (perfil, administradores, notificaciones, PQRS,
 // configuracion y cerrar sesion) se acceden desde el menu del perfil.
 function useMenuItems() {
   const { tienePermiso } = useStore();
 
-  const items = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard", permiso: "dashboard.ver" },
-    { icon: Package, label: "Productos", path: "/tienda/productos", permiso: "productos.ver" },
+  const itemsBase = [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard" },
+    { icon: Package, label: "Productos", path: "/tienda/productos" },
     { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
-    { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos", permiso: "pedidos.ver" },
-    { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas", permiso: "reportes.ver_estadisticas" },
+    { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos" },
+    { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas" },
+  ];
+
+  const itemsConPermiso = [
     { icon: History, label: "Historial de actividad", path: "/tienda/actividad", permiso: "historial.ver" },
     { icon: HeartHandshake, label: "Donaciones", path: "/tienda/donaciones", permiso: "donaciones.ver" },
   ];
 
-  return items.filter((item) => {
-    if (item.permiso) return tienePermiso(item.permiso);
-    return true;
-  });
+  return [
+    ...itemsBase,
+    ...itemsConPermiso.filter((item) => tienePermiso(item.permiso)),
+  ];
 }
 
 export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, storeLogo, onLogout, fijado, onToggleFijar }) {
