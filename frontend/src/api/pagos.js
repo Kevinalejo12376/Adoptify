@@ -1,12 +1,22 @@
+<<<<<<< HEAD
 // Pagos online (dLocal).
+=======
+// Pagos online (Stripe).
+>>>>>>> c445638 (Migración de dLocal a Stripe)
 import { apiFetch } from "./client";
 
 const base = "/api/pagos";
 
 /**
+<<<<<<< HEAD
  * Crea un pago en dLocal (Checkout REDIRECT) para un pedido.
  * payload: { pedido_id }
  * Devuelve: { redirect_url, order_id, dlocal_payment_id, estado, ... }
+=======
+ * Crea una Stripe Checkout Session para un pedido.
+ * payload: { pedido_id }
+ * Devuelve: { redirect_url, order_id, stripe_checkout_session_id, estado, ... }
+>>>>>>> c445638 (Migración de dLocal a Stripe)
  * El monto se calcula SIEMPRE en el backend (nunca se envía un precio).
  */
 export const iniciarCheckout = (payload) =>
@@ -15,10 +25,14 @@ export const iniciarCheckout = (payload) =>
 /** Detalle de un pago propio. */
 export const obtenerPago = (id) => apiFetch(`${base}/${id}`);
 
+<<<<<<< HEAD
 /**
  * Consulta el estado REAL del pago (usado al volver del Checkout de dLocal).
  * Acepta order_id, pago_id o session_id (id del pago en dLocal).
  */
+=======
+/** Consulta el estado REAL del pago (usado al volver del checkout de Stripe). */
+>>>>>>> c445638 (Migración de dLocal a Stripe)
 export const consultarEstadoPago = ({ order_id, pago_id, session_id }) => {
   const params = new URLSearchParams();
   if (order_id) params.set("order_id", order_id);
@@ -27,3 +41,14 @@ export const consultarEstadoPago = ({ order_id, pago_id, session_id }) => {
   const qs = params.toString();
   return apiFetch(`${base}/estado${qs ? `?${qs}` : ""}`);
 };
+<<<<<<< HEAD
+=======
+
+/** Inicia el onboarding de Stripe Connect de la tienda autenticada.
+ *  Devuelve: { url } (URL de Stripe a la que redirigir al representante). */
+export const iniciarOnboardingConnect = () =>
+  apiFetch(`${base}/connect/onboarding`, { method: "POST" });
+
+/** Estado de la cuenta conectada de Stripe de la tienda autenticada. */
+export const estadoConnect = () => apiFetch(`${base}/connect/estado`);
+>>>>>>> c445638 (Migración de dLocal a Stripe)

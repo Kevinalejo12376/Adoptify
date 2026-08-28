@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Store, User, Users, Lock, Save, Loader2, Upload, AlertCircle, CheckCircle2, ShieldCheck,
-  Eye, EyeOff,
+  Eye, EyeOff, CreditCard, ExternalLink,
 } from "lucide-react";
 import { useStore } from "../../context/StoreContext";
 import {
@@ -14,6 +14,7 @@ import {
   cambiarRepresentanteTienda,
   listarAdministradoresTienda,
 } from "../../api/tienda";
+import { iniciarOnboardingConnect, estadoConnect } from "../../api/pagos";
 import { getTiposDocumento } from "../../api/catalogos";
 import StoreAdministradores from "./StoreAdministradores";
 import ImageUploadModal from "../../components/ImageUploadModal";
@@ -78,6 +79,7 @@ export default function StoreSettings() {
   if (esSuperAdmin) {
     secciones.push({ id: "representante", label: "Configuración del representante", icon: User, desc: "Cambiar representante e información personal" });
     secciones.push({ id: "administradores", label: "Gestión de administradores", icon: Users, desc: "Crear, editar y eliminar administradores" });
+    secciones.push({ id: "pagos", label: "Pagos y cobros", icon: CreditCard, desc: "Conecta tu tienda para recibir pagos con Stripe" });
   }
   secciones.push({ id: "password", label: "Contraseña", icon: Lock, desc: "Cambia tu contraseña de acceso" });
 
@@ -104,6 +106,12 @@ export default function StoreSettings() {
   const [admins, setAdmins] = useState([]);
   const [nuevoRepId, setNuevoRepId] = useState("");
 
+  // Stripe Connect (pagos)
+  const [connect, setConnect] = useState(null);
+  const [connectCargando, setConnectCargando] = useState(false);
+  const [connectAccion, setConnectAccion] = useState(false);
+  const [connectError, setConnectError] = useState("");
+
   useEffect(() => {
     getTiposDocumento().then(setTiposDoc).catch(() => setTiposDoc([]));
   }, []);
@@ -117,6 +125,36 @@ export default function StoreSettings() {
       listarAdministradoresTienda().then((data) => setAdmins((data || []).filter((a) => a.tipo !== "super_admin"))).catch(() => setAdmins([]));
     }
   }, [esSuperAdmin, activeSection]);
+
+  // Carga el estado de la cuenta conectada de Stripe al abrir la sección de pagos.
+  useEffect(() => {
+    if (esSuperAdmin && activeSection === "pagos") {
+      setConnectCargando(true);
+      setConnectError("");
+      estadoConnect()
+        .then((r) => setConnect(r))
+        .catch((e) => { setConnect(null); setConnectError(e?.message || "No se pudo consultar el estado de Stripe."); })
+        .finally(() => setConnectCargando(false));
+    }
+  }, [esSuperAdmin, activeSection]);
+
+  // Inicia (o continúa) el onboarding de Stripe Connect y redirige a Stripe.
+  const handleIniciarConnect = async () => {
+    setConnectAccion(true);
+    setConnectError("");
+    try {
+      const r = await iniciarOnboardingConnect();
+      if (r?.url) {
+        window.location.href = r.url;
+        return;
+      }
+      setConnectError("Stripe no devolvió una URL de onboarding.");
+    } catch (e) {
+      setConnectError(e?.message || "No se pudo iniciar el onboarding de Stripe.");
+    } finally {
+      setConnectAccion(false);
+    }
+  };
 
   const flashSaved = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
@@ -378,6 +416,78 @@ export default function StoreSettings() {
 
     if (activeSection === "administradores") {
       return <StoreAdministradores />;
+    }
+
+    if (activeSection === "pagos") {
+      return (
+        <div className="space-y-4">
+          <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text flex items-center gap-2">
+            <CreditCard size={16} className="text-rose-500" /> Pagos y cobros (Stripe)
+          </h3>
+          <p className="text-xs text-gray-400">
+            Conecta tu tienda con Stripe para recibir el dinero de tus ventas. Stripe
+            te pedirá algunos datos del representante y de la tienda (onboarding).
+          </p>
+
+          {connectCargando && (
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary py-3">
+              <Loader2 className="w-4 h-4 animate-spin" /> Consultando el estado de tu cuenta en Stripe...
+            </div>
+          )}
+
+          {connectError && (
+            <Feedback tipo="error" texto={connectError} />
+          )}
+
+          {!connectCargando && connect && connect.estado === "lista" && (
+            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
+                <CheckCircle2 size={16} /> ¡Tu tienda puede recibir pagos con Stripe!
+              </div>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-3">
+                {connect.mensaje || "Ya puedes vender y recibir el dinero de tus pedidos."}
+              </p>
+              <button
+                type="button"
+                onClick={handleIniciarConnect}
+                disabled={connectAccion}
+                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all disabled:opacity-50"
+              >
+                {connectAccion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink size={14} />}
+                Administrar cuenta en Stripe
+              </button>
+            </div>
+          )}
+
+          {!connectCargando && connect && connect.estado !== "lista" && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+              <div className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
+                <AlertCircle size={16} /> Tu tienda aún no está lista para recibir pagos
+              </div>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mb-3">
+                {connect.mensaje ||
+                  "Completa el onboarding de Stripe para poder cobrar tus ventas. Sin esto, los clientes no podrán pagar con Stripe en tus productos."}
+              </p>
+              <button
+                type="button"
+                onClick={handleIniciarConnect}
+                disabled={connectAccion}
+                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 rounded-xl transition-all disabled:opacity-50"
+              >
+                {connectAccion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink size={14} />}
+                {connect.estado === "no_configurada" ? "Iniciar onboarding con Stripe" : "Continuar onboarding en Stripe"}
+              </button>
+              <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-2">
+                Serás redirigido al sitio seguro de Stripe para completar los datos.
+              </p>
+            </div>
+          )}
+
+          {!connectCargando && !connect && !connectError && (
+            <Feedback tipo="error" texto="No se pudo cargar el estado de Stripe. Intenta de nuevo más tarde." />
+          )}
+        </div>
+      );
     }
 
     // password

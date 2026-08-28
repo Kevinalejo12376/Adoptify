@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { consultarEstadoPago } from "../../api/pagos";
@@ -11,18 +12,29 @@ const POLL_MAX_INTENTOS = 20;
 
 const ESTADOS_FINALES = new Set(["pagado", "fallido", "cancelado", "reembolsado"]);
 
+=======
+import React, { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { consultarEstadoPago } from "../../api/pagos";
+import { CheckCircle, XCircle, Clock, Loader2, ShoppingBag, ArrowRight, RotateCcw } from "lucide-react";
+
+>>>>>>> c445638 (Migración de dLocal a Stripe)
 export default function PagoResultado() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const orderId = searchParams.get("order_id");
   const pagoId = searchParams.get("pago_id");
+<<<<<<< HEAD
   const resultado = searchParams.get("resultado"); // 'success' | 'cancel'
 
   const { clearCart } = useCart();
+=======
+>>>>>>> c445638 (Migración de dLocal a Stripe)
 
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [pago, setPago] = useState(null);
+<<<<<<< HEAD
   const carritoLimpio = useRef(false);
 
   // Sin identificadores y con resultado=cancel -> pantalla de cancelación sin
@@ -83,6 +95,30 @@ export default function PagoResultado() {
   }, [sessionId, orderId, pagoId, esCancelacionSinRef]);
 
   if (cargando && !esCancelacionSinRef) {
+=======
+
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      setCargando(true);
+      setError("");
+      try {
+        // Consulta el estado REAL del pago. La URL de retorno (success_url) NO
+        // es fuente de verdad: la confirmación real viene del webhook de Stripe.
+        const data = await consultarEstadoPago({ session_id: sessionId, order_id: orderId, pago_id: pagoId });
+        if (!activo) return;
+        setPago(data);
+      } catch (e) {
+        if (activo) setError(e?.message || "No se pudo verificar el estado del pago.");
+      } finally {
+        if (activo) setCargando(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, [sessionId, orderId, pagoId]);
+
+  if (cargando) {
+>>>>>>> c445638 (Migración de dLocal a Stripe)
     return (
       <div className="min-h-screen pt-24 pb-16 bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
         <div className="max-w-lg mx-auto px-4 text-center py-16">
@@ -98,6 +134,7 @@ export default function PagoResultado() {
     );
   }
 
+<<<<<<< HEAD
   // Pantalla de cancelación: el usuario abandonó el Checkout.
   if (esCancelacionSinRef) {
     return (
@@ -134,6 +171,8 @@ export default function PagoResultado() {
     );
   }
 
+=======
+>>>>>>> c445638 (Migración de dLocal a Stripe)
   if (error || !pago) {
     return (
       <div className="min-h-screen pt-24 pb-16 bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
@@ -164,6 +203,10 @@ export default function PagoResultado() {
   const esReembolsado = estado === "reembolsado";
   const esCancelado = estado === "cancelado";
   const esFallido = estado === "fallido";
+<<<<<<< HEAD
+=======
+  const final = !esPendiente;
+>>>>>>> c445638 (Migración de dLocal a Stripe)
 
   const icono = esPagado ? CheckCircle : esReembolsado ? RotateCcw : (esPendiente ? Clock : XCircle);
   const colorFondo = esPagado
@@ -190,7 +233,11 @@ export default function PagoResultado() {
     : "Pago no completado";
 
   const mensaje = esPagado
+<<<<<<< HEAD
     ? "Tu pago fue confirmado y tu pedido ya está en proceso."
+=======
+    ? "Tu pago fue confirmado por Stripe y tu pedido ya está en proceso."
+>>>>>>> c445638 (Migración de dLocal a Stripe)
     : esReembolsado
     ? "Este pago fue reembolsado."
     : esCancelado
@@ -198,7 +245,11 @@ export default function PagoResultado() {
     : esFallido
     ? "No pudimos procesar el pago. Revisa tus datos e inténtalo de nuevo."
     : esPendiente
+<<<<<<< HEAD
     ? "Tu pago está pendiente de confirmación. Te notificaremos cuando dLocal lo confirme."
+=======
+    ? "Tu pago está pendiente de confirmación. Te notificaremos cuando Stripe lo confirme."
+>>>>>>> c445638 (Migración de dLocal a Stripe)
     : "El pago no se completó.";
 
   return (
@@ -214,6 +265,7 @@ export default function PagoResultado() {
         <p className="text-gray-500 dark:text-dark-text-secondary mb-2">
           {pago.order_id}
         </p>
+<<<<<<< HEAD
         {pago.estado_pasarela && (
           <p className="text-sm text-gray-400 dark:text-dark-text-secondary mb-8">
             Estado en dLocal: <span className="font-semibold">{pago.estado_pasarela}</span>
@@ -221,6 +273,20 @@ export default function PagoResultado() {
         )}
 
         <p className="text-gray-500 dark:text-dark-text-secondary mb-8">{mensaje}</p>
+=======
+        {pago.estado_stripe && (
+          <p className="text-sm text-gray-400 dark:text-dark-text-secondary mb-8">
+            Estado en Stripe: <span className="font-semibold">{pago.estado_stripe}</span>
+          </p>
+        )}
+
+        {!esPendiente && (
+          <p className="text-gray-500 dark:text-dark-text-secondary mb-8">{mensaje}</p>
+        )}
+        {esPendiente && !final && (
+          <p className="text-gray-500 dark:text-dark-text-secondary mb-8">{mensaje}</p>
+        )}
+>>>>>>> c445638 (Migración de dLocal a Stripe)
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link

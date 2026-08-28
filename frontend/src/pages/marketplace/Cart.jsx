@@ -4,7 +4,11 @@ import BackButton from "../../components/BackButton";
 import { listarProductos } from "../../api/productos";
 import { crearPedido } from "../../api/pedidos";
 import { iniciarCheckout } from "../../api/pagos";
+<<<<<<< HEAD
 import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
+=======
+import { formatPrice } from "../../utils/price";
+>>>>>>> c445638 (Migración de dLocal a Stripe)
 import { useAuth } from "../../context/AuthContext";
 import {
   ShoppingCart,
@@ -55,7 +59,11 @@ export default function Cart() {
   const [checkoutError, setCheckoutError] = useState("");
   const [orderResult, setOrderResult] = useState(null);
 
+<<<<<<< HEAD
   // Métodos de pago: "contraentrega" (pago al recibir) o "dlocal" (pago en línea).
+=======
+  // Métodos de pago: "contraentrega" (pago al recibir) o "stripe" (Checkout).
+>>>>>>> c445638 (Migración de dLocal a Stripe)
   const [metodoPago, setMetodoPago] = useState("contraentrega");
 
   const shipping = cartTotal >= 50 ? 0 : 9.99;
@@ -135,6 +143,7 @@ export default function Cart() {
         costo_envio: shipping,
         descuento: discount,
         codigo_promocion: promoApplied ? promoCode : null,
+<<<<<<< HEAD
         metodo_pago: metodoPago === "dlocal" ? "dLocal" : "Contra entrega",
       });
 
@@ -145,11 +154,25 @@ export default function Cart() {
       // únicamente cuando el pago se confirma (ver PagoResultado).
       if (metodoPago === "dlocal") {
         const pago = await iniciarCheckout({ pedido_id: pedido.id });
+=======
+        metodo_pago: metodoPago === "stripe" ? "stripe" : "Contra entrega",
+      });
+
+      // Si el usuario eligió Stripe, se crea la Checkout Session en el backend
+      // y se redirige al Checkout alojado (la Secret Key nunca toca el navegador).
+      if (metodoPago === "stripe") {
+        const pago = await iniciarCheckout({ pedido_id: pedido.id });
+        clearCart();
+>>>>>>> c445638 (Migración de dLocal a Stripe)
         if (pago?.redirect_url) {
           window.location.href = pago.redirect_url;
           return;
         }
+<<<<<<< HEAD
         // Sin URL de dLocal (fallback): se muestra el pedido y el usuario podrá
+=======
+        // Sin URL de Stripe (fallback): se muestra el pedido y el usuario podrá
+>>>>>>> c445638 (Migración de dLocal a Stripe)
         // reintentar el pago desde "Mis pedidos".
         setOrderResult(pedido);
         return;
@@ -556,6 +579,7 @@ export default function Cart() {
                     </span>
                   </button>
 
+<<<<<<< HEAD
                   {/* Pago en línea (dLocal). El usuario se redirige al Checkout
                       alojado de dLocal. */}
                   <button
@@ -563,16 +587,34 @@ export default function Cart() {
                     onClick={() => setMetodoPago("dlocal")}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
                       metodoPago === "dlocal"
+=======
+                  {/* Stripe (único método de pago online). El usuario se
+                      redirige al Checkout alojado de Stripe. */}
+                  <button
+                    type="button"
+                    onClick={() => setMetodoPago("stripe")}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                      metodoPago === "stripe"
+>>>>>>> c445638 (Migración de dLocal a Stripe)
                         ? "border-rose-500 bg-rose-50 dark:bg-rose-900/20"
                         : "border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card"
                     }`}
                   >
+<<<<<<< HEAD
                     <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${metodoPago === "dlocal" ? "border-rose-500" : "border-gray-300"}`}>
                       {metodoPago === "dlocal" && <span className="w-2 h-2 rounded-full bg-rose-500" />}
                     </span>
                     <CreditCard className="w-4 h-4 text-violet-500" />
                     <span className="text-sm font-medium text-gray-900 dark:text-dark-text">
                       Pago en línea (dLocal)
+=======
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${metodoPago === "stripe" ? "border-rose-500" : "border-gray-300"}`}>
+                      {metodoPago === "stripe" && <span className="w-2 h-2 rounded-full bg-rose-500" />}
+                    </span>
+                    <CreditCard className="w-4 h-4 text-violet-500" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-dark-text">
+                      Stripe
+>>>>>>> c445638 (Migración de dLocal a Stripe)
                     </span>
                     <span className="ml-auto text-xs text-gray-400 dark:text-dark-text-secondary">
                       Tarjeta / débito / crédito

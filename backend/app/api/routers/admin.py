@@ -468,6 +468,10 @@ def _serialize_tienda(t: Tienda) -> dict:
         "instagram": t.instagram,
         "rating": float(t.rating) if t.rating is not None else 0,
         "creado_en": t.creado_en.isoformat() if t.creado_en else None,
+        # Stripe Connect (estado de la cuenta conectada de la tienda)
+        "stripe_account_id": getattr(t, "stripe_account_id", None),
+        "stripe_account_status": getattr(t, "stripe_account_status", "no_configurada"),
+        "stripe_connect_activa": bool(getattr(t, "stripe_connect_activa", False)),
         "total_productos": len(productos),
         "total_ventas": sum((p.ventas or 0) for p in productos),
         "ultimo_login": None,
