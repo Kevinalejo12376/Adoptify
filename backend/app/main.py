@@ -199,6 +199,7 @@ def _soft_delete_migrations(db):
         ],
         "productos": [
             ("eliminado_en", "TIMESTAMPTZ"),
+            ("descuento", "INTEGER NOT NULL DEFAULT 15"),
         ],
         "usuarios": [
             ("eliminado_en", "TIMESTAMPTZ"),

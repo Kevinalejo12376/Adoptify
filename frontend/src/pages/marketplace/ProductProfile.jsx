@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { formatPrice } from "../../utils/price";
 import {
   ArrowLeft,
@@ -180,6 +181,13 @@ export default function ProductProfile() {
           quality: p.calidad || "Estándar",
           brand: p.marca || "—",
           material: p.material || "—",
+          // Identidad del vendedor (Tienda Aliada o Refugio) para el marketplace.
+          shelterId: p.refugio_id || null,
+          storeId: p.tienda_id || null,
+          shelterName: p.refugio_nombre || null,
+          storeName: p.tienda_nombre || null,
+          // Descuento en % configurado por el vendedor (0 si no hay descuento).
+          discountPercent: Number(p.descuento) || 0,
           sizes: p.tallas
             ? String(p.tallas).split(",").map((s) => s.trim()).filter(Boolean)
             : ["Único"],
@@ -265,11 +273,28 @@ export default function ProductProfile() {
   const isFav = isStoreFavorite(product.id);
   const qualityBadge = getQualityBadge(product.quality);
   const QualityIcon = qualityBadge.icon;
-  // La info del vendedor se omite: el detalle de producto proviene de la BD
-  // y no incluye los datos completos del refugio/tienda.
-  const sellerInfo = { type: null };
-  const productShelter = null;
-  const productStore = null;
+  // Información del vendedor desde la BD (datos reales, sin catálogo mock).
+  // Se reutiliza la tarjeta existente de "Ver tienda": "Vendido por: [nombre]"
+  // enlaza al perfil real de la Tienda Aliada (/store-profile/:id) o al perfil
+  // real del Refugio (/shelter/:id).
+  const sellerInfo =
+    product.storeId && product.storeName
+      ? { type: "store" }
+      : product.shelterId && product.shelterName
+      ? { type: "shelter" }
+      : { type: null };
+  const productShelter =
+    sellerInfo.type === "shelter"
+      ? { id: product.shelterId, name: product.shelterName }
+      : null;
+  const productStore =
+    sellerInfo.type === "store"
+      ? {
+          id: product.storeId,
+          name: product.storeName,
+          color: "from-purple-500 to-pink-500",
+        }
+      : null;
   const previewCommentsCount = 3;
   const displayComments = showAllComments ? comments : comments.slice(0, previewCommentsCount);
   const gallery = product.gallery || [];
@@ -359,7 +384,7 @@ export default function ProductProfile() {
     setActiveImageIndex((prev) => (prev === gallery.length - 1 ? 0 : prev + 1));
   };
 
-  const discountPercent = 15;
+  const discountPercent = Number(product.discountPercent) || 0;
   const originalPrice = product.price * (1 + discountPercent / 100);
 
   return (
@@ -379,17 +404,11 @@ export default function ProductProfile() {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Back button */}
           <div className="flex items-center justify-between mb-8">
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-2.5 group"
-            >
-              <div className="w-10 h-10 rounded-2xl bg-white/80 dark:bg-dark-card/80 backdrop-blur-md border border-gray-200/80 dark:border-dark-border/80 flex items-center justify-center shadow-lg shadow-black/5 group-hover:shadow-rose-200/30 dark:group-hover:shadow-rose-900/20 group-hover:-translate-x-1 transition-all duration-300">
-                <ArrowLeft className="w-4 h-4 text-gray-500 dark:text-dark-text-secondary group-hover:text-rose-500 dark:group-hover:text-rose-400 transition-colors" />
-              </div>
-              <span className="text-sm font-semibold text-gray-400 dark:text-dark-text-secondary group-hover:text-rose-500 dark:group-hover:text-rose-400 transition-colors hidden sm:inline">
-                Volver a la Tienda
-              </span>
-            </Link>
+            <BackButton
+              fallback="/store"
+              label="Volver a la Tienda"
+              className="gap-2.5"
+            />
 
             {/* Share button */}
             <button className="w-10 h-10 rounded-2xl bg-white/80 dark:bg-dark-card/80 backdrop-blur-md border border-gray-200/80 dark:border-dark-border/80 flex items-center justify-center shadow-lg shadow-black/5 hover:shadow-rose-200/30 dark:hover:shadow-rose-900/20 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all duration-300 group">
@@ -950,22 +969,26 @@ export default function ProductProfile() {
                   <p className="text-xs text-rose-600/80 dark:text-rose-400/80 uppercase tracking-widest font-bold">
                     Precio
                   </p>
-                  <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full">
-                    {discountPercent}% OFF
-                  </span>
+                  {discountPercent > 0 && (
+                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full">
+                      {discountPercent}% OFF
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-dark-text font-display tracking-tight">
                     {formatPrice(product.price)}
                   </span>
-                  <div className="flex flex-col">
-                    <span className="text-sm text-gray-400 dark:text-dark-text-secondary line-through">
-                      {formatPrice(originalPrice)}
-                    </span>
-                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full text-center mt-0.5">
-                      Ahorras {formatPrice(originalPrice - product.price)}
-                    </span>
-                  </div>
+                  {discountPercent > 0 && (
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-400 dark:text-dark-text-secondary line-through">
+                        {formatPrice(originalPrice)}
+                      </span>
+                      <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full text-center mt-0.5">
+                        Ahorras {formatPrice(originalPrice - product.price)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1094,11 +1117,15 @@ export default function ProductProfile() {
                           </div>
                           <div className="pb-1">
                             <p className="text-[10px] text-white/80 uppercase tracking-widest font-bold">
-                              Refugio
+                              Vendido por
                             </p>
-                            <h3 className="text-lg font-bold text-white font-display drop-shadow-sm">
+                            <Link
+                              to={`/shelter/${productShelter.id}`}
+                              className="text-lg font-bold text-white font-display drop-shadow-sm hover:underline hover:underline-offset-4 transition-all"
+                              title={`Ver perfil de ${productShelter.name}`}
+                            >
                               {productShelter.name}
-                            </h3>
+                            </Link>
                           </div>
                         </div>
                       </div>
@@ -1134,7 +1161,7 @@ export default function ProductProfile() {
                           <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center group-hover/btn:scale-110 transition-transform duration-200">
                             <PawPrint className="w-4 h-4" />
                           </div>
-                          <span className="flex-1 text-left">Ver mascotas de este refugio</span>
+                          <span className="flex-1 text-left">Ver perfil del refugio</span>
                           <div className="flex items-center">
                             <span className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition">
                               <ChevronRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform duration-200" />
@@ -1163,11 +1190,15 @@ export default function ProductProfile() {
                           </div>
                           <div className="pb-1">
                             <p className="text-[10px] text-white/80 uppercase tracking-widest font-bold">
-                              Tienda Asociada
+                              Vendido por
                             </p>
-                            <h3 className="text-lg font-bold text-white font-display drop-shadow-sm">
+                            <Link
+                              to={`/store-profile/${productStore.id}`}
+                              className="text-lg font-bold text-white font-display drop-shadow-sm hover:underline hover:underline-offset-4 transition-all"
+                              title={`Ver perfil de ${productStore.name}`}
+                            >
                               {productStore.name}
-                            </h3>
+                            </Link>
                           </div>
                         </div>
                       </div>

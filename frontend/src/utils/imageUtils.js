@@ -123,3 +123,56 @@ export async function readAndValidateImages(files, opts = {}) {
   }
   return { ok: errors.length === 0, results, errors };
 }
+
+/**
+ * Comprime y redimensiona una imagen ANTES de convertirla a base64.
+ *
+ * Evita que el request de subida sea demasiado grande (el base64 crece ~33% y
+ * los proxies/servidores como Vercel cortan peticiones que superan ~4.5MB,
+ * lo que produce "No se pudo conectar con el servidor").
+ *
+ * - SVG (vectores) y GIF (animados) se suben sin modificar.
+ * - Imágenes ya pequeñas (<= 1.5 MB) se suben tal cual.
+ * - El resto se redimensiona a un máximo de 1280px y se exporta como JPEG.
+ *
+ * @param {File} file
+ * @param {object} [opts]
+ * @param {number} [opts.maxDimension] Ancho/alto máximo (px). Por defecto 1280.
+ * @param {number} [opts.calidad] Calidad JPEG (0-1). Por defecto 0.85.
+ * @returns {Promise<{ base64: string, type: string }>}
+ */
+export async function comprimirImagen(
+  file,
+  { maxDimension = 1280, calidad = 0.85 } = {}
+) {
+  if (!file) throw new Error("No se seleccionó ningún archivo");
+
+  // No comprimir SVG (vectores) ni GIF (animados).
+  if (file.type === "image/svg+xml" || file.type === "image/gif") {
+    return { base64: await fileToBase64(file), type: file.type };
+  }
+
+  // Si es pequeña, se sube tal cual (sin redimensionar innecesariamente).
+  if (file.size <= 1.5 * 1024 * 1024) {
+    return { base64: await fileToBase64(file), type: file.type };
+  }
+
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("No se pudo procesar la imagen");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+
+    const base64 = canvas.toDataURL("image/jpeg", calidad);
+    return { base64, type: "image/jpeg" };
+  } finally {
+    bitmap.close();
+  }
+}

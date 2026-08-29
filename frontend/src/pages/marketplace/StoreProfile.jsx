@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { formatPrice } from "../../utils/price";
 import {
   ArrowLeft,
@@ -32,13 +33,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import ScrollToTop from "../../components/ScrollToTop";
-import {
-  getStoreById,
-  getProductsByStore,
-  categoryIcons,
-  categoryColors,
-  categories,
-} from "../../data/products";
+import { categoryIcons, categoryColors, categories } from "../../data/products";
 import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoritesContext";
 import { obtenerTiendaPublica } from "../../api/productos";
@@ -60,20 +55,22 @@ const mapProductoBD = (p) => ({
 });
 
 // Convierte la tienda real del backend (/api/publico/tiendas/{id}) al formato
-// de la vista, usando el catálogo local solo como respaldo visual.
-const mapTiendaPublica = (data, fallback) => ({
+// de la vista. Solo se usan datos reales de la base de datos; el degradado de
+// color es un valor visual por defecto (no un dato del negocio).
+const mapTiendaPublica = (data) => ({
   id: data.id,
-  name: data.nombre || fallback?.name || "",
-  location: data.ubicacion || fallback?.location || "",
-  slug: data.slug || fallback?.slug || "",
-  description: data.descripcion || fallback?.description || "",
+  name: data.nombre || "",
+  location: data.ubicacion || "",
+  address: data.direccion || "",
+  slug: data.slug || "",
+  description: data.descripcion || "",
   rating: Number(data.rating) || 0,
   reviews: 0,
-  logo: data.logo_url || fallback?.logo || null,
-  color: fallback?.color || "from-violet-500 to-purple-500",
-  phone: data.telefono || fallback?.phone || "",
-  email: data.email || fallback?.email || "",
-  website: data.website || fallback?.website || "",
+  logo: data.logo_url || null,
+  color: "from-violet-500 to-purple-500",
+  phone: data.telefono || "",
+  email: data.email || "",
+  website: data.website || "",
   socialMedia: {
     facebook: data.facebook || "",
     instagram: data.instagram || "",
@@ -205,31 +202,34 @@ function StarRating({ rating, size = "sm" }) {
 
 export default function StoreProfile() {
   const { storeId } = useParams();
-  const mockStore = getStoreById(storeId);
-  const [store, setStore] = useState(mockStore);
-  const [storeProducts, setStoreProducts] = useState(mockStore ? getProductsByStore(mockStore.id) : []);
+  // Solo datos reales de la base de datos (sin catálogo mock).
+  const [store, setStore] = useState(null);
+  const [storeProducts, setStoreProducts] = useState([]);
+  const [loadingStore, setLoadingStore] = useState(true);
   const { addToCart } = useCart();
 
-  // Intenta cargar la tienda real desde la base de datos (datos, galería de
-  // imágenes y productos reales de Cloudinary). Si no existe o falla, se
-  // conserva el catálogo local como fallback visual.
+  // Carga la tienda real desde la base de datos (datos, galería de imágenes y
+  // productos reales de Cloudinary). Si no existe o falla, se muestra el estado
+  // "Tienda no encontrada".
   useEffect(() => {
     let activo = true;
+    setLoadingStore(true);
     (async () => {
       try {
         const data = await obtenerTiendaPublica(storeId);
         if (!activo) return;
         if (data) {
-          const mapeada = mapTiendaPublica(data, mockStore);
+          const mapeada = mapTiendaPublica(data);
           setStore(mapeada);
           setStoreProducts(mapeada.productos);
         }
       } catch {
-        // sin tienda en la BD → se mantiene el fallback local
+        // tienda inexistente/inactiva → se mantiene store=null → "no encontrada"
+      } finally {
+        if (activo) setLoadingStore(false);
       }
     })();
     return () => { activo = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
   const { isStoreFavorite, toggleStoreFavorite } = useFavorites();
   const [addedToCart, setAddedToCart] = useState({});
@@ -309,6 +309,16 @@ export default function StoreProfile() {
     );
   };
 
+  // ──── Loading State ────
+  if (loadingStore) {
+    return (
+      <div className="min-h-screen pt-28 pb-16 flex flex-col items-center justify-center text-gray-500 dark:text-dark-text-secondary">
+        <Store className="w-10 h-10 animate-pulse text-rose-500 mb-3" />
+        <p>Cargando tienda...</p>
+      </div>
+    );
+  }
+
   // ──── Not Found State ────
   if (!store) {
     return (
@@ -364,15 +374,11 @@ export default function StoreProfile() {
                 heroLoaded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"
               }`}
             >
-              <Link
-                to="/store"
-                className="inline-flex items-center gap-2 text-white/70 hover:text-white mb-6 transition-all duration-200 group text-sm font-medium"
-              >
-                <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm border border-white/20 flex items-center justify-center group-hover:bg-white/30 group-hover:-translate-x-0.5 transition-all duration-200">
-                  <ArrowLeft className="w-4 h-4" />
-                </div>
-                Volver a la Tienda
-              </Link>
+              <BackButton
+                fallback="/store"
+                label="Volver a la Tienda"
+                className="text-white/70 hover:text-white mb-6 text-sm font-medium"
+              />
             </div>
 
             {/* Store Info */}
@@ -674,6 +680,52 @@ export default function StoreProfile() {
           </AnimatedSection>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════
+           LOCATION SECTION (Google Maps embed)
+           ═══════════════════════════════════════════════ */}
+      {(store.address || store.location) && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-14">
+          <AnimatedSection delay={150}>
+            <SectionHeader
+              icon={MapPin}
+              title="Ubicación"
+              subtitle="Encuentra la tienda fácilmente"
+              badge={store.location}
+            />
+          </AnimatedSection>
+
+          <AnimatedSection delay={250}>
+            <div className="bg-white/90 dark:bg-dark-card/90 backdrop-blur-sm rounded-2xl p-4 sm:p-5 shadow-lg border border-gray-100 dark:border-dark-border overflow-hidden">
+              <div className="w-full overflow-hidden rounded-xl">
+                <iframe
+                  title={`Mapa de ${store.name}`}
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(store.address || store.location || store.name)}&z=15&output=embed`}
+                  className="w-full h-72 sm:h-80 border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-1">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-text-secondary">
+                  <MapPin className="w-4 h-4 text-rose-500" />
+                  <span>{store.address || store.location}</span>
+                </div>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address || store.location || store.name)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-xs font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  Ver en Google Maps
+                </a>
+              </div>
+            </div>
+          </AnimatedSection>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════
            GALLERY SECTION

@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Package, ShoppingCart, Store, BarChart3, Bell, Settings,
   ChevronLeft, ChevronRight, LogOut, PawPrint as LogoIcon, Star, ClipboardList,
-  History, HeartHandshake, Pin, PinOff,
+  History, HeartHandshake, Pin, PinOff, Loader2,
 } from "lucide-react";
 import { useStore } from "../../../context/StoreContext";
 
@@ -41,6 +41,9 @@ function useMenuItems() {
 
 export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, storeLogo, onLogout, fijado, onToggleFijar }) {
   const location = useLocation();
+  // Mientras el contexto de la tienda carga los permisos (BD), se muestra un
+  // indicador en lugar del menú filtrado (evita que aparezca solo "Kardex").
+  const { loading: contextoCargando } = useStore();
   const menuItems = useMenuItems();
   const sidebarRef = useRef(null);
   // "Fijar" se controla desde StoreLayout para poder ajustar el margen del contenido.
@@ -107,7 +110,12 @@ export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, sto
 
         {/* Menu dinamico segun permisos */}
         <nav className="flex-1 overflow-y-auto scrollbar-hide py-3 px-2 space-y-0.5">
-          {menuItems.map((item) => {
+          {contextoCargando ? (
+            <div className={`flex flex-col items-center justify-center text-gray-400 dark:text-dark-text-secondary ${collapsed ? "py-6" : "py-8"}`}>
+              <Loader2 className="w-5 h-5 animate-spin text-rose-500 mb-2" />
+              {!collapsed && <span className="text-xs">Cargando menú...</span>}
+            </div>
+          ) : menuItems.map((item) => {
             const active = isActive(item.path);
             return (
               <NavLink
@@ -174,7 +182,7 @@ export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, sto
       {/* Sidebar Mobile */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-dark-card border-t border-gray-100 dark:border-dark-border safe-area-bottom">
         <div className="flex overflow-x-auto scrollbar-hide px-1 py-1">
-          {menuItems.map((item) => {
+          {!contextoCargando && menuItems.map((item) => {
             const active = isActive(item.path);
             return (
               <NavLink

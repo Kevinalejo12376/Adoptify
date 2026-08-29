@@ -341,6 +341,7 @@ def serialize_producto(p):
         "id": p.id,
         "nombre": p.nombre,
         "precio": float(p.precio) if p.precio is not None else 0,
+        "descuento": p.descuento or 0,
         "descripcion": p.descripcion,
         "descripcion_larga": p.descripcion_larga,
         "calidad": p.calidad,
@@ -357,6 +358,9 @@ def serialize_producto(p):
         "categoria_id": p.categoria_id,
         "refugio_id": p.refugio_id,
         "tienda_id": p.tienda_id,
+        # Nombres del vendedor (Refugio o Tienda Aliada) para el marketplace.
+        "refugio_nombre": p.refugio.nombre if p.refugio else None,
+        "tienda_nombre": p.tienda.nombre if p.tienda else None,
         "creado_en": p.creado_en.isoformat() if p.creado_en else None,
         # Imágenes de Cloudinary (secure_url) almacenadas en producto_imagenes.
         "imagenes": [

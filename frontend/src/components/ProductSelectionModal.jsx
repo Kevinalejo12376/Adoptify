@@ -9,28 +9,37 @@ const BENEFICIOS_IA = [
   "Sin trabajo manual, solo confirma",
 ];
 
-export default function ProductSelectionModal({ isOpen, onClose }) {
+export default function ProductSelectionModal({
+  isOpen,
+  onClose,
+  onSeleccionarIA,
+  onSeleccionarBarcode,
+  onSeleccionarManual,
+}) {
   const navigate = useNavigate();
 
   if (!isOpen) return null;
 
   const handleAnalizarIA = () => {
-    navigate("/tienda/productos/analizar");
+    if (onSeleccionarIA) onSeleccionarIA();
+    else navigate("/tienda/productos/analizar");
     onClose();
   };
 
   const handleBarcodeScan = () => {
-    navigate("/tienda/productos/escanear");
+    if (onSeleccionarBarcode) onSeleccionarBarcode();
+    else navigate("/tienda/productos/escanear");
     onClose();
   };
 
   const handleManualAdd = () => {
-    navigate("/tienda/productos/editar/nuevo");
+    if (onSeleccionarManual) onSeleccionarManual();
+    else navigate("/tienda/productos/editar/nuevo");
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -38,7 +47,7 @@ export default function ProductSelectionModal({ isOpen, onClose }) {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
+      <div className="relative w-full max-w-2xl bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-y-auto max-h-[92vh]">
         {/* Header */}
         <div className="relative p-6 pb-4 border-b border-gray-100 dark:border-dark-border">
           <button
@@ -58,11 +67,11 @@ export default function ProductSelectionModal({ isOpen, onClose }) {
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           {/* Opción 1: Analizar con IA (Recomendada) */}
           <button
             onClick={handleAnalizarIA}
-            className="w-full text-left group relative overflow-hidden bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-500/5 dark:to-amber-500/5 border-2 border-rose-200 dark:border-rose-500/20 rounded-2xl p-5 hover:shadow-lg hover:shadow-rose-500/10 transition-all"
+            className="w-full text-left group relative overflow-hidden bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-500/5 dark:to-amber-500/5 border-2 border-rose-200 dark:border-rose-500/20 rounded-2xl p-4 sm:p-5 hover:shadow-lg hover:shadow-rose-500/10 transition-all"
           >
             {/* Badge recomendada */}
             <div className="absolute top-3 right-3">
@@ -72,9 +81,9 @@ export default function ProductSelectionModal({ isOpen, onClose }) {
               </span>
             </div>
 
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-500/20">
-                <Sparkles size={28} className="text-white" />
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-500/20">
+                <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
@@ -103,11 +112,11 @@ export default function ProductSelectionModal({ isOpen, onClose }) {
           {/* Opción 2: Escanear código de barras */}
           <button
             onClick={handleBarcodeScan}
-            className="w-full text-left group relative overflow-hidden bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
+            className="w-full text-left group relative overflow-hidden bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-4 sm:p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
           >
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
-                <Barcode size={28} className="text-white" />
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Barcode className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
@@ -146,11 +155,11 @@ export default function ProductSelectionModal({ isOpen, onClose }) {
           {/* Opción 3: Agregar manualmente */}
           <button
             onClick={handleManualAdd}
-            className="w-full text-left group bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
+            className="w-full text-left group bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-4 sm:p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
           >
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
-                <Edit3 size={28} className="text-white" />
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Edit3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">

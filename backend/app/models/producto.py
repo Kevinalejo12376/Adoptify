@@ -13,6 +13,8 @@ class Producto(Base):
     categoria_id = Column(Integer, ForeignKey("categorias_producto.id"))
     # Moneda: COP sin centavos -> entero (BigInteger). El punto de miles es solo formato.
     precio = Column(BigInteger, nullable=False, default=0)
+    # Descuento en porcentaje (0-100) aplicado al precio en el marketplace.
+    descuento = Column(Integer, nullable=False, default=15)
     descripcion = Column(Text)
     descripcion_larga = Column(Text)
     calidad = Column(String(30))
@@ -38,6 +40,7 @@ class Producto(Base):
 
     categoria = relationship("CategoriaProducto", lazy="joined")
     tienda = relationship("Tienda", back_populates="productos")
+    refugio = relationship("Refugio", back_populates="productos")
     resenas = relationship("Resena", lazy="select", cascade="all, delete-orphan")
     imagenes = relationship("ProductoImagen", lazy="select", cascade="all, delete-orphan", back_populates="producto")
     movimientos_kardex = relationship("MovimientoKardex", back_populates="producto", cascade="all, delete-orphan")

@@ -136,55 +136,43 @@ export default function Navbar() {
       return;
     }
 
-    // Altura del navbar fijo (h-16 = 4rem = 64px). Se descuenta del área de
-    // observación para que una sección se considere visible justo debajo del
-    // navbar y no quede tapada por él.
-    const NAVBAR_OFFSET = 64;
+    // Las secciones de la portada que tienen una opción equivalente en el navbar.
     const sectionIds = ["animals", "shelters", "store", "forum"];
 
-    const setActive = (id) => {
-      setActiveNavSection((prev) => (prev === id ? prev : id));
-    };
+    // Línea de detección: justo debajo del navbar fijo (h-16 = 64px) con un
+    // pequeño margen para que la sección quede visible y no tapada por él.
+    const NAVBAR_OFFSET = 100;
 
-    // Banda de detección: una franja horizontal justo debajo del navbar fijo.
-    // El rootMargin superior negativo descuenta la altura del navbar y el
-    // inferior descuenta la parte baja del viewport, dejando una franja
-    // central en la que la sección se considera "activa".
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Entre las secciones que intersectan la franja se elige la que está
-        // más arriba (menor top). Esto evita cambios bruscos o parpadeos al
-        // cruzar los bordes de secciones adyacentes, tanto al bajar como al
-        // subir.
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (visible) setActive(visible.target.id);
-      },
-      {
-        rootMargin: `-${NAVBAR_OFFSET}px 0px -70% 0px`,
-        threshold: 0,
+    // Scroll-spy clásico: se recorre el documento y la sección activa es la
+    // última cuyo borde superior ya cruzó la línea de detección. Esto funciona
+    // aunque las secciones estén envueltas en AnimatedSection (opacidad 0) o
+    // tengan alturas muy distintas, y responde tanto al bajar como al subir.
+    const detectActiveSection = () => {
+      let current = "inicio";
+      for (const id of sectionIds) {
+        const element = document.getElementById(id);
+        if (!element) continue;
+        const rect = element.getBoundingClientRect();
+        // Mientras la sección esté por encima (o sobre) la línea de detección,
+        // es candidata a ser la visible; la última en cruzar gana.
+        if (rect.top <= NAVBAR_OFFSET) {
+          current = id;
+        } else {
+          break;
+        }
       }
-    );
-
-    sectionIds.forEach((id) => {
-      const element = document.getElementById(id);
-      if (element) observer.observe(element);
-    });
-
-    // Cuando el usuario está en la parte superior de la página, la sección
-    // activa es "inicio" (hero de la portada, que no tiene id propio).
-    const handleScrollTop = () => {
-      if (window.scrollY < NAVBAR_OFFSET) setActive("inicio");
+      setActiveNavSection((prev) => (prev === current ? prev : current));
     };
-    window.addEventListener("scroll", handleScrollTop, { passive: true });
-    handleScrollTop();
 
-    // Limpieza: se desconecta el observer y se elimina el listener al cambiar
-    // la ruta, la sesión o al desmontar el componente (sin duplicados).
+    detectActiveSection();
+    window.addEventListener("scroll", detectActiveSection, { passive: true });
+    window.addEventListener("resize", detectActiveSection);
+
+    // Limpieza: se eliminan los listeners al cambiar la ruta, la sesión o al
+    // desmontar el componente (sin duplicados).
     return () => {
-      observer.disconnect();
-      window.removeEventListener("scroll", handleScrollTop);
+      window.removeEventListener("scroll", detectActiveSection);
+      window.removeEventListener("resize", detectActiveSection);
     };
   }, [isAuthenticated, location.pathname]);
 

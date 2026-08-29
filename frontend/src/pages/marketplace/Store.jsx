@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import ScrollToTop from "../../components/ScrollToTop";
 import { listarProductos } from "../../api/productos";
+import { obtenerRefugio } from "../../api/refugios";
 import { formatPrice } from "../../utils/price";
 import {
   ShoppingBag,
@@ -75,6 +77,13 @@ export default function Store() {
 
   const [allProducts, setAllProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  // Refugio real (perfil público) para el encabezado. Se usa el catálogo local
+  // solo como respaldo visual inicial y se reemplaza con los datos de la BD.
+  const [shelter, setShelter] = useState(shelterId ? getShelterById(shelterId) : null);
+  const [loadingShelter, setLoadingShelter] = useState(
+    Boolean(shelterId) && !getShelterById(shelterId)
+  );
+  const store = storeId ? getStoreById(storeId) : null;
 
   // Carga los productos reales desde la base de datos.
   useEffect(() => {
@@ -93,15 +102,38 @@ export default function Store() {
     return () => { activo = false; };
   }, []);
 
-  const shelter = shelterId ? getShelterById(shelterId) : null;
-  const store = storeId ? getStoreById(storeId) : null;
+  // Carga el refugio real (datos del encabezado) cuando se usa /shelter-store/:id.
+  useEffect(() => {
+    if (!shelterId) return;
+    let activo = true;
+    (async () => {
+      try {
+        const data = await obtenerRefugio(shelterId);
+        if (!activo || !data) return;
+        setShelter({
+          id: data.id,
+          name: data.nombre,
+          location: data.ubicacion || "",
+          description: data.descripcion || "",
+          color: "from-emerald-500 to-teal-500",
+          icon: PawPrint,
+        });
+      } catch {
+        // mantiene el respaldo local si existe
+      } finally {
+        if (activo) setLoadingShelter(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, [shelterId]);
 
   // Base products: if shelterId or storeId is present, filter by that seller
+  // usando los IDs reales de la URL (corresponden a los IDs de la BD).
   const baseProducts = useMemo(() => {
-    if (shelter) return allProducts.filter((p) => p.shelterId === shelter.id);
-    if (store) return allProducts.filter((p) => p.storeId === store.id);
+    if (shelterId) return allProducts.filter((p) => p.shelterId === Number(shelterId));
+    if (storeId) return allProducts.filter((p) => p.storeId === Number(storeId));
     return allProducts;
-  }, [allProducts, shelter, store]);
+  }, [allProducts, shelterId, storeId]);
 
   const filteredProducts = useMemo(() => {
     let result = [...baseProducts];
@@ -176,6 +208,17 @@ export default function Store() {
 
   const hasActiveFilters = searchTerm || selectedCategory !== "all" || sellerType !== "all" || priceMin !== "" || priceMax !== "" || sortBy !== "";
 
+  // Mientras se carga un refugio real (vía /shelter-store/:id) se muestra un
+  // estado de carga en lugar del encabezado general.
+  if (shelterId && loadingShelter) {
+    return (
+      <div className="min-h-screen pt-24 flex flex-col items-center justify-center text-gray-500 dark:text-dark-text-secondary">
+        <Loader2 className="w-10 h-10 animate-spin text-rose-500 mb-3" />
+        <p>Cargando tienda del refugio...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pt-24 pb-16 bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
       {/* Hero Section */}
@@ -183,15 +226,11 @@ export default function Store() {
         <div className="absolute inset-0 bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-rose-500/10 dark:from-rose-500/5 dark:via-amber-500/5 dark:to-rose-500/5" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
           {(shelter || store) && (
-            <Link
-              to={shelter ? `/shelter/${shelter.id}` : "/store"}
-              className="inline-flex items-center gap-2 text-gray-400 dark:text-dark-text-secondary hover:text-rose-500 dark:hover:text-rose-400 mb-6 transition-all duration-200 group text-sm font-medium"
-            >
-              <div className="w-8 h-8 rounded-xl bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border flex items-center justify-center group-hover:border-rose-300 dark:group-hover:border-rose-700 group-hover:shadow-md group-hover:-translate-x-0.5 transition-all duration-200">
-                <ArrowLeft className="w-4 h-4" />
-              </div>
-              {shelter ? "Volver al Refugio" : "Volver a la Tienda"}
-            </Link>
+            <BackButton
+              fallback={shelter ? `/shelter/${shelter.id}` : "/store"}
+              label={shelter ? "Volver al Refugio" : "Volver a la Tienda"}
+              className="mb-6 text-gray-400 dark:text-dark-text-secondary hover:text-rose-500 dark:hover:text-rose-400 text-sm font-medium"
+            />
           )}
           <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
             <div className="flex-1 text-center lg:text-left">

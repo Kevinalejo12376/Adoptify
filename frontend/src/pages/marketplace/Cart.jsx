@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { listarProductos } from "../../api/productos";
 import { crearPedido } from "../../api/pedidos";
 import { formatPrice } from "../../utils/price";
@@ -167,13 +168,11 @@ export default function Cart() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-2 text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors mb-4"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Seguir comprando
-            </Link>
+            <BackButton
+              fallback="/store"
+              label="Seguir comprando"
+              className="text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 mb-4"
+            />
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-dark-text font-display">
               Carrito de Compras
             </h1>
@@ -235,13 +234,11 @@ export default function Cart() {
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-2 text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors mb-3"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Seguir comprando
-            </Link>
+            <BackButton
+              fallback="/store"
+              label="Seguir comprando"
+              className="text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 mb-3"
+            />
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-dark-text font-display">
               Carrito de Compras
             </h1>

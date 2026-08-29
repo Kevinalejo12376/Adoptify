@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import {
   User, Mail, Phone, MapPin, Calendar, Edit, Camera, Save, X,
   PawPrint, Heart, Settings, LogOut, Shield, ChevronRight,
@@ -550,6 +551,7 @@ export default function UserProfile() {
       </div>
 
       <div className="max-w-5xl mx-auto relative z-10">
+        <BackButton fallback="/dashboard" label="Volver" className="mb-4" />
         {/* ─── Header ─── */}
         <div className="text-center mb-8 animate-fade-in-down">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded-full text-sm font-medium mb-4 animate-scale-in">

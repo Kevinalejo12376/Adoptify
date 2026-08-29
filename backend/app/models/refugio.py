@@ -38,6 +38,8 @@ class Refugio(Base):
 
     usuario = relationship("Usuario", back_populates="refugio")
     mascotas = relationship("Mascota", back_populates="refugio", cascade="all, delete-orphan")
+    # Productos publicados por el refugio en el marketplace.
+    productos = relationship("Producto", back_populates="refugio")
     # Galería de fotos del refugio (secure_url de Cloudinary).
     imagenes = relationship(
         "RefugioImagen",

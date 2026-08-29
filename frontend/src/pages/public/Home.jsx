@@ -587,21 +587,38 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {productos.map((product) => (
-                <div key={product.id} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
-                  <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center">
-                    <ShoppingBag className="w-16 h-16 text-rose-500" />
+              {productos.map((product) => {
+                // Imagen real del producto (Cloudinary) devuelta por la API.
+                const productImage =
+                  product.imagen_url ||
+                  (product.imagenes && product.imagenes[0]?.url) ||
+                  null;
+                return (
+                  <div key={product.id} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                    <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
+                      {productImage ? (
+                        <img
+                          src={productImage}
+                          alt={product.nombre}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        />
+                      ) : (
+                        <ShoppingBag className="w-16 h-16 text-rose-500" />
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
+                    <div className="flex justify-between items-center">
+                      <span className="text-2xl font-bold text-rose-600 font-display">{formatPrice(product.precio)}</span>
+                      <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Ver
+                      </Link>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
-                  <div className="flex justify-between items-center">
-                    <span className="text-2xl font-bold text-rose-600 font-display">{formatPrice(product.precio)}</span>
-                    <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Ver
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

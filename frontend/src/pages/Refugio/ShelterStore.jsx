@@ -14,8 +14,11 @@ import { categoryIcons, categoryColors } from "../../data/products";
 import { misProductos, crearProducto, actualizarProducto, eliminarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
 import FieldError from "../../components/FieldError";
+import Toast from "../../components/Toast";
+import ProductSelectionModal from "../../components/ProductSelectionModal";
+import { useImageUpload } from "../../hooks/useImageUpload";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, normalizarPrecioInput, parsearPrecioInput } from "../../utils/price";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -26,6 +29,7 @@ const mapProducto = (p) => ({
   name: p.nombre,
   category: p.categoria || "Alimentos",
   price: Number(p.precio) || 0,
+  discount: p.descuento ?? 0,
   stock: p.stock ?? 0,
   description: p.descripcion || "",
   brand: p.marca || "",
@@ -39,7 +43,7 @@ const mapProducto = (p) => ({
   // Imágenes persistentes de Cloudinary (producto_imagenes) devueltas por la API.
   images: (p.imagenes || []).map((img) => ({
     id: img.id,
-    src: img.url,
+    url: img.url,
     label: img.etiqueta || "",
   })),
 });
@@ -48,7 +52,10 @@ const mapProducto = (p) => ({
 const toPayload = (d) => ({
   nombre: d.name,
   categoria: d.category,
-  precio: parseFloat(d.price) || 0,
+  // El precio se ingresa en formato colombiano (p. ej. "15.000") y se convierte
+  // a número antes de enviarlo al backend.
+  precio: parsearPrecioInput(d.price),
+  descuento: parseInt(d.discount) || 0,
   stock: parseInt(d.stock) || 0,
   descripcion: d.description,
   marca: d.brand,
@@ -194,7 +201,7 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
         return "";
       case "price": {
         if (valor === "" || valor == null) return "El precio es obligatorio.";
-        const precio = parseFloat(valor);
+        const precio = parsearPrecioInput(valor);
         if (isNaN(precio) || precio <= 0) return "El precio debe ser un número mayor a 0.";
         return "";
       }
@@ -297,12 +304,20 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio ($) *</label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="number" step="0.01" min="0" value={data.price}
-              onChange={(e) => handleChange("price", e.target.value)}
+            <input type="text" inputMode="numeric" value={data.price}
+              onChange={(e) => handleChange("price", normalizarPrecioInput(e.target.value))}
               className={claseInput(baseInputCls + " pl-10 pr-4", !!errors.price)}
               placeholder="0.00" />
           </div>
           <FieldError mensaje={errors.price} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descuento (%)</label>
+          <input type="number" min="0" max="100" value={data.discount ?? ""}
+            onChange={(e) => handleChange("discount", e.target.value)}
+            className={baseInputCls}
+            placeholder="0" />
         </div>
 
         <div>
@@ -313,6 +328,31 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
             placeholder="0" />
           <FieldError mensaje={errors.stock} />
         </div>
+
+        {/* Vista previa: precio final con el descuento aplicado */}
+        {(() => {
+          const precioBase = parsearPrecioInput(data.price);
+          const descuentoAplicado = Math.min(100, Math.max(0, parseInt(data.discount) || 0));
+          if (!precioBase) return null;
+          const precioFinal = descuentoAplicado > 0
+            ? precioBase * (1 - descuentoAplicado / 100)
+            : precioBase;
+          return (
+            <div className="col-span-2">
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                {descuentoAplicado > 0 ? (
+                  <span>
+                    Precio con {descuentoAplicado}% de descuento:{" "}
+                    <strong className="font-bold">{formatPrice(precioFinal)}</strong>
+                  </span>
+                ) : (
+                  <span>Precio final: <strong className="font-bold">{formatPrice(precioBase)}</strong></span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción *</label>
@@ -433,6 +473,7 @@ export default function ShelterStore() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSelectionModal, setShowSelectionModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("todas");
   const [activeFilter, setActiveFilter] = useState("todos");
@@ -442,15 +483,23 @@ export default function ShelterStore() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  // Subida de imágenes a Cloudinary al guardar el producto.
+  const { upload, uploadDataUrl } = useImageUpload({ tipo: "producto" });
 
   const recargar = async () => {
+    setLoading(true);
+    const inicio = Date.now();
     try {
       const data = await misProductos();
       setProducts((data || []).map(mapProducto));
     } catch (e) {
       setProducts([]);
     } finally {
-      setLoading(false);
+      // Asegura que "Cargando productos..." sea visible al menos un instante,
+      // aunque la respuesta del servidor sea inmediata.
+      const restante = 400 - (Date.now() - inicio);
+      setTimeout(() => setLoading(false), restante > 0 ? restante : 0);
     }
   };
 
@@ -459,7 +508,7 @@ export default function ShelterStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const emptyProduct = { name: "", category: "Alimentos", price: "", stock: "", description: "", brand: "", material: "", colors: "", sizes: [], features: "", active: true, images: [] };
+  const emptyProduct = { name: "", category: "Alimentos", price: "", discount: "", stock: "", description: "", brand: "", material: "", colors: "", sizes: [], features: "", active: true, images: [] };
   const [newProduct, setNewProduct] = useState({ ...emptyProduct });
 
   const totalProducts = products.length;
@@ -482,13 +531,33 @@ export default function ShelterStore() {
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    // Evitar duplicados: mismo nombre (ignorando mayúsculas) ya registrado.
+    const nombre = (newProduct.name || "").trim().toLowerCase();
+    if (nombre && products.some((p) => (p.name || "").trim().toLowerCase() === nombre)) {
+      setToast({ message: "Este producto ya está registrado.", type: "error" });
+      return;
+    }
     setSaving(true);
     try {
-      await crearProducto(toPayload(newProduct));
+      // Las imágenes locales se suben a Cloudinary SOLO al guardar el producto.
+      const imagenesFinales = [];
+      const images = newProduct.images || [];
+      for (const img of images) {
+        if (!img.src && !img.file) continue;
+        const res = img.file ? await upload(img.file) : await uploadDataUrl(img.src);
+        if (!res.ok) throw new Error(res.error || "No se pudo subir una imagen");
+        imagenesFinales.push(res.url);
+      }
+      await crearProducto({ ...toPayload(newProduct), imagenes: imagenesFinales });
       await recargar();
       setShowAddModal(false);
       setNewProduct({ ...emptyProduct });
     } catch (err) {
+      // Si el backend rechaza por duplicado, muestra el mensaje flotante.
+      const msg = (err?.message || "").toLowerCase();
+      if (msg.includes("ya está registrado")) {
+        setToast({ message: "Este producto ya está registrado.", type: "error" });
+      }
       // se mantiene el modal abierto si falla
     } finally {
       setSaving(false);
@@ -563,7 +632,7 @@ export default function ShelterStore() {
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white font-display">Mi Tienda</h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-1">Administra los productos de tu refugio para la venta</p>
           </div>
-          <button onClick={() => setShowAddModal(true)}
+          <button onClick={() => setShowSelectionModal(true)}
             className="inline-flex items-center px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl shadow-lg shadow-rose-200 dark:shadow-rose-500/20 hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-right">
             <Plus className="w-5 h-5 mr-2" /> Agregar Producto
           </button>
@@ -633,7 +702,7 @@ export default function ShelterStore() {
                 ? "No se encontraron productos con los filtros actuales"
                 : "Comienza agregando tu primer producto a la tienda"}
             </p>
-            <button onClick={() => setShowAddModal(true)}
+            <button onClick={() => setShowSelectionModal(true)}
               className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg">
               <Plus className="w-5 h-5 mr-2" /> Agregar Producto
             </button>
@@ -650,7 +719,7 @@ export default function ShelterStore() {
                   style={{ animationDelay: `${idx * 0.05}s` }}>
                   <div className={`relative h-40 bg-gradient-to-br ${catColor}/20 dark:${catColor}/10 flex items-center justify-center overflow-hidden`}>
                     {product.images && product.images.length > 0 ? (
-                      <img src={product.images[0].src} alt={product.name} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" />
+                      <img src={product.images[0].url} alt={product.name} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" />
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <CatIconComponent category={product.category} className={`w-20 h-20 ${catColor.replace('from-', 'text-').split(' ')[0]}/40 transition-transform group-hover:scale-110 duration-500`} />
@@ -772,6 +841,18 @@ export default function ShelterStore() {
         confirmText={confirmToggle.newState ? "Activar" : "Desactivar"}
         cancelText="Cancelar"
         type={confirmToggle.newState ? "info" : "warning"}
+      />
+
+      {/* Toast independiente (duplicados y otros avisos) */}
+      <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
+
+      {/* Modal de selección de método de agregado (IA, código de barras, manual) */}
+      <ProductSelectionModal
+        isOpen={showSelectionModal}
+        onClose={() => setShowSelectionModal(false)}
+        onSeleccionarManual={() => setShowAddModal(true)}
+        onSeleccionarIA={() => navigate("/tienda/productos/analizar")}
+        onSeleccionarBarcode={() => navigate("/tienda/productos/escanear")}
       />
     </div>
   );

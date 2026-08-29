@@ -44,3 +44,44 @@ export function formatPrice(valor, { simbolo = "$" } = {}) {
 export function formatNumber(valor) {
   return formatPrice(valor, { simbolo: "" });
 }
+
+/**
+ * Normaliza lo que el usuario escribe en un input de precio al formato
+ * colombiano: miles con punto (.) y decimales con coma (,).
+ * - "15000"    -> "15.000"
+ * - "15000.5"  -> "15.000,5"
+ * - "15.000"   -> "15.000" (se conserva)
+ * Elimina símbolos ($), espacios y letras no numéricas.
+ * @param {string|number|null|undefined} valor
+ * @returns {string}
+ */
+export function normalizarPrecioInput(valor) {
+  if (valor === null || valor === undefined) return "";
+  let texto = String(valor).replace(/[^\d.,]/g, "");
+  // Conserva solo la primera coma (decimal); elimina las demás.
+  const primeraComa = texto.indexOf(",");
+  if (primeraComa !== -1) {
+    texto = texto.slice(0, primeraComa + 1) + texto.slice(primeraComa + 1).replace(/,/g, "");
+  }
+  const [enteros, decimales] = texto.split(",");
+  const enterosLimpio = (enteros || "").replace(/\./g, "");
+  const enterosFormateados = enterosLimpio.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return decimales !== undefined
+    ? `${enterosFormateados},${decimales}`
+    : enterosFormateados;
+}
+
+/**
+ * Convierte el texto de un input de precio (formato colombiano) a número.
+ * - "15.000"   -> 15000
+ * - "9.999,5"  -> 9999.5
+ * - ""/null    -> 0
+ * @param {string|number|null|undefined} valor
+ * @returns {number}
+ */
+export function parsearPrecioInput(valor) {
+  if (valor === null || valor === undefined || valor === "") return 0;
+  const texto = String(valor).replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : 0;
+}

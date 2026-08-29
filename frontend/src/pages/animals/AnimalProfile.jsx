@@ -134,10 +134,7 @@ export default function AnimalProfile() {
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-rose-50 via-white to-amber-50">
       <div className="max-w-7xl mx-auto">
         {/* Back Button */}
-        <Link to="/animals" className="inline-flex items-center gap-2 text-gray-600 hover:text-rose-600 mb-6 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-          Volver a animales
-        </Link>
+        <BackButton fallback="/animals" label="Volver a animales" className="mb-6" />
 
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 text-gray-500">

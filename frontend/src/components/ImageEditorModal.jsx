@@ -274,6 +274,7 @@ export default function ImageEditorModal({
           </div>
         </div>
         <button
+          type="button"
           onClick={onCancel}
           className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
         >
@@ -333,32 +334,32 @@ export default function ImageEditorModal({
       {/* Controles */}
       <div className="px-5 py-4 border-t border-gray-100 dark:border-dark-border">
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <button onClick={reset} title="Restablecer" className="ctrl-btn">
+          <button type="button" onClick={reset} title="Restablecer" className="ctrl-btn">
             <ResetIcon className="w-4 h-4" />
             <span className="hidden sm:inline">Restablecer</span>
           </button>
-          <button onClick={rotateLeft} title="Rotar izquierda" className="ctrl-btn">
+          <button type="button" onClick={rotateLeft} title="Rotar izquierda" className="ctrl-btn">
             <RotateCcw className="w-4 h-4" />
             <span className="hidden sm:inline">Rotar</span>
           </button>
-          <button onClick={rotateRight} title="Rotar derecha" className="ctrl-btn">
+          <button type="button" onClick={rotateRight} title="Rotar derecha" className="ctrl-btn">
             <RotateCw className="w-4 h-4" />
             <span className="hidden sm:inline">Girar</span>
           </button>
-          <button onClick={() => setFlipX(!flipX)} title="Voltear horizontal" className={`ctrl-btn ${flipX ? "ctrl-active" : ""}`}>
+          <button type="button" onClick={() => setFlipX(!flipX)} title="Voltear horizontal" className={`ctrl-btn ${flipX ? "ctrl-active" : ""}`}>
             <FlipHorizontal2 className="w-4 h-4" />
             <span className="hidden sm:inline">Voltear H</span>
           </button>
-          <button onClick={() => setFlipY(!flipY)} title="Voltear vertical" className={`ctrl-btn ${flipY ? "ctrl-active" : ""}`}>
+          <button type="button" onClick={() => setFlipY(!flipY)} title="Voltear vertical" className={`ctrl-btn ${flipY ? "ctrl-active" : ""}`}>
             <FlipVertical2 className="w-4 h-4" />
             <span className="hidden sm:inline">Voltear V</span>
           </button>
-          <button onClick={() => zoomBy(-0.2)} title="Alejar" className="ctrl-btn">
+          <button type="button" onClick={() => zoomBy(-0.2)} title="Alejar" className="ctrl-btn">
             <ZoomOut className="w-4 h-4" />
             <span className="hidden sm:inline">-</span>
           </button>
           <span className="ctrl-btn ctrl-static">Zoom {Math.round(zoom * 100)}%</span>
-          <button onClick={() => zoomBy(0.2)} title="Acercar" className="ctrl-btn">
+          <button type="button" onClick={() => zoomBy(0.2)} title="Acercar" className="ctrl-btn">
             <ZoomIn className="w-4 h-4" />
             <span className="hidden sm:inline">+</span>
           </button>
@@ -366,12 +367,14 @@ export default function ImageEditorModal({
 
         <div className="flex gap-3 mt-4">
           <button
+            type="button"
             onClick={onCancel}
             className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 font-semibold hover:bg-gray-50 dark:hover:bg-white/5 transition-all text-sm"
           >
             Cancelar
           </button>
           <button
+            type="button"
             onClick={handleApply}
             disabled={!loaded || exporting}
             className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold hover:from-rose-600 hover:to-amber-600 transition-all shadow-lg disabled:opacity-60 text-sm"
