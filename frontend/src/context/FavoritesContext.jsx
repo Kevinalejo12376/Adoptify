@@ -52,7 +52,9 @@ const mapRefugioFav = (r) => ({
   name: r.name || r.nombre || "",
   location: r.location || r.ubicacion || r.municipio || r.departamento || "",
   description: r.description || r.descripcion || "",
-  logo_url: r.logo_url || null,
+  // El logo llega como logo_url (backend) o como logo (vistas públicas) según
+  // el origen; se conserva cualquiera de las dos para mostrarlo en favoritos.
+  logo_url: r.logo_url || r.logo || null,
   rating: Number(r.rating) || 0,
   animals: Number(r.animals) || 0,
 });

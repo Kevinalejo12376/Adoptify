@@ -324,6 +324,14 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit, isSavin
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descuento (%)</label>
+          <input type="number" min="0" max="100" value={data.discount ?? ""}
+            onChange={(e) => handleChange("discount", e.target.value)}
+            className={baseInputCls}
+            placeholder="0" />
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock *</label>
           <input type="number" min="0" value={data.stock}
             onChange={(e) => handleChange("stock", e.target.value)}
@@ -339,6 +347,31 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit, isSavin
             placeholder="0" />
           <FieldError mensaje={errors.discount} />
         </div>
+        {/* Vista previa: precio final con el descuento aplicado */}
+        {(() => {
+          const precioBase = parsearPrecioInput(data.price);
+          const descuentoAplicado = Math.min(100, Math.max(0, parseInt(data.discount) || 0));
+          if (!precioBase) return null;
+          const precioFinal = descuentoAplicado > 0
+            ? precioBase * (1 - descuentoAplicado / 100)
+            : precioBase;
+          return (
+            <div className="col-span-2">
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                {descuentoAplicado > 0 ? (
+                  <span>
+                    Precio con {descuentoAplicado}% de descuento:{" "}
+                    <strong className="font-bold">{formatPrice(precioFinal)}</strong>
+                  </span>
+                ) : (
+                  <span>Precio final: <strong className="font-bold">{formatPrice(precioBase)}</strong></span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Vista previa: precio final con el descuento aplicado */}
         {(() => {
           const precioBase = parsearPrecioInput(data.price);
