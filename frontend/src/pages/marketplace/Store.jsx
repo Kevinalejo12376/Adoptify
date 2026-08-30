@@ -4,7 +4,7 @@ import BackButton from "../../components/BackButton";
 import ScrollToTop from "../../components/ScrollToTop";
 import { listarProductos } from "../../api/productos";
 import { obtenerRefugio } from "../../api/refugios";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 import {
   ShoppingBag,
   Search,
@@ -49,7 +49,11 @@ const normalizeProducto = (p) => ({
   ...p,
   name: p.nombre,
   category: p.categoria,
-  price: Number(p.precio) || 0,
+  // Descuento: se conserva el precio original y el porcentaje; el precio que
+  // se muestra (y se cobra) es el final, calculado con la fuente única.
+  descuento: Number(p.descuento) || 0,
+  originalPrice: parsePrecio(p.precio),
+  price: precioConDescuento(p.precio, p.descuento),
   rating: Number(p.rating) || 0,
   reviews: p.ventas || 0,
   reviews: p.resenas_count || 0,
@@ -162,14 +166,14 @@ export default function Store() {
 
     // Price range filter
     if (priceMin !== "") {
-      const min = parseFloat(priceMin);
-      if (!isNaN(min)) {
+      const min = parsePrecio(priceMin);
+      if (min > 0) {
         result = result.filter((p) => p.price >= min);
       }
     }
     if (priceMax !== "") {
-      const max = parseFloat(priceMax);
-      if (!isNaN(max)) {
+      const max = parsePrecio(priceMax);
+      if (max > 0) {
         result = result.filter((p) => p.price <= max);
       }
     }
@@ -733,6 +737,15 @@ export default function Store() {
                       </div>
                     )}
 
+                    {/* Discount Badge (porcentaje) */}
+                    {product.descuento > 0 && (
+                      <div className="absolute top-12 right-3">
+                        <span className="inline-flex items-center px-2 py-1 text-[10px] font-bold rounded-full shadow-lg bg-emerald-500 text-white">
+                          -{product.descuento}% OFF
+                        </span>
+                      </div>
+                    )}
+
                     {/* Favorite Button */}
                     <button
                       onClick={(e) => {
@@ -752,9 +765,14 @@ export default function Store() {
                       />
                     </button>
 
-                    {/* Price Tag */}
+                    {/* Price Tag (original tachado + precio final si hay descuento) */}
                     <div className="absolute bottom-3 right-3">
                       <div className="px-3 py-1.5 bg-white/90 dark:bg-dark-card/90 backdrop-blur-sm rounded-xl shadow-lg">
+                        {product.descuento > 0 && (
+                          <span className="block text-[10px] text-gray-400 dark:text-dark-text-secondary line-through text-right">
+                            {formatPrice(product.originalPrice)}
+                          </span>
+                        )}
                         <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">
                           {formatPrice(product.price)}
                         </span>

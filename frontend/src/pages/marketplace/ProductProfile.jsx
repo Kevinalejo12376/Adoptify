@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import BackButton from "../../components/BackButton";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 import {
   ArrowLeft,
   ShoppingCart,
@@ -177,7 +177,11 @@ export default function ProductProfile() {
           ...p,
           name: p.nombre,
           category: p.categoria,
-          price: Number(p.precio) || 0,
+          // Descuento real del backend: precio original + porcentaje; el precio
+          // que se muestra (y se cobra) es el final con precioConDescuento.
+          descuento: Number(p.descuento) || 0,
+          originalPrice: parsePrecio(p.precio),
+          price: precioConDescuento(p.precio, p.descuento),
           quality: p.calidad || "Estándar",
           brand: p.marca || "—",
           material: p.material || "—",

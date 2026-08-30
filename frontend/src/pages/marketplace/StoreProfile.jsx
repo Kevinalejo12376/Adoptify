@@ -45,7 +45,10 @@ const mapProductoBD = (p) => ({
   id: p.id,
   name: p.nombre || "",
   description: p.descripcion || p.descripcion_larga || "",
-  price: Number(p.precio) || 0,
+  // Descuento: se muestra el precio final; se conservan original y porcentaje.
+  descuento: Number(p.descuento) || 0,
+  originalPrice: parsePrecio(p.precio),
+  price: precioConDescuento(p.precio, p.descuento),
   category: p.categoria || "General",
   rating: Number(p.rating) || 0,
   reviews: Number(p.resenas_count) || Number(p.ventas) || 0,
@@ -270,12 +273,12 @@ export default function StoreProfile() {
     }
 
     if (priceMin !== "") {
-      const min = parseFloat(priceMin);
-      if (!isNaN(min)) result = result.filter((p) => p.price >= min);
+      const min = parsePrecio(priceMin);
+      if (min > 0) result = result.filter((p) => p.price >= min);
     }
     if (priceMax !== "") {
-      const max = parseFloat(priceMax);
-      if (!isNaN(max)) result = result.filter((p) => p.price <= max);
+      const max = parsePrecio(priceMax);
+      if (max > 0) result = result.filter((p) => p.price <= max);
     }
 
     if (sortBy === "newest") result.sort((a, b) => b.id - a.id);
@@ -1132,9 +1135,14 @@ export default function StoreProfile() {
                         />
                       </button>
 
-                      {/* Price Tag */}
+                      {/* Price Tag (original tachado + final si hay descuento) */}
                       <div className="absolute bottom-3 right-3">
                         <div className="px-3 py-1.5 bg-white/90 dark:bg-dark-card/90 backdrop-blur-sm rounded-xl shadow-lg">
+                          {product.descuento > 0 && (
+                            <span className="block text-[10px] text-gray-400 dark:text-dark-text-secondary line-through text-right">
+                              {formatPrice(product.originalPrice)}
+                            </span>
+                          )}
                           <span className="text-lg font-bold text-gray-800 dark:text-gray-200 font-display">
                             {formatPrice(product.price)}
                           </span>

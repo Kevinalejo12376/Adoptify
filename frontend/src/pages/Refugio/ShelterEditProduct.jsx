@@ -171,6 +171,12 @@ export default function ShelterEditProduct() {
         if (isNaN(stock) || stock < 0) return "El stock debe ser un número mayor o igual a 0.";
         return "";
       }
+      case "discount": {
+        if (valor === "" || valor == null) return "";
+        const d = parseInt(valor, 10);
+        if (isNaN(d) || d < 0 || d > 100) return "El descuento debe estar entre 0 y 100.";
+        return "";
+      }
       case "description":
         if (!limpiarEspacios(valor)) return "La descripción es obligatoria.";
         return "";
@@ -188,7 +194,7 @@ export default function ShelterEditProduct() {
   const handleChange = (field, value) => {
     setProductData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
-    if (["name", "price", "stock", "description"].includes(field)) {
+    if (["name", "price", "stock", "discount", "description"].includes(field)) {
       setErrors(prev => ({ ...prev, [field]: validarCampo(field, value) }));
       setSubmitError("");
     }
@@ -206,6 +212,7 @@ export default function ShelterEditProduct() {
       name: validarCampo("name", productData.name),
       price: validarCampo("price", productData.price),
       stock: validarCampo("stock", productData.stock),
+      discount: validarCampo("discount", productData.discount),
       description: validarCampo("description", productData.description),
     };
     setErrors(nuevosErrores);
@@ -312,7 +319,7 @@ export default function ShelterEditProduct() {
                   <input type="text" inputMode="numeric" value={productData.price}
                     onChange={(e) => handleChange("price", normalizarPrecioInput(e.target.value))}
                     className={claseInput("w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.price)}
-                    placeholder="0.00" />
+                    placeholder="0" />
                 </div>
                 <FieldError mensaje={errors.price} />
               </div>

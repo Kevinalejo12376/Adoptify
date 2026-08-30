@@ -474,9 +474,14 @@ export default function Favorites() {
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
 
-                        {/* Price Tag */}
+                        {/* Price Tag (original tachado + final si hay descuento) */}
                         <div className="absolute bottom-3 right-3">
                           <div className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg">
+                            {product.descuento > 0 && (
+                              <span className="block text-[10px] text-gray-400 line-through text-right">
+                                {formatPrice(product.originalPrice)}
+                              </span>
+                            )}
                             <span className="text-lg font-bold text-rose-600 font-display">
                               {formatPrice(product.price)}
                             </span>

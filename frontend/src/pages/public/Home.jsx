@@ -10,7 +10,7 @@ import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento } from "../../utils/price";
 // Carrusel automático: imágenes servidas desde Cloudinary (carpeta
 // "frontend-assets/assets-extras"). Centralizadas en src/assets/images.js.
 const carruselImages = CAROUSEL_IMAGES;
@@ -616,6 +616,35 @@ export default function Home() {
                         Ver
                       </Link>
                     </div>
+              {productos.map((product) => (
+                <div key={product.id} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
+                    {product.imagen_url || (product.imagenes && product.imagenes[0]?.url) ? (
+                      <img
+                        src={product.imagen_url || (product.imagenes && product.imagenes[0]?.url)}
+                        alt={product.nombre}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <ShoppingBag className="w-16 h-16 text-rose-500" />
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col items-start">
+                      {Number(product.descuento) > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-600 mb-0.5">
+                          -{product.descuento}% · <span className="line-through">{formatPrice(product.precio)}</span>
+                        </span>
+                      )}
+                      <span className="text-2xl font-bold text-rose-600 font-display">
+                        {formatPrice(precioConDescuento(product.precio, product.descuento))}
+                      </span>
+                    </div>
+                    <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Ver
+                    </Link>
                   </div>
                 );
               })}

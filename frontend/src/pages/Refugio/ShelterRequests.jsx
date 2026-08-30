@@ -388,7 +388,7 @@ export default function ShelterRequests() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white font-display">{selectedRequest.user}</h2>
-                    <p className="text-sm text-gray-500 dark:text-dark-text-secondary">Solicitud #{selectedRequest.id} · {selectedRequest.date}</p>
+                    <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{selectedRequest.date}</p>
                   </div>
                 </div>
               </div>

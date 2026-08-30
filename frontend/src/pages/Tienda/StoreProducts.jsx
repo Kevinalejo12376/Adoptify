@@ -8,13 +8,14 @@ import { misProductosTienda } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
 import { useStore } from "../../context/StoreContext";
 import ProductSelectionModal from "../../components/ProductSelectionModal";
+import { parsePrecio } from "../../utils/price";
 
 // Normaliza un producto del backend a la forma que usa esta vista.
 const mapProducto = (p) => ({
   id: p.id,
   nombre: p.nombre,
   categoria: p.categoria || "",
-  precio: Number(p.precio) || 0,
+  precio: parsePrecio(p.precio),
   stock: p.stock ?? 0,
   estado: p.activo ? "visible" : "oculto",
   calificacion: Number(p.rating) || 0,

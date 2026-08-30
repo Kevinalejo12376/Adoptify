@@ -1,4 +1,5 @@
 """Convierte objetos ORM (con FKs a catalogos) en diccionarios legibles para la API."""
+from app.models.producto import precio_final
 
 
 def _personalidad_a_lista(v):
@@ -337,6 +338,8 @@ def _info_vendedor(items):
 
 
 def serialize_producto(p):
+    descuento = int(p.descuento or 0) if p.descuento is not None else 0
+    precio_original = float(p.precio) if p.precio is not None else 0
     return {
         "id": p.id,
         "nombre": p.nombre,

@@ -211,6 +211,12 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
         if (isNaN(stock) || stock < 0) return "El stock debe ser un número mayor o igual a 0.";
         return "";
       }
+      case "discount": {
+        if (valor === "" || valor == null) return "";
+        const d = parseInt(valor, 10);
+        if (isNaN(d) || d < 0 || d > 100) return "El descuento debe estar entre 0 y 100.";
+        return "";
+      }
       case "description":
         if (!limpiarEspacios(valor)) return "La descripción es obligatoria.";
         return "";
@@ -221,7 +227,7 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
 
   const handleChange = (campo, valor) => {
     setData((prev) => ({ ...prev, [campo]: valor }));
-    if (["name", "price", "stock", "description"].includes(campo)) {
+    if (["name", "price", "stock", "discount", "description"].includes(campo)) {
       setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, valor) }));
       setSubmitError("");
     }
@@ -234,6 +240,7 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
       name: validarCampo("name", data.name),
       price: validarCampo("price", data.price),
       stock: validarCampo("stock", data.stock),
+      discount: validarCampo("discount", data.discount),
       description: validarCampo("description", data.description),
     };
     setErrors(nuevosErrores);
@@ -307,7 +314,7 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
             <input type="text" inputMode="numeric" value={data.price}
               onChange={(e) => handleChange("price", normalizarPrecioInput(e.target.value))}
               className={claseInput(baseInputCls + " pl-10 pr-4", !!errors.price)}
-              placeholder="0.00" />
+              placeholder="0" />
           </div>
           <FieldError mensaje={errors.price} />
         </div>
@@ -328,6 +335,21 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
             placeholder="0" />
           <FieldError mensaje={errors.stock} />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descuento (%)</label>
+          <input type="number" min="0" max="100" value={data.discount}
+            onChange={(e) => handleChange("discount", e.target.value)}
+            className={claseInput(baseInputCls, !!errors.discount)}
+            placeholder="0" />
+          <FieldError mensaje={errors.discount} />
+        </div>
+        {Number(data.discount) > 0 && parsePrecio(data.price) > 0 && (
+          <p className="col-span-2 text-xs text-emerald-600 dark:text-emerald-400">
+            Precio con descuento:{" "}
+            <strong>{formatPrice(precioConDescuento(data.price, data.discount))}</strong>{" "}
+            <span className="text-gray-400 line-through">{formatPrice(data.price)}</span>
+          </p>
+        )}
 
         {/* Vista previa: precio final con el descuento aplicado */}
         {(() => {
