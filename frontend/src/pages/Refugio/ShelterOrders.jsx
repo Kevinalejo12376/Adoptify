@@ -125,8 +125,9 @@ export default function ShelterOrders() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-24">
-        <Loader2 className="w-10 h-10 text-rose-500 animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center pt-24 text-gray-500 dark:text-dark-text-secondary">
+        <Loader2 className="w-10 h-10 text-rose-500 animate-spin mb-3" />
+        <p>Cargando pedidos...</p>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { misPedidos } from "../../api/pedidos";
@@ -187,6 +188,7 @@ export default function UserOrders() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
+          <BackButton fallback="/dashboard" label="Volver" className="mb-4" />
           <div className="flex items-center gap-3 mb-2">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
               isDark ? "bg-rose-500/10" : "bg-rose-50"

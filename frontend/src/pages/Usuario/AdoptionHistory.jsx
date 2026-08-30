@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import {
   PawPrint, CheckCircle, XCircle, AlertCircle, MapPin, Calendar,
   Phone, MessageCircle, Search, Clock, ChevronRight, Dog, Cat,
@@ -108,6 +109,7 @@ export default function AdoptionHistory() {
   return (
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
+        <BackButton fallback="/dashboard" label="Volver" className="mb-4" />
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>

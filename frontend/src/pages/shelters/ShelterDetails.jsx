@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import {
   ArrowLeft, MapPin, Phone, Mail, Star, Heart, Clock, PawPrint,
   CheckCircle, Store, Eye, X, ShoppingBag, ChevronRight, ChevronLeft,
@@ -137,15 +138,11 @@ export default function ShelterDetails() {
 
       <div className="max-w-7xl mx-auto relative z-10">
         {/* Back Button */}
-        <Link
-          to="/shelters"
-          className={`inline-flex items-center gap-2 px-4 py-2 mb-6 text-gray-600 hover:text-rose-500 transition-all duration-300 hover:scale-105 ${
-            isVisible ? "animate-fade-in-left" : "opacity-0"
-          }`}
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Volver
-        </Link>
+        <BackButton
+          fallback="/shelters"
+          label="Volver"
+          className={`px-4 py-2 mb-6 hover:scale-105 ${isVisible ? "animate-fade-in-left" : "opacity-0"}`}
+        />
 
         {/* ===== HEADER SECTION ===== */}
         <div className={`bg-white rounded-2xl shadow-lg p-6 sm:p-8 mb-8 hover:shadow-xl transition-all duration-300 ${
@@ -499,7 +496,7 @@ export default function ShelterDetails() {
               </div>
             </div>
 
-            {/* Location - Compact (MOVED from full-width, now smaller on right side) */}
+            {/* Location - Mapa de Google embebido (usa la dirección real de la BD) */}
             <div className={`bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 ${
               isVisible ? "animate-fade-in-right animation-delay-150" : "opacity-0"
             }`}>
@@ -509,21 +506,35 @@ export default function ShelterDetails() {
                 </div>
                 Ubicación
               </h3>
-              <div className="w-full h-48 bg-gradient-to-br from-rose-100 to-amber-100 rounded-xl flex items-center justify-center overflow-hidden relative group cursor-pointer">
-                {/* Decorative map pattern */}
-                <div className="absolute inset-0 opacity-30">
-                  <div className="absolute top-3 left-3 w-16 h-16 border-2 border-rose-300 rounded-full" />
-                  <div className="absolute bottom-3 right-6 w-20 h-20 border-2 border-amber-300 rounded-full" />
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 border-2 border-rose-400 rounded-full" />
-                </div>
-                <div className="text-center relative z-10 group-hover:scale-105 transition-transform duration-500">
-                  <div className="w-10 h-10 bg-gradient-to-br from-rose-500 to-amber-500 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg group-hover:shadow-xl transition-all duration-300">
-                    <MapPin className="w-5 h-5 text-white" />
+
+              {/* Mapa: se genera automáticamente con la dirección guardada */}
+              {(() => {
+                const query = encodeURIComponent(shelter.address || shelter.location || shelter.name);
+                return (
+                  <div className="w-full overflow-hidden rounded-xl border border-gray-200 dark:border-dark-border">
+                    <iframe
+                      title={`Mapa de ${shelter.name}`}
+                      src={`https://www.google.com/maps?q=${query}&z=15&output=embed`}
+                      className="w-full h-52 border-0"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      allowFullScreen
+                    />
                   </div>
-                  <p className="text-sm font-semibold text-gray-900">{shelter.address}</p>
-                  <p className="text-[10px] text-gray-600 mt-0.5">Ver en Google Maps</p>
-                </div>
-              </div>
+                );
+              })()}
+
+              <p className="text-sm font-semibold text-gray-900 mt-3">{shelter.address}</p>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shelter.address || shelter.location || shelter.name)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                Ver en Google Maps
+                <ChevronRight className="w-3 h-3" />
+              </a>
             </div>
 
             {/* Contact Information */}

@@ -204,6 +204,25 @@ def crear_mascota(
             return serialize_mascota(existente)
 
     refugio = _get_refugio_de(current_user, db)
+
+    # Evitar duplicados: no permitir dos mascotas con el mismo nombre
+    # (ignorando mayúsculas) dentro del mismo refugio.
+    nombre_normalizado = (payload.nombre or "").strip()
+    if nombre_normalizado:
+        duplicado = (
+            db.query(Mascota)
+            .filter(
+                Mascota.refugio_id == refugio.id,
+                Mascota.nombre.ilike(nombre_normalizado),
+                Mascota.eliminado_en.is_(None),
+            )
+            .first()
+        )
+        if duplicado:
+            raise HTTPException(
+                status_code=409, detail="Esta mascota ya está registrada."
+            )
+
     mascota = Mascota(
         refugio_id=refugio.id,
         nombre=payload.nombre,

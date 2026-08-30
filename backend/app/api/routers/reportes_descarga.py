@@ -1,18 +1,12 @@
 """
-<<<<<<< HEAD
 Descarga de reportes descargables (PDF / Excel) para administradores.
 
 Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
-servidor, y se devuelven como respuesta de descarga directa.
-=======
-Endpoints de descarga de reportes (PDF/Excel) para el panel de administracion.
-
-Los archivos se generan en memoria (ReportLab / openpyxl) y se envian como
-descarga directa via ``StreamingResponse`` con las cabeceras correctas
-(``Content-Type``, ``Content-Disposition``) para forzar la descarga en el
-navegador. No se almacena ninguna copia en el servidor; los recursos se
-liberan automaticamente al finalizar la respuesta.
->>>>>>> 28d0014 (solucion de errores vercel)
+servidor, y se devuelven como respuesta de descarga directa via
+``StreamingResponse`` con las cabeceras correctas (``Content-Type``,
+``Content-Disposition``) para forzar la descarga en el navegador. No se
+almacena ninguna copia en el servidor; los recursos se liberan
+automaticamente al finalizar la respuesta.
 """
 # pyrefly: ignore [missing-import]
 from datetime import datetime, timezone

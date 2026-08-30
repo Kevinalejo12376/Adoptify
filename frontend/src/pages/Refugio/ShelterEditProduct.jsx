@@ -10,8 +10,9 @@ import { actualizarProducto } from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
 import ImageUploader from "../../components/ImageUploader";
 import FieldError from "../../components/FieldError";
+import { useImageUpload } from "../../hooks/useImageUpload";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
-import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
+import { normalizarPrecioInput, parsearPrecioInput } from "../../utils/price";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -19,10 +20,10 @@ const MAX_IMAGES = 5;
 const toPayload = (d) => ({
   nombre: d.name,
   categoria: d.category,
-  precio: parsePrecio(d.price),
-  descuento: d.discount === "" || d.discount == null
-    ? 0
-    : Math.min(100, Math.max(0, parseInt(d.discount) || 0)),
+  // El precio se ingresa en formato colombiano (p. ej. "15.000") y se convierte
+  // a número antes de enviarlo al backend.
+  precio: parsearPrecioInput(d.price),
+  descuento: parseInt(d.discount) || 0,
   stock: parseInt(d.stock) || 0,
   descripcion: d.description,
   marca: d.brand,
@@ -109,12 +110,18 @@ export default function ShelterEditProduct() {
 
   const [productData, setProductData] = useState(initialProduct ? {
     ...initialProduct,
-    price: initialProduct.price?.toString() || "",
-    discount: initialProduct.discount != null ? initialProduct.discount.toString() : "",
+    price: normalizarPrecioInput(initialProduct.price),
+    discount: initialProduct.discount != null ? String(initialProduct.discount) : "",
     stock: initialProduct.stock?.toString() || "",
     features: Array.isArray(initialProduct.features) ? initialProduct.features.join(", ") : (initialProduct.features || ""),
     sizes: initialProduct.sizes || [],
-    images: initialProduct.images || []
+    // Normaliza las imágenes a { id, url } para que ImageUploader las muestre
+    // correctamente y se puedan enviar al guardar.
+    images: (initialProduct.images || []).map((img) => ({
+      id: img.id,
+      url: img.url || img.src,
+      label: img.label || "",
+    }))
   } : null);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -122,6 +129,11 @@ export default function ShelterEditProduct() {
   const [hasChanges, setHasChanges] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+
+  // Subida a Cloudinary SOLO al guardar (las imágenes se aplican localmente
+  // con "Aplicar" y se suben aquí, no antes).
+  const { upload, uploadDataUrl } = useImageUpload({ tipo: "producto" });
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
 
   if (!productData) {
     return (
@@ -149,8 +161,8 @@ export default function ShelterEditProduct() {
         return "";
       case "price": {
         if (valor === "" || valor == null) return "El precio es obligatorio.";
-        const precio = parsePrecio(valor);
-        if (precio <= 0) return "El precio debe ser un número mayor a 0.";
+        const precio = parsearPrecioInput(valor);
+        if (isNaN(precio) || precio <= 0) return "El precio debe ser un número mayor a 0.";
         return "";
       }
       case "stock": {
@@ -208,7 +220,30 @@ export default function ShelterEditProduct() {
 
     setIsSaving(true);
     try {
-      await actualizarProducto(productData.id, toPayload(productData));
+      // Las imágenes locales (diferidas con "Aplicar") se suben a Cloudinary
+      // ÚNICAMENTE aquí, al presionar "Guardar cambios".
+      const imagenesFinales = [];
+      const images = productData.images || [];
+      for (const img of images) {
+        if (!img.url) continue;
+        if (img.file && img.url.startsWith("blob:")) {
+          const res = await upload(img.file);
+          if (!res.ok) throw new Error(res.error || "No se pudo subir una imagen");
+          imagenesFinales.push(res.url);
+        } else if (img.url.startsWith("data:")) {
+          const res = await uploadDataUrl(img.url);
+          if (!res.ok) throw new Error(res.error || "No se pudo subir una imagen");
+          imagenesFinales.push(res.url);
+        } else {
+          // Imagen existente: URL permanente de Cloudinary.
+          imagenesFinales.push(img.url);
+        }
+      }
+
+      await actualizarProducto(productData.id, {
+        ...toPayload(productData),
+        imagenes: imagenesFinales,
+      });
       navigate("/refugio/tienda", { state: { updatedProduct: true } });
     } catch (err) {
       setIsSaving(false);
@@ -281,8 +316,8 @@ export default function ShelterEditProduct() {
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Precio ($) *</label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" inputMode="decimal" value={productData.price}
-                    onChange={(e) => handleChange("price", e.target.value)}
+                  <input type="text" inputMode="numeric" value={productData.price}
+                    onChange={(e) => handleChange("price", normalizarPrecioInput(e.target.value))}
                     className={claseInput("w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-rose-500 bg-white dark:bg-dark-bg text-gray-900 dark:text-white", !!errors.price)}
                     placeholder="0" />
                 </div>
@@ -297,18 +332,10 @@ export default function ShelterEditProduct() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">Descuento (%)</label>
-                <input type="number" min="0" max="100" value={productData.discount}
+                <input type="number" min="0" max="100" value={productData.discount ?? ""}
                   onChange={(e) => handleChange("discount", e.target.value)}
-                  className={claseInput(InputClass, !!errors.discount)} placeholder="0" />
-                <FieldError mensaje={errors.discount} />
+                  className={InputClass} placeholder="0" />
               </div>
-              {Number(productData.discount) > 0 && parsePrecio(productData.price) > 0 && (
-                <p className="sm:col-span-2 text-xs text-emerald-600 dark:text-emerald-400">
-                  Precio con descuento:{" "}
-                  <strong>{formatPrice(precioConDescuento(productData.price, productData.discount))}</strong>{" "}
-                  <span className="text-gray-400 line-through">{formatPrice(productData.price)}</span>
-                </p>
-              )}
             </div>
           </FormSection>
 
@@ -366,6 +393,10 @@ export default function ShelterEditProduct() {
               label={`Imágenes del Producto (Máx. ${MAX_IMAGES})`}
               value={productData.images || []}
               onChange={handleImagesChange}
+              onUploadingChange={setIsUploadingImages}
+              // "Aplicar" solo recorta/rota y deja la imagen local; se sube a
+              // Cloudinary únicamente al presionar "Guardar cambios".
+              diferirSubida
             />
           </div>
 
@@ -380,9 +411,9 @@ export default function ShelterEditProduct() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100 dark:border-dark-border">
-            <button type="submit" disabled={isSaving}
+            <button type="submit" disabled={isSaving || isUploadingImages}
               className="flex-1 inline-flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-500/20 disabled:opacity-75 text-sm">
-              {isSaving ? (
+              {isSaving || isUploadingImages ? (
                 <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Guardando...</>
               ) : (
                 <><Save className="w-4 h-4" />Guardar Cambios</>

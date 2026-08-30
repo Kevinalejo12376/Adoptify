@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { formatPrice } from "../../utils/price";
 import {
   PawPrint,
@@ -10,6 +11,7 @@ import {
   Star,
   Package,
   ShoppingCart,
+  Eye,
   Dog,
   Cat,
   Bone,
@@ -59,6 +61,9 @@ export default function Favorites() {
   const { addToCart } = useCart();
   const [activeTab, setActiveTab] = useState("pets");
   const [addedToCart, setAddedToCart] = useState({});
+  // Modal de "Limpiar favoritos": selección de categorías a eliminar.
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearSel, setClearSel] = useState({ pets: true, shelters: true, store: true });
 
   const totalFavorites = petFavorites.length + storeFavorites.length + shelterFavorites.length;
 
@@ -70,18 +75,36 @@ export default function Favorites() {
     }, 1500);
   };
 
+  const abrirLimpiar = () => {
+    // Por defecto se marcan todas las categorías que tengan al menos un favorito.
+    setClearSel({
+      pets: petFavorites.length > 0,
+      shelters: shelterFavorites.length > 0,
+      store: storeFavorites.length > 0,
+    });
+    setShowClearModal(true);
+  };
+
+  // Ejecuta la eliminación SOLO después de confirmar en el modal.
+  const confirmarLimpiar = () => {
+    if (clearSel.pets) petFavorites.forEach((a) => removeFavorite(a.id));
+    if (clearSel.shelters) shelterFavorites.forEach((s) => removeShelterFavorite(s.id));
+    if (clearSel.store) storeFavorites.forEach((p) => removeStoreFavorite(p.id));
+    setShowClearModal(false);
+  };
+
+  const toggleClearSel = (key) => {
+    setClearSel((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const haySeleccion = clearSel.pets || clearSel.shelters || clearSel.store;
+
   return (
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-rose-50 via-white to-amber-50">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-rose-600 mb-4 transition-colors group"
-          >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            Volver al inicio
-          </Link>
+          <BackButton fallback="/dashboard" label="Volver" className="mb-4" />
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -100,23 +123,14 @@ export default function Favorites() {
             </div>
 
             {totalFavorites > 0 && (
-              <div className="flex items-center gap-3 text-sm">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-100 text-rose-600 rounded-full">
-                  <PawPrint className="w-4 h-4" />
-                  <span className="font-semibold">{petFavorites.length}</span>
-                  <span className="text-rose-500">Mascotas</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-600 rounded-full">
-                  <ShoppingBag className="w-4 h-4" />
-                  <span className="font-semibold">{storeFavorites.length}</span>
-                  <span className="text-amber-500">Tienda</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-600 rounded-full">
-                  <Home className="w-4 h-4" />
-                  <span className="font-semibold">{shelterFavorites.length}</span>
-                  <span className="text-violet-500">Refugios</span>
-                </div>
-              </div>
+              <button
+                onClick={abrirLimpiar}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-red-50 text-red-600 rounded-full font-semibold hover:bg-red-100 transition-colors"
+                title="Quitar favoritos seleccionados"
+              >
+                <Trash2 className="w-4 h-4" />
+                Limpiar todos
+              </button>
             )}
           </div>
         </div>
@@ -223,7 +237,16 @@ export default function Favorites() {
                   >
                     <div className="relative">
                       <div className="w-full h-48 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
-                        <PawPrint className="w-20 h-20 text-rose-400/60" />
+                        {animal.image ? (
+                          <img
+                            src={animal.image}
+                            alt={animal.name}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                        ) : (
+                          <PawPrint className="w-20 h-20 text-rose-400/60" />
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
                       </div>
                       <button
@@ -247,7 +270,13 @@ export default function Favorites() {
                         <h3 className="text-xl font-bold text-gray-900 font-display">
                           {animal.name}
                         </h3>
-                        <Heart className="w-5 h-5 fill-rose-500 text-rose-500 shrink-0" />
+                        <button
+                          onClick={() => removeFavorite(animal.id)}
+                          className="shrink-0 p-1 rounded-full hover:bg-rose-50 transition-colors"
+                          title="Quitar de favoritos"
+                        >
+                          <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                        </button>
                       </div>
                       <p className="text-sm text-gray-600 mb-3">{animal.breed}</p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
@@ -308,8 +337,17 @@ export default function Favorites() {
                     className="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100"
                   >
                     <div className="relative">
-                      <div className="w-full h-40 bg-gradient-to-br from-violet-200 to-purple-200 flex items-center justify-center">
-                        <Home className="w-16 h-16 text-violet-400/60" />
+                      <div className="w-full h-40 bg-gradient-to-br from-violet-200 to-purple-200 flex items-center justify-center overflow-hidden">
+                        {shelter.logo_url ? (
+                          <img
+                            src={shelter.logo_url}
+                            alt={shelter.name}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                        ) : (
+                          <Home className="w-16 h-16 text-violet-400/60" />
+                        )}
                       </div>
                       <button
                         onClick={() => removeShelterFavorite(shelter.id)}
@@ -328,7 +366,13 @@ export default function Favorites() {
                         <h3 className="text-lg font-bold text-gray-900 font-display">
                           {shelter.name}
                         </h3>
-                        <Heart className="w-5 h-5 fill-violet-500 text-violet-500 shrink-0" />
+                        <button
+                          onClick={() => removeShelterFavorite(shelter.id)}
+                          className="shrink-0 p-1 rounded-full hover:bg-rose-50 transition-colors"
+                          title="Quitar de favoritos"
+                        >
+                          <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                        </button>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
                         <MapPin className="w-4 h-4 text-rose-500" />
@@ -397,15 +441,19 @@ export default function Favorites() {
                     >
                       {/* Product Image */}
                       <div className="relative h-48 overflow-hidden">
-                        <div
-                          className={`absolute inset-0 bg-gradient-to-br ${catGrad} opacity-60`}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-24 h-24 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center">
-                            <CatIcon className="w-12 h-12 text-white" />
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                        ) : (
+                          <div className={`absolute inset-0 bg-gradient-to-br ${catGrad} flex items-center justify-center`}>
+                            <CatIcon className="w-12 h-12 text-white/80" />
                           </div>
-                        </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
                         {/* Category Badge */}
                         <div className="absolute top-3 left-3">
@@ -443,9 +491,18 @@ export default function Favorites() {
 
                       {/* Product Info */}
                       <div className="p-5">
-                        <h3 className="text-base font-bold text-gray-900 mb-1.5 font-display line-clamp-1">
-                          {product.name}
-                        </h3>
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <h3 className="text-base font-bold text-gray-900 font-display line-clamp-1">
+                            {product.name}
+                          </h3>
+                          <button
+                            onClick={() => removeStoreFavorite(product.id)}
+                            className="shrink-0 p-1 rounded-full hover:bg-rose-50 transition-colors"
+                            title="Quitar de favoritos"
+                          >
+                            <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                          </button>
+                        </div>
                         <p className="text-sm text-gray-500 mb-3 line-clamp-2 leading-relaxed">
                           {product.description}
                         </p>
@@ -474,28 +531,37 @@ export default function Favorites() {
                           </span>
                         </div>
 
-                        {/* Add to Cart Button */}
-                        <button
-                          onClick={() => handleAddToCart(product)}
-                          disabled={justAdded}
-                          className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                            justAdded
-                              ? "bg-emerald-500 text-white"
-                              : "bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 shadow-md shadow-rose-200/50"
-                          }`}
-                        >
-                          {justAdded ? (
-                            <>
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                              ¡Agregado!
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart className="w-4 h-4" />
-                              Agregar al Carrito
-                            </>
-                          )}
-                        </button>
+                        {/* Actions: agregar al carrito + ver perfil */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAddToCart(product)}
+                            disabled={justAdded}
+                            className={`flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
+                              justAdded
+                                ? "bg-emerald-500 text-white"
+                                : "bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 shadow-md shadow-rose-200/50"
+                            }`}
+                          >
+                            {justAdded ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                ¡Agregado!
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="w-4 h-4" />
+                                Carrito
+                              </>
+                            )}
+                          </button>
+                          <Link
+                            to={`/product/${product.id}`}
+                            className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold rounded-xl bg-white text-gray-700 border-2 border-gray-200 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                          >
+                            <Eye className="w-4 h-4" />
+                            Ver perfil
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   );
@@ -516,7 +582,7 @@ export default function Favorites() {
                   animales
                 </Link>
                 ,{" "}
-                <Link to="/shelters" className="text-violet-500 hover:text-violet-600 font-semibold underline">
+                <Link to="/shelters" className="text-rose-500 hover:text-rose-600 font-semibold underline">
                   refugios
                 </Link>{" "}
                 o la{" "}
@@ -528,6 +594,166 @@ export default function Favorites() {
           </div>
         )}
       </div>
+
+      {/* Modal: Limpiar favoritos */}
+      {showClearModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-modal-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowClearModal(false); }}
+        >
+          <div className="bg-white dark:bg-dark-card rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-modal-content" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-dark-border flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white font-display">
+                    Limpiar favoritos
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5">
+                    Selecciona qué favoritos deseas eliminar
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-3">
+              {/* Advertencia */}
+              <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/70 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm">
+                <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <p>
+                  <strong>¿Estás seguro de que quieres eliminar estos favoritos?</strong>{" "}
+                  Esta acción no se puede deshacer.
+                </p>
+              </div>
+
+              {/* Opciones de selección */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => toggleClearSel("pets")}
+                  disabled={petFavorites.length === 0}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed ${
+                    clearSel.pets
+                      ? "border-rose-300 dark:border-rose-500/40 bg-rose-50/60 dark:bg-rose-500/10"
+                      : "border-gray-200 dark:border-dark-border hover:border-rose-200 dark:hover:border-rose-500/30"
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+                      clearSel.pets ? "bg-rose-500 border-rose-500" : "border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    {clearSel.pets && (
+                      <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    )}
+                  </span>
+                  <PawPrint className="w-5 h-5 text-rose-500" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Mascotas</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                      {petFavorites.length} {petFavorites.length === 1 ? "favorito" : "favoritos"}
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => toggleClearSel("shelters")}
+                  disabled={shelterFavorites.length === 0}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed ${
+                    clearSel.shelters
+                      ? "border-rose-300 dark:border-rose-500/40 bg-rose-50/60 dark:bg-rose-500/10"
+                      : "border-gray-200 dark:border-dark-border hover:border-rose-200 dark:hover:border-rose-500/30"
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+                      clearSel.shelters ? "bg-rose-500 border-rose-500" : "border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    {clearSel.shelters && (
+                      <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    )}
+                  </span>
+                  <Home className="w-5 h-5 text-rose-500" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Refugios</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                      {shelterFavorites.length} {shelterFavorites.length === 1 ? "favorito" : "favoritos"}
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => toggleClearSel("store")}
+                  disabled={storeFavorites.length === 0}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed ${
+                    clearSel.store
+                      ? "border-rose-300 dark:border-rose-500/40 bg-rose-50/60 dark:bg-rose-500/10"
+                      : "border-gray-200 dark:border-dark-border hover:border-rose-200 dark:hover:border-rose-500/30"
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
+                      clearSel.store ? "bg-rose-500 border-rose-500" : "border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    {clearSel.store && (
+                      <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    )}
+                  </span>
+                  <ShoppingBag className="w-5 h-5 text-rose-500" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Tienda</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                      {storeFavorites.length} {storeFavorites.length === 1 ? "favorito" : "favoritos"}
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Resumen de lo que se eliminará */}
+              <p className="text-xs text-gray-500 dark:text-dark-text-secondary text-center pt-1">
+                {haySeleccion ? (
+                  <>Se eliminarán: {[
+                    clearSel.pets ? "mascotas" : null,
+                    clearSel.shelters ? "refugios" : null,
+                    clearSel.store ? "productos de la tienda" : null,
+                  ].filter(Boolean).join(", ")}.</>
+                ) : (
+                  "No seleccionaste ningún favorito para eliminar."
+                )}
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 dark:border-dark-border flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-600 dark:text-dark-text-secondary bg-gray-50 dark:bg-dark-border rounded-xl hover:bg-gray-100 dark:hover:bg-dark-border/80 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarLimpiar}
+                disabled={!haySeleccion}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-rose-500 to-red-500 rounded-xl hover:from-rose-600 hover:to-red-600 transition-all shadow-md shadow-rose-200/50 dark:shadow-rose-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+                Eliminar favoritos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

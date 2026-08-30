@@ -244,18 +244,19 @@ function AppContent() {
             }
           />
 
-          {/* Rutas existentes */}
-          <Route path="/animals" element={<UserRoute><Animals /></UserRoute>} />
-          <Route path="/animal/:id" element={<UserRoute><AnimalProfile /></UserRoute>} />
-          <Route path="/shelters" element={<UserRoute><Shelters /></UserRoute>} />
-          <Route path="/shelter/:id" element={<UserRoute><ShelterDetails /></UserRoute>} />
-          <Route path="/shelter/:id/animals" element={<UserRoute><ShelterAnimals /></UserRoute>} />
-          <Route path="/store" element={<UserRoute><Store /></UserRoute>} />
-          <Route path="/shelter-store/:shelterId" element={<UserRoute><Store /></UserRoute>} />
-          <Route path="/store-profile/:storeId" element={<UserRoute><MarketplaceStoreProfile /></UserRoute>} />
-          <Route path="/product/:id" element={<UserRoute><ProductProfile /></UserRoute>} />
+          {/* Rutas de contenido público (la información es pública; las acciones
+              como guardar favoritos o agregar al carrito validan sesión aparte) */}
+          <Route path="/animals" element={<Animals />} />
+          <Route path="/animal/:id" element={<AnimalProfile />} />
+          <Route path="/shelters" element={<Shelters />} />
+          <Route path="/shelter/:id" element={<ShelterDetails />} />
+          <Route path="/shelter/:id/animals" element={<ShelterAnimals />} />
+          <Route path="/store" element={<Store />} />
+          <Route path="/shelter-store/:shelterId" element={<Store />} />
+          <Route path="/store-profile/:storeId" element={<MarketplaceStoreProfile />} />
+          <Route path="/product/:id" element={<ProductProfile />} />
           <Route path="/cart" element={<UserRoute><Cart /></UserRoute>} />
-          <Route path="/forum" element={<UserRoute><Forum /></UserRoute>} />
+          <Route path="/forum" element={<Forum />} />
 
           {/* Fallback route */}
           <Route path="*" element={<Home />} />

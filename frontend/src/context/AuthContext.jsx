@@ -20,6 +20,8 @@ const mapMascotaFav = (m) => ({
   size: m.tamano,
   gender: m.genero,
   shelter: m.refugio_nombre,
+  // Imagen principal de la mascota (Cloudinary) para mostrarla en las cards.
+  image: m.imagen_url || (m.imagenes && m.imagenes[0]?.url) || null,
 });
 
 const AuthContext = createContext(null);

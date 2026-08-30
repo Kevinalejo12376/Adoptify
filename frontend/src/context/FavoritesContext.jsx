@@ -22,10 +22,11 @@ const mapProductoFav = (p) => ({
   originalPrice: parsePrecio(p.precio),
   price: precioConDescuento(p.precio, p.descuento),
   rating: Number(p.rating) || 0,
-  reviews: p.ventas || 0,
-  reviews: p.resenas_count || 0,
+  reviews: p.resenas_count || p.ventas || 0,
   description: p.descripcion || "",
   stock: p.stock ?? 0,
+  // Imagen principal del producto (Cloudinary) para mostrarla en las cards.
+  image: p.imagen_url || (p.imagenes && p.imagenes[0]?.url) || null,
 });
 
 // Normaliza un refugio favorito del backend a la forma que usan las vistas.
@@ -36,7 +37,9 @@ const mapRefugioFav = (r) => ({
   name: r.name || r.nombre || "",
   location: r.location || r.ubicacion || r.municipio || r.departamento || "",
   description: r.description || r.descripcion || "",
-  logo_url: r.logo_url || null,
+  // El logo llega como logo_url (backend) o como logo (vistas públicas) según
+  // el origen; se conserva cualquiera de las dos para mostrarlo en favoritos.
+  logo_url: r.logo_url || r.logo || null,
   rating: Number(r.rating) || 0,
   animals: Number(r.animals) || 0,
 });

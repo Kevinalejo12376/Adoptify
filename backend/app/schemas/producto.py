@@ -11,8 +11,7 @@ class ProductoCreate(BaseModel):
     # codigo del catalogo categorias_producto (o nombre)
     categoria: Optional[str] = None
     precio: float = 0
-    # Porcentaje de descuento (0-100). 0 o ausente = sin descuento.
-    descuento: int = Field(0, ge=0, le=100, description="Porcentaje de descuento (0-100)")
+    descuento: Optional[int] = Field(None, ge=0, le=100, description="Descuento en % (0-100)")
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None
@@ -33,6 +32,8 @@ class ProductoCreate(BaseModel):
     registro_sanitario: Optional[str] = None
     advertencias: Optional[str] = None
     informacion_adicional: Optional[str] = None
+    # URLs de imágenes ya subidas a Cloudinary (persistidas en producto_imagenes).
+    imagenes: Optional[List[str]] = None
 
     @field_validator("nombre")
     @classmethod
@@ -73,8 +74,7 @@ class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
     categoria: Optional[str] = None
     precio: Optional[float] = None
-    # Porcentaje de descuento (0-100). Se envía para activar/ajustar/quitar.
-    descuento: Optional[int] = Field(None, ge=0, le=100, description="Porcentaje de descuento (0-100)")
+    descuento: Optional[int] = Field(None, ge=0, le=100)
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None
@@ -88,6 +88,9 @@ class ProductoUpdate(BaseModel):
     ingredientes_activos: Optional[str] = None
     aroma: Optional[str] = None
     instrucciones_cuidado: Optional[str] = None
+    # Lista COMPLETA de URLs de imágenes (Cloudinary). Si se envía, reemplaza
+    # las imágenes del producto (agrega nuevas y elimina las que no estén).
+    imagenes: Optional[List[str]] = None
 
     @field_validator("nombre")
     @classmethod
@@ -119,9 +122,7 @@ class ProductoResponse(BaseModel):
     id: int
     nombre: str
     precio: float = 0
-    # Descuento en porcentaje (0-100) y precio final calculado (precio original - %).
     descuento: int = 0
-    precio_descuento: float = 0
     descripcion: Optional[str] = None
     descripcion_larga: Optional[str] = None
     calidad: Optional[str] = None
@@ -138,5 +139,8 @@ class ProductoResponse(BaseModel):
     categoria_id: Optional[int] = None
     refugio_id: Optional[int] = None
     tienda_id: Optional[int] = None
+    # Nombres del vendedor (Refugio o Tienda Aliada) para el marketplace.
+    refugio_nombre: Optional[str] = None
+    tienda_nombre: Optional[str] = None
     imagenes: List[ImagenProductoResponse] = []
     imagen_url: Optional[str] = None
