@@ -264,9 +264,6 @@ export default function AdminDashboard() {
     return () => { activo = false; };
   }, []);
 
-  // Sin series temporales por ahora (no hay endpoint historico).
-  const sparklineData = [];
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -314,15 +311,11 @@ export default function AdminDashboard() {
       titulo: "Usuarios Registrados", valor: stats.usuarios,
       icono: Users, color: "rose",
       onClick: () => navigate("/admin/usuarios"),
-      incremento: 12,
-      sparklineData: sparklineData,
     },
     {
       titulo: "Refugios Registrados", valor: stats.refugios,
       icono: Building2, color: "emerald",
       onClick: () => navigate("/admin/refugios"),
-      incremento: 5,
-      sparklineData: [],
     },
     {
       titulo: "Administradores", valor: stats.administradores,
@@ -333,7 +326,6 @@ export default function AdminDashboard() {
       titulo: "Mascotas Publicadas", valor: stats.mascotas,
       icono: PawPrint, color: "amber",
       onClick: () => navigate("/admin/mascotas"),
-      incremento: 8,
     },
     {
       titulo: "Mascotas Disponibles", valor: stats.mascotas_disponibles,
@@ -342,19 +334,15 @@ export default function AdminDashboard() {
     {
       titulo: "Mascotas Adoptadas", valor: stats.mascotas_adoptadas,
       icono: Heart, color: "rose",
-      incremento: -3,
-      sparklineData: [],
     },
     {
       titulo: "Solicitudes de Adopción", valor: stats.solicitudes,
       icono: ClipboardList, color: "violet",
-      incremento: 15,
     },
     {
       titulo: "Productos Publicados", valor: stats.productos,
       icono: Store, color: "blue",
       onClick: () => navigate("/admin/marketplace"),
-      incremento: 7,
     },
   ];
 
@@ -470,9 +458,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-400 dark:text-dark-text-secondary">
-                    #{ref.id?.toString().padStart(4, "0")}
-                  </span>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
                     Activo
                   </span>

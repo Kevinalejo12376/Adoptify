@@ -15,7 +15,7 @@ import { misProductos, crearProducto, actualizarProducto, eliminarProducto } fro
 import ConfirmModal from "../../components/ConfirmModal";
 import FieldError from "../../components/FieldError";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 
 const categories = ["Alimentos", "Accesorios", "Juguetes", "Salud", "Higiene"];
 const MAX_IMAGES = 5;
@@ -25,7 +25,8 @@ const mapProducto = (p) => ({
   id: p.id,
   name: p.nombre,
   category: p.categoria || "Alimentos",
-  price: Number(p.precio) || 0,
+  price: parsePrecio(p.precio),
+  descuento: Number(p.descuento) || 0,
   stock: p.stock ?? 0,
   description: p.descripcion || "",
   brand: p.marca || "",
@@ -48,7 +49,10 @@ const mapProducto = (p) => ({
 const toPayload = (d) => ({
   nombre: d.name,
   categoria: d.category,
-  precio: parseFloat(d.price) || 0,
+  precio: parsePrecio(d.price),
+  descuento: d.descuento === "" || d.descuento == null
+    ? 0
+    : Math.min(100, Math.max(0, parseInt(d.descuento) || 0)),
   stock: parseInt(d.stock) || 0,
   descripcion: d.description,
   marca: d.brand,
@@ -194,14 +198,20 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
         return "";
       case "price": {
         if (valor === "" || valor == null) return "El precio es obligatorio.";
-        const precio = parseFloat(valor);
-        if (isNaN(precio) || precio <= 0) return "El precio debe ser un número mayor a 0.";
+        const precio = parsePrecio(valor);
+        if (precio <= 0) return "El precio debe ser un número mayor a 0.";
         return "";
       }
       case "stock": {
         if (valor === "" || valor == null) return "El stock es obligatorio.";
         const stock = parseInt(valor, 10);
         if (isNaN(stock) || stock < 0) return "El stock debe ser un número mayor o igual a 0.";
+        return "";
+      }
+      case "discount": {
+        if (valor === "" || valor == null) return "";
+        const d = parseInt(valor, 10);
+        if (isNaN(d) || d < 0 || d > 100) return "El descuento debe estar entre 0 y 100.";
         return "";
       }
       case "description":
@@ -214,7 +224,7 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
 
   const handleChange = (campo, valor) => {
     setData((prev) => ({ ...prev, [campo]: valor }));
-    if (["name", "price", "stock", "description"].includes(campo)) {
+    if (["name", "price", "stock", "discount", "description"].includes(campo)) {
       setErrors((prev) => ({ ...prev, [campo]: validarCampo(campo, valor) }));
       setSubmitError("");
     }
@@ -227,6 +237,7 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
       name: validarCampo("name", data.name),
       price: validarCampo("price", data.price),
       stock: validarCampo("stock", data.stock),
+      discount: validarCampo("discount", data.discount),
       description: validarCampo("description", data.description),
     };
     setErrors(nuevosErrores);
@@ -297,10 +308,10 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Precio ($) *</label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="number" step="0.01" min="0" value={data.price}
+            <input type="text" inputMode="decimal" value={data.price}
               onChange={(e) => handleChange("price", e.target.value)}
               className={claseInput(baseInputCls + " pl-10 pr-4", !!errors.price)}
-              placeholder="0.00" />
+              placeholder="0" />
           </div>
           <FieldError mensaje={errors.price} />
         </div>
@@ -313,6 +324,21 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
             placeholder="0" />
           <FieldError mensaje={errors.stock} />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descuento (%)</label>
+          <input type="number" min="0" max="100" value={data.discount}
+            onChange={(e) => handleChange("discount", e.target.value)}
+            className={claseInput(baseInputCls, !!errors.discount)}
+            placeholder="0" />
+          <FieldError mensaje={errors.discount} />
+        </div>
+        {Number(data.discount) > 0 && parsePrecio(data.price) > 0 && (
+          <p className="col-span-2 text-xs text-emerald-600 dark:text-emerald-400">
+            Precio con descuento:{" "}
+            <strong>{formatPrice(precioConDescuento(data.price, data.discount))}</strong>{" "}
+            <span className="text-gray-400 line-through">{formatPrice(data.price)}</span>
+          </p>
+        )}
 
         <div className="col-span-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descripción *</label>
@@ -459,7 +485,7 @@ export default function ShelterStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const emptyProduct = { name: "", category: "Alimentos", price: "", stock: "", description: "", brand: "", material: "", colors: "", sizes: [], features: "", active: true, images: [] };
+  const emptyProduct = { name: "", category: "Alimentos", price: "", discount: "", stock: "", description: "", brand: "", material: "", colors: "", sizes: [], features: "", active: true, images: [] };
   const [newProduct, setNewProduct] = useState({ ...emptyProduct });
 
   const totalProducts = products.length;

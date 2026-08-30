@@ -7,7 +7,7 @@ import { listarMascotas } from "../../api/mascotas";
 import { listarProductos } from "../../api/productos";
 import { listarPosts } from "../../api/foro";
 import { estadisticasPublicas } from "../../api/refugios";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento } from "../../utils/price";
 
 const nf = new Intl.NumberFormat("es-CO");
 
@@ -389,7 +389,16 @@ export default function Dashboard() {
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
                   <div className="flex justify-between items-center">
-                    <span className="text-2xl font-bold text-rose-600 font-display">{formatPrice(product.precio)}</span>
+                    <div className="flex flex-col items-start">
+                      {Number(product.descuento) > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-600 mb-0.5">
+                          -{product.descuento}% · <span className="line-through">{formatPrice(product.precio)}</span>
+                        </span>
+                      )}
+                      <span className="text-2xl font-bold text-rose-600 font-display">
+                        {formatPrice(precioConDescuento(product.precio, product.descuento))}
+                      </span>
+                    </div>
                     <Link to={`/product/${product.id}`} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Ver

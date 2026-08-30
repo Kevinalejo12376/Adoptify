@@ -8,6 +8,7 @@ import {
   quitarRefugioFavorito,
 } from "../api/favoritos";
 import { getToken } from "../api/client";
+import { precioConDescuento, parsePrecio } from "../utils/price";
 
 const FavoritesContext = createContext(null);
 
@@ -16,7 +17,10 @@ const mapProductoFav = (p) => ({
   ...p,
   name: p.nombre,
   category: p.categoria,
-  price: Number(p.precio) || 0,
+  // Descuento: precio original + porcentaje; price es el precio final cobrado.
+  descuento: Number(p.descuento) || 0,
+  originalPrice: parsePrecio(p.precio),
+  price: precioConDescuento(p.precio, p.descuento),
   rating: Number(p.rating) || 0,
   reviews: p.ventas || 0,
   reviews: p.resenas_count || 0,

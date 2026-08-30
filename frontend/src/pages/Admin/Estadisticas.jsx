@@ -318,14 +318,14 @@ export default function AdminEstadisticas() {
   const totalMascotas = s.mascotas || 1;
 
   const statsPrincipal = [
-    { icon: Users, label: "Usuarios registrados", total: s.usuarios ?? 0, color: "rose", trend: "up", trendValue: "12%", subtitle: "usuarios activos" },
-    { icon: Building2, label: "Refugios aliados", total: s.refugios ?? 0, color: "emerald", trend: "up", trendValue: "8%", subtitle: "refugios verificados" },
-    { icon: Shield, label: "Administradores", total: s.administradores ?? 0, color: "blue", trend: null, subtitle: "cuentas activas" },
-    { icon: PawPrint, label: "Mascotas registradas", total: s.mascotas ?? 0, color: "amber", trend: "up", trendValue: "15%", subtitle: "en la plataforma" },
-    { icon: Heart, label: "Adopciones exitosas", total: s.mascotas_adoptadas ?? 0, color: "rose", trend: "up", trendValue: "22%", subtitle: "mascotas adoptadas" },
-    { icon: ClipboardList, label: "Solicitudes", total: s.solicitudes ?? 0, color: "violet", trend: null, subtitle: "en gestión" },
-    { icon: Store, label: "Productos en venta", total: s.productos ?? 0, color: "blue", trend: "up", trendValue: "5%", subtitle: "en marketplace" },
-    { icon: ShoppingCart, label: "Pedidos realizados", total: counts.pedidos, color: "violet", trend: null, subtitle: "pedidos totales" },
+    { icon: Users, label: "Usuarios registrados", total: s.usuarios ?? 0, color: "rose", subtitle: "usuarios activos" },
+    { icon: Building2, label: "Refugios aliados", total: s.refugios ?? 0, color: "emerald", subtitle: "refugios verificados" },
+    { icon: Shield, label: "Administradores", total: s.administradores ?? 0, color: "blue", subtitle: "cuentas activas" },
+    { icon: PawPrint, label: "Mascotas registradas", total: s.mascotas ?? 0, color: "amber", subtitle: "en la plataforma" },
+    { icon: Heart, label: "Adopciones exitosas", total: s.mascotas_adoptadas ?? 0, color: "rose", subtitle: "mascotas adoptadas" },
+    { icon: ClipboardList, label: "Solicitudes", total: s.solicitudes ?? 0, color: "violet", subtitle: "en gestión" },
+    { icon: Store, label: "Productos en venta", total: s.productos ?? 0, color: "blue", subtitle: "en marketplace" },
+    { icon: ShoppingCart, label: "Pedidos realizados", total: counts.pedidos, color: "violet", subtitle: "pedidos totales" },
   ];
 
   const statsSecundarias = [

@@ -254,7 +254,7 @@ export default function MascotaDetalleModal({ mascotaId, onClose, onActualizado,
                 <h2 className="text-lg font-bold text-gray-900 dark:text-dark-text truncate">
                   {detalle?.nombre || "Detalle de mascota"}
                 </h2>
-                <p className="text-xs text-gray-400 dark:text-dark-text-secondary">Mascota #{detalle?.id ?? mascotaId}</p>
+                <p className="text-xs text-gray-400 dark:text-dark-text-secondary">Detalle de la mascota</p>
               </div>
             </div>
             <button

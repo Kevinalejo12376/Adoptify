@@ -193,7 +193,7 @@ export default function Login() {
       setIsLoading(false);
       setErrors((prev) => ({
         ...prev,
-        password: err?.message || "Error al iniciar sesion con Google",
+        password: err?.message || "Error al iniciar sesión con Google",
       }));
     }
   };
@@ -232,7 +232,7 @@ export default function Login() {
   const handleGoogleClick = () => {
     if (!GOOGLE_CLIENT_ID) {
       alert(
-        'Para habilitar el inicio de sesion con Google:\n\n' +
+        'Para habilitar el inicio de sesión con Google:\n\n' +
         '1. Ve a https://console.cloud.google.com/apis/credentials\n' +
         '2. Crea un OAuth 2.0 Client ID (Web application)\n' +
         '3. Agrega http://localhost:5173 en "Authorized JavaScript origins"\n' +
