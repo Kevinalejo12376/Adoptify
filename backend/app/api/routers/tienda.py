@@ -14,6 +14,7 @@ Arquitectura RBAC del modulo Tienda:
 # pyrefly: ignore [missing-import]
 import logging
 import json
+import secrets
 from datetime import datetime, timezone
 # pyrefly: ignore [missing-import]
 from typing import List, Optional
@@ -40,6 +41,9 @@ from app.core.permisos import (
 from app.core.lookups import id_por_codigo
 from app.core.notificaciones import crear_notificacion, notificar_admins
 from app.core.actividad import registrar_actividad
+from app.core.config import settings
+from app.core.email import enviar_correo_cuenta_creada
+from app.services.solicitudes_tienda import crear_enlace_password
 from app.core.softdelete import soft_delete, soft_delete_no_commit, liberar_email
 from app.models.usuario import Usuario
 from app.models.tienda import (
@@ -647,7 +651,9 @@ def crear_administrador(
         nombre=payload.nombre,
         apellido=payload.apellido,
         email=email,
-        hashed_password=get_password_hash(payload.password),
+        # Si no se define contraseña al crear, se usa un placeholder y el
+        # administrador la establece con el enlace seguro (flujo de refugios).
+        hashed_password=get_password_hash(payload.password or secrets.token_urlsafe(16)),
         telefono=payload.telefono,
         rol_id=_rol_tienda(db).id,
         activo=payload.activo,
@@ -667,6 +673,28 @@ def crear_administrador(
     _asignar_permisos(db, tu, payload.permisos)
     db.commit()
     db.refresh(tu)
+
+    # Genera un enlace seguro (24 h) y envía correo cuando el administrador se
+    # crea SIN contraseña definida (flujo de refugios). Nunca se envía la
+    # contraseña en texto plano.
+    if not payload.password:
+        try:
+            enlace = crear_enlace_password(db, user.id)
+            db.commit()
+            url_crear = f"{settings.FRONTEND_URL}/crear-password/{enlace.token}"
+            ok = enviar_correo_cuenta_creada(
+                email_destino=user.email,
+                nombre=f"{payload.nombre} {payload.apellido or ''}".strip(),
+                enlace_crear_password=url_crear,
+                rol=f"administrador de la tienda {tienda.nombre}",
+            )
+            if ok:
+                logger.info("Correo de cuenta creada ENVIADO a %s", user.email)
+            else:
+                logger.warning("Correo de cuenta creada NO enviado a %s (correo no configurado?)", user.email)
+        except Exception as exc:
+            logger.error("Error al enviar correo de cuenta creada a %s: %s", user.email, exc)
+
     registrar_actividad(
         db, tienda.id, current_user,
         tipo_accion="admin.crear",

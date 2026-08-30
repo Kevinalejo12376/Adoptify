@@ -407,12 +407,6 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
     ["nombre", "apellido", "email", "telefono"].forEach((c) => {
       nuevosErrores[c] = validarCampo(c);
     });
-    if (!user) {
-      nuevosErrores.password = validarPassword(form.password);
-      nuevosErrores.confirmar_password = form.password
-        ? (form.confirmar_password === form.password ? "" : "Las contraseñas no coinciden.")
-        : "";
-    }
     setErrors(nuevosErrores);
     if (Object.values(nuevosErrores).some((m) => m)) return;
 
@@ -422,7 +416,6 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
         nombre: limpiarEspacios(form.nombre),
         apellido: limpiarEspacios(form.apellido) || null,
         email: normalizarEmail(form.email),
-        password: form.password,
         telefono: form.telefono ? form.telefono.trim() : null,
         ubicacion: form.ubicacion,
         nombre_refugio: form.nombre_refugio,
@@ -502,30 +495,13 @@ function UserFormModal({ isOpen, onClose, onSave, user, loading }) {
           </div>
 
           {!user && (
-            <>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña *</label>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => handleChange("password", e.target.value)}
-                  className={claseInput(inputClass, !!errors.password)}
-                  placeholder="Mínimo 8 caracteres"
-                />
-                <FieldError mensaje={errors.password} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Confirmar contraseña *</label>
-                <input
-                  type="password"
-                  value={form.confirmar_password}
-                  onChange={(e) => handleChange("confirmar_password", e.target.value)}
-                  className={claseInput(inputClass, !!errors.confirmar_password)}
-                  placeholder="Repite la contraseña"
-                />
-                <FieldError mensaje={errors.confirmar_password} />
-              </div>
-            </>
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 flex items-start gap-2">
+              <Mail size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                Al crear la cuenta se enviará un <strong>enlace seguro</strong> al correo
+                para que el usuario establezca su contraseña (válido 24 horas).
+              </p>
+            </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -695,6 +671,7 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(true);
 
   const generarPasswordAuto = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
@@ -909,7 +886,18 @@ function ModalCrearRefugio({ isOpen, onClose, onCreated, onSave }) {
               <div>
                 <label className="block text-xs font-semibold text-gray-500 dark:text-dark-text-secondary mb-1">Contraseña temporal</label>
                 <div className="flex gap-2">
-                  <input type="text" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className={inputClass} />
+                  <div className="relative flex-1">
+                    <input type={showPassword ? "text" : "password"} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className={`${inputClass} pr-10`} />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-text-secondary dark:hover:text-white transition-colors"
+                      aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                   <button type="button" onClick={() => setFormData((prev) => ({ ...prev, password: generarPasswordAuto() }))} className="px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-dark-border text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-border/80 transition-colors flex-shrink-0" title="Generar nueva contraseña">
                     <RefreshCw size={16} />
                   </button>

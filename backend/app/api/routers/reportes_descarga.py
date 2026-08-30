@@ -72,17 +72,23 @@ def _descarga(content: bytes, media_type: str, filename: str) -> StreamingRespon
     )
 
 
-def _generar(codigo: str, formato: str, db: Session) -> Response:
-    """Genera el reporte en el formato indicado y devuelve la respuesta."""
+def _generar(
+    codigo: str, formato: str, db: Session, usuario: Usuario | None = None
+) -> Response:
+    """Genera el reporte en el formato indicado y devuelve la respuesta.
+
+    ``usuario`` es quien genera el reporte y se refleja en los metadatos del
+    documento (trazabilidad del autor).
+    """
     generador = reportes_service.obtener_generador(codigo)
     if generador is None:
         raise HTTPException(status_code=404, detail="Tipo de reporte no encontrado")
 
     if formato == "excel":
-        contenido = generador.generar_excel(db)
+        contenido = generador.generar_excel(db, usuario=usuario)
         media_type, ext = _FORMATOS["excel"]
     else:
-        contenido = generador.generar_pdf(db)
+        contenido = generador.generar_pdf(db, usuario=usuario)
         media_type, ext = _FORMATOS["pdf"]
 
     nombre = _nombre_archivo(generador.nombre_archivo, ext)
@@ -111,7 +117,7 @@ def descargar(
     db: Session = Depends(get_db),
 ):
     """Genera y descarga el reporte en el formato solicitado."""
-    return _generar(codigo, formato, db)
+    return _generar(codigo, formato, db, usuario=_admin)
 
 
 @router.get("/{tipo}/pdf")
@@ -121,7 +127,7 @@ def descargar_reporte_pdf(
     db: Session = Depends(get_db),
 ):
     """Genera y descarga un reporte en PDF (en memoria, sin guardar en disco)."""
-    return _generar(tipo, "pdf", db)
+    return _generar(tipo, "pdf", db, usuario=_admin)
 
 
 @router.get("/{tipo}/excel")
@@ -131,4 +137,4 @@ def descargar_reporte_excel(
     db: Session = Depends(get_db),
 ):
     """Genera y descarga un reporte en Excel (en memoria, sin guardar en disco)."""
-    return _generar(tipo, "excel", db)
+    return _generar(tipo, "excel", db, usuario=_admin)
