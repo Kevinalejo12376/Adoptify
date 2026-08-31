@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
     # --- dLocal (pasarela de pagos online) ---
     # Adoptify cobra en Colombia (COP). Las claves SOLO se usan desde el backend;
     # NUNCA se exponen al frontend (no usar VITE_ para credenciales secretas).
@@ -86,6 +89,7 @@ class Settings(BaseSettings):
     # País y moneda de cobro (Colombia) -> van en el JSON del pago (no en headers).
     DLOCAL_COUNTRY: str = "CO"
     DLOCAL_CURRENCY: str = "COP"
+<<<<<<< HEAD
 
     @property
     def dlocal_success_url(self) -> str:
@@ -124,10 +128,17 @@ class Settings(BaseSettings):
         if self.STRIPE_SUCCESS_URL.strip():
             return self.STRIPE_SUCCESS_URL.strip()
 >>>>>>> c445638 (Migración de dLocal a Stripe)
+=======
+
+    @property
+    def dlocal_success_url(self) -> str:
+        """URL de éxito del Checkout (no es fuente de verdad del pago)."""
+>>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
         front = self.FRONTEND_URL.rstrip("/")
         return f"{front}/pago-resultado?resultado=success"
 
     @property
+<<<<<<< HEAD
 <<<<<<< HEAD
     def dlocal_back_url(self) -> str:
         """URL de regreso/cancelación del Checkout (back_url de dLocal Go)."""
@@ -152,6 +163,22 @@ class Settings(BaseSettings):
         return f"{front}/pago-resultado?resultado=cancel"
 
 >>>>>>> c445638 (Migración de dLocal a Stripe)
+=======
+    def dlocal_back_url(self) -> str:
+        """URL de regreso/cancelación del Checkout (back_url de dLocal Go)."""
+        front = self.FRONTEND_URL.rstrip("/")
+        return f"{front}/pago-resultado?resultado=cancel"
+
+    @property
+    def dlocal_callback_url(self) -> str:
+        """URL a la que dLocal envía las notificaciones (webhook)."""
+        if self.DLOCAL_CALLBACK_URL.strip():
+            return self.DLOCAL_CALLBACK_URL.strip()
+        if self.DLOCAL_WEBHOOK_URL.strip():
+            return f"{self.DLOCAL_WEBHOOK_URL.strip().rstrip('/')}/api/pagos/webhook"
+        return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/pagos/webhook"
+
+>>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
     # --- Google OAuth ---
     GOOGLE_CLIENT_ID: str = ""
 
