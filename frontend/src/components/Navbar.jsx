@@ -394,6 +394,15 @@ export default function Navbar() {
                         Foro
                       </Link>
                     )}
+                    {tienePermisoRefugio("donaciones") && (
+                      <Link
+                        to="/refugio/donaciones"
+                        className={`nav-link text-sm font-medium transition-all flex items-center gap-1.5 px-3 py-2 rounded-xl ${getLinkClasses(isActive("/refugio/donaciones"))}`}
+                      >
+                        <HandHeart className="w-4 h-4" />
+                        Donaciones
+                      </Link>
+                    )}
                   </>
                 ) : (
                   /* === NAVEGACIÓN PARA USUARIO NORMAL === */
@@ -1051,6 +1060,13 @@ export default function Navbar() {
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/forum"))}`}>
                       <MessageSquare className="w-4 h-4" />
                       Foro
+                    </Link>
+                  )}
+                  {tienePermisoRefugio("donaciones") && (
+                    <Link to="/refugio/donaciones" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/refugio/donaciones"))}`}>
+                      <HandHeart className="w-4 h-4" />
+                      Donaciones
                     </Link>
                   )}
                   <div className={`pt-4 pb-2 border-t flex flex-col gap-2 ${isDark ? "border-white/5" : "border-gray-100"}`}>
