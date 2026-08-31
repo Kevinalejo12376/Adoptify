@@ -941,10 +941,30 @@ def crear_producto(
     db: Session = Depends(get_db),
 ):
     tienda = _mi_tienda(current_user, db)
+
+    # Evitar duplicados: no permitir dos productos con el mismo nombre
+    # (ignorando mayúsculas) dentro de la misma tienda.
+    nombre_normalizado = (payload.nombre or "").strip()
+    if nombre_normalizado:
+        duplicado = (
+            db.query(Producto)
+            .filter(
+                Producto.tienda_id == tienda.id,
+                Producto.nombre.ilike(nombre_normalizado),
+                Producto.eliminado_en.is_(None),
+            )
+            .first()
+        )
+        if duplicado:
+            raise HTTPException(
+                status_code=409, detail="Este producto ya está registrado."
+            )
+
     producto = Producto(
         nombre=payload.nombre,
         categoria_id=id_por_codigo(db, CategoriaProducto, payload.categoria),
         precio=payload.precio,
+        descuento=payload.descuento,
         descripcion=payload.descripcion,
         descripcion_larga=payload.descripcion_larga,
         calidad=payload.calidad,
@@ -1011,10 +1031,29 @@ def crear_producto_con_imagenes(
     """
     tienda = _mi_tienda(current_user, db)
 
+    # Evitar duplicados: no permitir dos productos con el mismo nombre
+    # (ignorando mayúsculas) dentro de la misma tienda.
+    nombre_normalizado = (payload.nombre or "").strip()
+    if nombre_normalizado:
+        duplicado = (
+            db.query(Producto)
+            .filter(
+                Producto.tienda_id == tienda.id,
+                Producto.nombre.ilike(nombre_normalizado),
+                Producto.eliminado_en.is_(None),
+            )
+            .first()
+        )
+        if duplicado:
+            raise HTTPException(
+                status_code=409, detail="Este producto ya está registrado."
+            )
+
     producto = Producto(
         nombre=payload.nombre,
         categoria_id=id_por_codigo(db, CategoriaProducto, payload.categoria),
         precio=payload.precio,
+        descuento=payload.descuento,
         descripcion=payload.descripcion,
         descripcion_larga=payload.descripcion_larga,
         calidad=payload.calidad,

@@ -8,13 +8,14 @@ import { misProductosTienda } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
 import { useStore } from "../../context/StoreContext";
 import ProductSelectionModal from "../../components/ProductSelectionModal";
+import { parsePrecio } from "../../utils/price";
 
 // Normaliza un producto del backend a la forma que usa esta vista.
 const mapProducto = (p) => ({
   id: p.id,
   nombre: p.nombre,
   categoria: p.categoria || "",
-  precio: Number(p.precio) || 0,
+  precio: parsePrecio(p.precio),
   stock: p.stock ?? 0,
   estado: p.activo ? "visible" : "oculto",
   calificacion: Number(p.rating) || 0,
@@ -54,13 +55,18 @@ export default function StoreProducts() {
   // Carga el catálogo desde la BD. Al volver del detalle o del formulario de
   // edición, este componente se remonta y vuelve a cargar (UI siempre fresca).
   const cargar = async () => {
+    setLoading(true);
+    const inicio = Date.now();
     try {
       const data = await misProductosTienda();
       setProductos((data || []).map(mapProducto));
     } catch {
       setProductos([]);
     } finally {
-      setLoading(false);
+      // Asegura que "Cargando productos..." sea visible al menos un instante,
+      // aunque la respuesta del servidor sea inmediata.
+      const restante = 400 - (Date.now() - inicio);
+      setTimeout(() => setLoading(false), restante > 0 ? restante : 0);
     }
   };
 

@@ -73,31 +73,6 @@ def listar_reportes():
     ]
 
 
-
-def listar_reportes() -> list:
-    """Devuelve los tipos de reporte disponibles (para el selector de la UI)."""
-    return [
-        {
-            "codigo": cls.codigo,
-            "titulo": cls.titulo,
-            "descripcion": cls.descripcion,
-        }
-        for cls in REGISTRO_REPORTES.values()
-    ]
-
-
-def listar_reportes():
-    """Devuelve la lista de reportes disponibles (para el selector de la UI)."""
-    return [
-        {
-            "codigo": g.codigo,
-            "titulo": g.titulo,
-            "descripcion": g.descripcion,
-        }
-        for g in REGISTRO_REPORTES.values()
-    ]
-
-
 def listar_tipos() -> list:
     """Devuelve los tipos de reporte disponibles (para el frontend)."""
     return [

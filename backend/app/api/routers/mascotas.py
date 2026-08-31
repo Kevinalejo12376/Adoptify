@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from typing import Optional, List
+# pyrefly: ignore [missing-import]
+from pydantic import BaseModel, Field
 
 from app.db.database import get_db
 from app.core.security import get_current_user, get_refugio_de_usuario, require_permiso_refugio
@@ -23,6 +25,7 @@ from app.core.softdelete import soft_delete
 from app.core.softdelete import soft_delete
 from app.core.disponibilidad import mascota_de_refugio_visible
 from app.api.routers.ia import crear_tarea_ia
+from app.services.gemini import clasificar_contenido
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +190,79 @@ def obtener_mascota(mascota_id: int, db: Session = Depends(get_db)):
     return serialize_mascota(mascota)
 
 
+class CompatibilidadRequest(BaseModel):
+    """Respuestas del test de personalidad del adoptante (pregunta -> opción)."""
+    respuestas: dict[str, str] = Field(default_factory=dict)
+
+
+@router.post("/{mascota_id}/compatibilidad")
+async def calcular_compatibilidad(
+    mascota_id: int,
+    payload: CompatibilidadRequest,
+    db: Session = Depends(get_db),
+):
+    """Analiza con Gemini la compatibilidad entre un adoptante y una mascota.
+
+    Recibe las respuestas del test de personalidad del usuario, carga la ficha
+    real de la mascota desde la BD y devuelve un porcentaje (0-100) y un mensaje
+    personalizado generados por la IA (no simulados ni definidos manualmente).
+    """
+    mascota = (
+        db.query(Mascota)
+        .filter(
+            Mascota.id == mascota_id,
+            Mascota.activo == True,  # noqa: E712
+            mascota_de_refugio_visible(),
+        )
+        .first()
+    )
+    if not mascota:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+
+    datos = serialize_mascota(mascota)
+    personalidad = ", ".join(datos.get("personalidad") or []) or "No especificada"
+    ficha = (
+        f"- Nombre: {datos.get('nombre') or 'No especificado'}\n"
+        f"- Tipo: {datos.get('tipo') or 'No especificado'}\n"
+        f"- Raza: {datos.get('raza') or 'No especificada'}\n"
+        f"- Edad: {datos.get('edad') or 'No especificada'}\n"
+        f"- Tamaño: {datos.get('tamano') or 'No especificado'}\n"
+        f"- Género: {datos.get('genero') or 'No especificado'}\n"
+        f"- Personalidad: {personalidad}\n"
+        f"- Descripción: {datos.get('descripcion') or 'No especificada'}\n"
+        f"- Requisitos de adopción: {datos.get('requisitos') or 'Ninguno'}\n"
+        f"- Refugio: {datos.get('refugio_nombre') or 'No especificado'}"
+    )
+    respuestas = payload.respuestas or {}
+    respuestas_texto = "\n".join(
+        f"- {pregunta}: {respuesta}" for pregunta, respuesta in respuestas.items()
+    ) or "El usuario no respondió el test."
+
+    texto = f"FICHA DE LA MASCOTA:\n{ficha}\n\nRESPUESTAS DEL USUARIO:\n{respuestas_texto}"
+
+    try:
+        resultado = await clasificar_contenido("compatibilidad", texto)
+    except Exception as exc:
+        logger.warning("[compatibilidad] Error con Gemini: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="No se pudo calcular la compatibilidad con la IA. Intenta de nuevo.",
+        )
+
+    try:
+        porcentaje = int(resultado.get("porcentaje") or 0)
+    except (TypeError, ValueError):
+        porcentaje = 0
+    porcentaje = max(0, min(100, porcentaje))
+    mensaje = str(resultado.get("mensaje") or "").strip()
+    if not mensaje:
+        mensaje = (
+            "La IA analizó tu perfil y la ficha de esta mascota. "
+            "Revisa el porcentaje y decide con confianza."
+        )
+    return {"porcentaje": porcentaje, "mensaje": mensaje}
+
+
 @router.post("/", response_model=MascotaResponse, status_code=status.HTTP_201_CREATED)
 def crear_mascota(
     payload: MascotaCreate,
@@ -204,6 +280,25 @@ def crear_mascota(
             return serialize_mascota(existente)
 
     refugio = _get_refugio_de(current_user, db)
+
+    # Evitar duplicados: no permitir dos mascotas con el mismo nombre
+    # (ignorando mayúsculas) dentro del mismo refugio.
+    nombre_normalizado = (payload.nombre or "").strip()
+    if nombre_normalizado:
+        duplicado = (
+            db.query(Mascota)
+            .filter(
+                Mascota.refugio_id == refugio.id,
+                Mascota.nombre.ilike(nombre_normalizado),
+                Mascota.eliminado_en.is_(None),
+            )
+            .first()
+        )
+        if duplicado:
+            raise HTTPException(
+                status_code=409, detail="Esta mascota ya está registrada."
+            )
+
     mascota = Mascota(
         refugio_id=refugio.id,
         nombre=payload.nombre,

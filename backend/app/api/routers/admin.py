@@ -2,7 +2,7 @@
 'administrador' o 'administrador_principal'. Permite gestionar (crear, listar,
 editar, eliminar) usuarios, administradores, refugios y tiendas aliadas."""
 # pyrefly: ignore [missing-import]
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 import secrets
 # pyrefly: ignore [missing-import]
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 
 from app.db.database import get_db
+from app.core.config import settings
 from app.core.security import get_current_admin, get_password_hash
 from app.core.lookups import id_por_codigo
 from app.core.softdelete import soft_delete, soft_delete_no_commit, liberar_slug, liberar_email
@@ -28,6 +29,7 @@ from app.models.tienda_pqrs import TiendaPqrs, TiendaPqrsMensaje, TiendaPqrsAdju
 from app.models.catalogos import Rol, TipoDocumento, EstadoMascota, TipoMascota, TamanoMascota, GeneroMascota
 from app.models.foro import ForoPost
 from app.models.interaccion import Resena
+from app.models.solicitud_refugio import EnlaceCreacionPassword
 from app.core.notificaciones import registrar_auditoria, crear_notificacion
 from app.core.config import settings
 from app.core.email import enviar_correo_cuenta_creada
@@ -44,6 +46,7 @@ from app.schemas.mascota import MascotaUpdate
 from app.schemas.serializers import serialize_mascota
 from app.api.routers.mascotas import _sincronizar_imagenes_mascota, _componer_edad_valores
 from app.services.cloudinary_service import subir_imagen_producto
+from app.core.email import enviar_correo_restablecer_password_tienda
 
 logger = logging.getLogger("admin")
 
@@ -711,6 +714,47 @@ def restablecer_password_tienda(
     db.commit()
 
     return {"mensaje": "Contraseña restablecida exitosamente"}
+
+
+@router.post("/tiendas/{tienda_id}/enviar-enlace-password")
+def enviar_enlace_password_tienda(
+    tienda_id: int,
+    _admin: Usuario = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Genera un enlace seguro (24 h) y envía un correo de verificación para que
+    la Tienda Aliada restablezca su contraseña desde el frontend."""
+    tienda = db.query(Tienda).filter(Tienda.id == tienda_id).first()
+    if not tienda:
+        raise HTTPException(status_code=404, detail="Tienda no encontrada")
+    if not tienda.usuario_id:
+        raise HTTPException(status_code=400, detail="La tienda no tiene usuario asociado")
+
+    user = db.query(Usuario).filter(Usuario.id == tienda.usuario_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario de tienda no encontrado")
+    if not user.email:
+        raise HTTPException(status_code=400, detail="El usuario no tiene correo asociado")
+
+    token = secrets.token_urlsafe(48)
+    enlace = EnlaceCreacionPassword(
+        usuario_id=user.id,
+        token=token,
+        usado="activo",
+        expira_en=datetime.now(timezone.utc) + timedelta(hours=24),
+    )
+    db.add(enlace)
+    db.commit()
+    db.refresh(enlace)
+
+    url = f"{settings.FRONTEND_URL}/crear-password/{token}"
+    enviado = enviar_correo_restablecer_password_tienda(user.email, tienda.nombre, url)
+
+    return {
+        "mensaje": "Correo de verificación enviado para restablecer la contraseña",
+        "email": user.email,
+        "enviado": enviado,
+    }
 
 
 @router.delete("/tiendas/{tienda_id}", status_code=status.HTTP_204_NO_CONTENT)

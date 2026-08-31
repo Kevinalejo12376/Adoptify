@@ -20,6 +20,8 @@ const mapMascotaFav = (m) => ({
   size: m.tamano,
   gender: m.genero,
   shelter: m.refugio_nombre,
+  // Imagen principal de la mascota (Cloudinary) para mostrarla en las cards.
+  image: m.imagen_url || (m.imagenes && m.imagenes[0]?.url) || null,
 });
 
 const AuthContext = createContext(null);
@@ -196,6 +198,20 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  /** Actualiza en tiempo real el estado de la tienda del refugio en el contexto
+   *  (settings.storeEnabled) para que la barra de navegación ("Mi tienda" y
+   *  "Pedidos") reaccione al instante al activar/desactivar la tienda, sin
+   *  necesidad de recargar la página. */
+  const updateStoreEnabled = useCallback((enabled) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        settings: { ...(prev.settings || {}), storeEnabled: enabled },
+      };
+    });
+  }, []);
+
   /** Marcar perfil como completado tras guardar (llamar desde el modal).
    *  Recibe el resultado del backend (PUT /profile) para reflejar el estado
    *  REAL: si aún faltan campos obligatorios, el perfil sigue incompleto. */
@@ -296,7 +312,7 @@ export const AuthProvider = ({ children }) => {
         isShelter, esRepresentanteRefugio, permisosRefugio, tienePermisoRefugio,
         addFavorite, removeFavorite, isFavorite,
         checkProfileStatus, markProfileCompleted, openProfileModal,
-        refreshUser,
+        refreshUser, updateStoreEnabled,
       }}
     >
       {children}

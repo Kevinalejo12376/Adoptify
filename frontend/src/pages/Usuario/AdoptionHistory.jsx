@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import {
   PawPrint, CheckCircle, XCircle, AlertCircle, MapPin, Calendar,
   Phone, MessageCircle, Search, Clock, ChevronRight, Dog, Cat,
@@ -26,7 +27,7 @@ const STATUS_CONFIG = {
   pending: {
     icon: AlertCircle,
     color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200",
-    label: "En revision", gradient: "from-amber-400 to-amber-500", progressColor: "bg-amber-500",
+    label: "En revisión", gradient: "from-amber-400 to-amber-500", progressColor: "bg-amber-500",
   },
   rejected: {
     icon: XCircle,
@@ -38,16 +39,16 @@ const STATUS_CONFIG = {
 const FILTER_TABS = [
   { key: "all",      label: "Todas",       icon: ClipboardList },
   { key: "approved", label: "Aprobadas",   icon: CheckCircle },
-  { key: "pending",  label: "En revision", icon: AlertCircle },
+  { key: "pending",  label: "En revisión", icon: AlertCircle },
   { key: "rejected", label: "Rechazadas",  icon: XCircle },
 ];
 
 const PROCESS_STEPS = [
   { icon: FileText,    label: "Solicitud enviada",    key: 0 },
-  { icon: UserCheck,   label: "Revision de datos",    key: 1 },
+  { icon: UserCheck,   label: "Revisión de datos",    key: 1 },
   { icon: MessageCircle, label: "Entrevista",         key: 2 },
   { icon: Home,        label: "Visita domiciliaria",  key: 3 },
-  { icon: Heart,       label: "Adopcion completada",  key: 4 },
+  { icon: Heart,       label: "Adopción completada",  key: 4 },
 ];
 
 export default function AdoptionHistory() {
@@ -108,11 +109,12 @@ export default function AdoptionHistory() {
   return (
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
+        <BackButton fallback="/dashboard" label="Volver" className="mb-4" />
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white font-display">
-              Mis Solicitudes de Adopcion
+              Mis Solicitudes de Adopción
             </h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-1">
               Seguimiento de todas tus solicitudes
@@ -174,8 +176,8 @@ export default function AdoptionHistory() {
             </h3>
             <p className="text-gray-500 dark:text-dark-text-secondary mb-6">
               {adoptions.length === 0
-                ? "Aun no has enviado ninguna solicitud de adopcion"
-                : "Prueba con otros filtros o terminos de busqueda"}
+                ? "Aún no has enviado ninguna solicitud de adopción"
+                : "Prueba con otros filtros o términos de búsqueda"}
             </p>
             {adoptions.length === 0 && (
               <Link
@@ -267,7 +269,7 @@ export default function AdoptionHistory() {
                       {/* Pasos del proceso */}
                       <div>
                         <p className="text-xs font-semibold text-gray-500 dark:text-dark-text-secondary uppercase mb-3">
-                          Proceso de Adopcion
+                          Proceso de Adopción
                         </p>
                         <div className="flex items-center gap-1 overflow-x-auto pb-1">
                           {PROCESS_STEPS.map((step, idx) => {

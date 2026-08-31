@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Heart, Menu, X, Sparkles, User, ChevronDown, LogOut, PawPrint, ShoppingBag, MessageSquare, Home as HomeIcon, Settings, Bell, ShoppingCart, Sun, Moon, Building2, ClipboardList, Store, LayoutDashboard, PackageSearch, Users } from "lucide-react";
+import { Heart, Menu, X, Sparkles, User, ChevronDown, LogOut, PawPrint, ShoppingBag, MessageSquare, Home as HomeIcon, Settings, Bell, ShoppingCart, Sun, Moon, Building2, ClipboardList, Store, LayoutDashboard, PackageSearch, Users, HandHeart } from "lucide-react";
 import { ADOPTIFY_LOGO as logo } from "../constants/assets";
 import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../context/I18nContext";
@@ -136,55 +136,43 @@ export default function Navbar() {
       return;
     }
 
-    // Altura del navbar fijo (h-16 = 4rem = 64px). Se descuenta del área de
-    // observación para que una sección se considere visible justo debajo del
-    // navbar y no quede tapada por él.
-    const NAVBAR_OFFSET = 64;
+    // Las secciones de la portada que tienen una opción equivalente en el navbar.
     const sectionIds = ["animals", "shelters", "store", "forum"];
 
-    const setActive = (id) => {
-      setActiveNavSection((prev) => (prev === id ? prev : id));
-    };
+    // Línea de detección: justo debajo del navbar fijo (h-16 = 64px) con un
+    // pequeño margen para que la sección quede visible y no tapada por él.
+    const NAVBAR_OFFSET = 100;
 
-    // Banda de detección: una franja horizontal justo debajo del navbar fijo.
-    // El rootMargin superior negativo descuenta la altura del navbar y el
-    // inferior descuenta la parte baja del viewport, dejando una franja
-    // central en la que la sección se considera "activa".
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Entre las secciones que intersectan la franja se elige la que está
-        // más arriba (menor top). Esto evita cambios bruscos o parpadeos al
-        // cruzar los bordes de secciones adyacentes, tanto al bajar como al
-        // subir.
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (visible) setActive(visible.target.id);
-      },
-      {
-        rootMargin: `-${NAVBAR_OFFSET}px 0px -70% 0px`,
-        threshold: 0,
+    // Scroll-spy clásico: se recorre el documento y la sección activa es la
+    // última cuyo borde superior ya cruzó la línea de detección. Esto funciona
+    // aunque las secciones estén envueltas en AnimatedSection (opacidad 0) o
+    // tengan alturas muy distintas, y responde tanto al bajar como al subir.
+    const detectActiveSection = () => {
+      let current = "inicio";
+      for (const id of sectionIds) {
+        const element = document.getElementById(id);
+        if (!element) continue;
+        const rect = element.getBoundingClientRect();
+        // Mientras la sección esté por encima (o sobre) la línea de detección,
+        // es candidata a ser la visible; la última en cruzar gana.
+        if (rect.top <= NAVBAR_OFFSET) {
+          current = id;
+        } else {
+          break;
+        }
       }
-    );
-
-    sectionIds.forEach((id) => {
-      const element = document.getElementById(id);
-      if (element) observer.observe(element);
-    });
-
-    // Cuando el usuario está en la parte superior de la página, la sección
-    // activa es "inicio" (hero de la portada, que no tiene id propio).
-    const handleScrollTop = () => {
-      if (window.scrollY < NAVBAR_OFFSET) setActive("inicio");
+      setActiveNavSection((prev) => (prev === current ? prev : current));
     };
-    window.addEventListener("scroll", handleScrollTop, { passive: true });
-    handleScrollTop();
 
-    // Limpieza: se desconecta el observer y se elimina el listener al cambiar
-    // la ruta, la sesión o al desmontar el componente (sin duplicados).
+    detectActiveSection();
+    window.addEventListener("scroll", detectActiveSection, { passive: true });
+    window.addEventListener("resize", detectActiveSection);
+
+    // Limpieza: se eliminan los listeners al cambiar la ruta, la sesión o al
+    // desmontar el componente (sin duplicados).
     return () => {
-      observer.disconnect();
-      window.removeEventListener("scroll", handleScrollTop);
+      window.removeEventListener("scroll", detectActiveSection);
+      window.removeEventListener("resize", detectActiveSection);
     };
   }, [isAuthenticated, location.pathname]);
 
@@ -309,6 +297,15 @@ export default function Navbar() {
                       >
                         <MessageSquare className="w-4 h-4" />
                         Foro
+                      </Link>
+                    )}
+                    {tienePermisoRefugio("donaciones") && (
+                      <Link
+                        to="/refugio/donaciones"
+                        className={`nav-link text-sm font-medium transition-all flex items-center gap-1.5 px-3 py-2 rounded-xl ${getLinkClasses(isActive("/refugio/donaciones"))}`}
+                      >
+                        <HandHeart className="w-4 h-4" />
+                        Donaciones
                       </Link>
                     )}
                   </>
@@ -646,6 +643,22 @@ export default function Navbar() {
                             <span>Mis Pedidos</span>
                           </Link>
                           <Link
+                            to="/mis-donaciones"
+                            onClick={() => setShowUserMenu(false)}
+                            className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                              isDark
+                                ? (location.pathname.startsWith("/mis-donaciones")
+                                  ? "text-orange-400 font-semibold bg-gradient-to-r from-orange-300/15 via-yellow-300/15 to-pink-300/15"
+                                  : "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-orange-300/15 hover:via-yellow-300/15 hover:to-pink-300/15")
+                                : (location.pathname.startsWith("/mis-donaciones")
+                                  ? "text-rose-600 font-semibold bg-rose-50"
+                                  : "text-gray-700 hover:bg-rose-50")
+                            }`}
+                          >
+                            <HandHeart className="w-4 h-4" />
+                            <span>Mis donaciones</span>
+                          </Link>
+                          <Link
                             to="/notificaciones"
                             onClick={() => setShowUserMenu(false)}
                             className={`flex items-center gap-3 px-4 py-3 transition-colors ${
@@ -857,6 +870,13 @@ export default function Navbar() {
                       Foro
                     </Link>
                   )}
+                  {tienePermisoRefugio("donaciones") && (
+                    <Link to="/refugio/donaciones" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/refugio/donaciones"))}`}>
+                      <HandHeart className="w-4 h-4" />
+                      Donaciones
+                    </Link>
+                  )}
                   <div className={`pt-4 pb-2 border-t flex flex-col gap-2 ${isDark ? "border-white/5" : "border-gray-100"}`}>
                     <Link to="/refugio/perfil" onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/refugio/perfil"))}`}>
@@ -963,6 +983,11 @@ export default function Navbar() {
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(location.pathname.startsWith("/mis-pedidos"))}`}>
                       <PackageSearch className="w-4 h-4" />
                       Mis Pedidos
+                    </Link>
+                    <Link to="/mis-donaciones" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(location.pathname.startsWith("/mis-donaciones"))}`}>
+                      <HandHeart className="w-4 h-4" />
+                      Mis donaciones
                     </Link>
                     <Link to="/notificaciones" onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/notificaciones"))}`}>

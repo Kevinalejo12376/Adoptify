@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 import requests
-from sqlalchemy.orm import Session
 
 # ---------------------------------------------------------------------------
 # Logo institucional (servido desde Cloudinary)

@@ -11,6 +11,7 @@ import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
 import { miPerfil, misEstadisticas, actualizarPerfil } from "../../api/refugios";
 import { subirImagen } from "../../api/upload";
+import { comprimirImagen } from "../../utils/imageUtils";
 import FieldError from "../../components/FieldError";
 import {
   validarEmail, validarTelefono10, normalizarEmail, limpiarEspacios, soloDigitos, claseInput,
@@ -30,6 +31,7 @@ export default function ShelterProfile() {
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const [profile, setProfile] = useState({
     name: user?.name || "",
@@ -95,22 +97,23 @@ export default function ShelterProfile() {
   // ─── Image handlers ───────────────────────────────────────────────
   // Sube cada imagen seleccionada a Cloudinary (tipo 'refugio_galeria') y la
   // agrega a la galería en edición. Solo la secure_url se guarda en la BD.
+  // La imagen se comprime en el cliente ANTES de subirla para evitar que el
+  // request base64 supere los límites del servidor (causa típica del error
+  // "No se pudo conectar con el servidor").
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
     const remaining = MAX_SHELTER_IMAGES - (editForm.images?.length || 0);
     const toAdd = files.slice(0, remaining);
     if (toAdd.length === 0) return;
     setUploading(true);
+    setSubmitError("");
+    let subidas = 0;
+    let ultimoError = "";
     try {
       for (const file of toAdd) {
         try {
-          const dataUrl = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => resolve(ev.target.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          const subida = await subirImagen("refugio_galeria", dataUrl, `refugio_${Date.now()}`);
+          const { base64 } = await comprimirImagen(file);
+          const subida = await subirImagen("refugio_galeria", base64, `refugio_${Date.now()}`);
           setEditForm((prev) => ({
             ...prev,
             images: [
@@ -122,9 +125,15 @@ export default function ShelterProfile() {
               },
             ],
           }));
-        } catch {
-          // si una imagen falla, se omite y se continúa con las demás
+          subidas++;
+        } catch (err) {
+          // Se guarda el último error para informarlo al usuario en vez de
+          // fallar en silencio (así se entiende por qué no se subió).
+          ultimoError = err?.message || "No se pudo subir la imagen. Intenta con otra foto.";
         }
+      }
+      if (subidas === 0 && ultimoError) {
+        setSubmitError(ultimoError);
       }
     } finally {
       setUploading(false);
@@ -350,8 +359,13 @@ export default function ShelterProfile() {
         : "",
     };
     setErrors(nuevosErrores);
-    if (Object.values(nuevosErrores).some((m) => m)) return;
+    if (Object.values(nuevosErrores).some((m) => m)) {
+      const primero = Object.values(nuevosErrores).find(Boolean);
+      setSubmitError(primero || "Revisa los campos marcados en rojo en la pestaña Información.");
+      return;
+    }
     setSaving(true);
+    setSubmitError("");
     try {
       await actualizarPerfil({
         nombre: limpiarEspacios(editForm.name),
@@ -378,8 +392,11 @@ export default function ShelterProfile() {
         description: editForm.description,
       });
       setIsEditing(false);
+      setSubmitError("");
     } catch (e) {
-      // el error se refleja manteniendo el modo edicion
+      // Muestra el motivo real (validación del backend, permisos, red) para que
+      // el usuario sepa por qué no se guardó en lugar de fallar en silencio.
+      setSubmitError(e?.message || "No se pudieron guardar los cambios. Intenta de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -499,12 +516,14 @@ export default function ShelterProfile() {
                     if (isEditing) {
                       // Cancelar: solo sale del modo edición.
                       setIsEditing(false);
+                      setSubmitError("");
                     } else {
                       // Editar Perfil: acceso directo a la sección Información
                       // + activación del modo edición (campos editables).
                       setEditForm({ ...profile });
                       setActiveTab("informacion");
                       setIsEditing(true);
+                      setSubmitError("");
                     }
                   }}
                   className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 shadow-lg ${
@@ -1198,7 +1217,13 @@ export default function ShelterProfile() {
 
         {/* ─── SAVE BUTTON (visible when editing on any tab) ──────── */}
         {isEditing && (
-          <div className="mt-8 flex justify-center animate-fade-in-up">
+          <div className="mt-8 flex flex-col items-center gap-4 animate-fade-in-up">
+            {submitError && (
+              <div className="max-w-lg w-full px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{submitError}</span>
+              </div>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}

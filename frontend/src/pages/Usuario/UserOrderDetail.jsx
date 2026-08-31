@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { useTheme } from "../../context/ThemeContext";
 import { obtenerPedido } from "../../api/pedidos";
 import { iniciarCheckout } from "../../api/pagos";
@@ -133,8 +134,9 @@ export default function UserOrderDetail() {
                 <RefreshCw className="w-4 h-4" />
                 Intentar de nuevo
               </button>
-              <Link
-                to="/mis-pedidos"
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
                 className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 border ${
                   isDark
                     ? "border-dark-border text-gray-300 hover:border-gray-500"
@@ -143,7 +145,7 @@ export default function UserOrderDetail() {
               >
                 <ArrowLeft className="w-4 h-4" />
                 Volver
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -163,15 +165,11 @@ export default function UserOrderDetail() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <button
-            onClick={() => navigate("/mis-pedidos")}
-            className={`inline-flex items-center gap-2 text-sm font-medium mb-4 transition-colors ${
-              isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver a mis pedidos
-          </button>
+          <BackButton
+            fallback="/mis-pedidos"
+            label="Volver a mis pedidos"
+            className="mb-4"
+          />
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">

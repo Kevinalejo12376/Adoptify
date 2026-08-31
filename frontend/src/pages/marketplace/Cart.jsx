@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { listarProductos } from "../../api/productos";
 import { crearPedido } from "../../api/pedidos";
 import { iniciarCheckout } from "../../api/pagos";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 import { useAuth } from "../../context/AuthContext";
 import {
   ShoppingCart,
@@ -61,6 +62,22 @@ export default function Cart() {
   const discount = promoApplied ? cartTotal * 0.1 : 0;
   const finalTotal = cartTotal + shipping - discount;
 
+  // Descuento por producto: el item.price ya es el precio final (calculado con
+  // precioConDescuento al agregar al carrito), por lo que cartTotal ya lo
+  // incluye. Se muestran aquí el subtotal a precio original y el total ahorrado
+  // para que el resumen sea transparente y consistente:
+  //   subtotalOriginal - descuentoProductos === cartTotal
+  const cartOriginalTotal = cart.reduce(
+    (total, item) => total + (Number(item.originalPrice) || Number(item.price) || 0) * item.quantity,
+    0
+  );
+  const productDiscountTotal = cart.reduce(
+    (total, item) =>
+      total +
+      ((Number(item.originalPrice) || Number(item.price) || 0) - (Number(item.price) || 0)) * item.quantity,
+    0
+  );
+
   const handleApplyPromo = () => {
     if (promoCode.toLowerCase() === "adoptify10") {
       setPromoApplied(true);
@@ -90,7 +107,9 @@ export default function Cart() {
         const mapped = (data || []).slice(0, 3).map((p) => ({
           id: p.id,
           name: p.nombre,
-          price: Number(p.precio) || 0,
+          descuento: Number(p.descuento) || 0,
+          originalPrice: parsePrecio(p.precio),
+          price: precioConDescuento(p.precio, p.descuento),
           category: p.categoria,
           color: "from-rose-300 to-amber-300",
           description: p.descripcion || "",
@@ -189,13 +208,11 @@ export default function Cart() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-2 text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors mb-4"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Seguir comprando
-            </Link>
+            <BackButton
+              fallback="/store"
+              label="Seguir comprando"
+              className="text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 mb-4"
+            />
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-dark-text font-display">
               Carrito de Compras
             </h1>
@@ -257,13 +274,11 @@ export default function Cart() {
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-2 text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors mb-3"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Seguir comprando
-            </Link>
+            <BackButton
+              fallback="/store"
+              label="Seguir comprando"
+              className="text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 mb-3"
+            />
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-dark-text font-display">
               Carrito de Compras
             </h1>
@@ -383,8 +398,21 @@ export default function Cart() {
                         </div>
                       </div>
 
-                      {/* Price */}
+                      {/* Price (original tachado + descuento + final) */}
                       <div className="text-right">
+                        {item.descuento > 0 && (
+                          <>
+                            <span className="block text-xs text-gray-400 dark:text-dark-text-secondary line-through">
+                              {formatPrice((Number(item.originalPrice) || Number(item.price)) * item.quantity)}
+                            </span>
+                            <span className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-0.5">
+                              -{item.descuento}% · Ahorras{" "}
+                              {formatPrice(
+                                ((Number(item.originalPrice) || Number(item.price)) - Number(item.price)) * item.quantity
+                              )}
+                            </span>
+                          </>
+                        )}
                         <span className="text-xl font-bold text-rose-600 dark:text-rose-400 font-display">
                           {formatPrice(item.price * item.quantity)}
                         </span>
@@ -455,9 +483,19 @@ export default function Cart() {
                     Subtotal ({cartCount} productos)
                   </span>
                   <span className="font-semibold text-gray-900 dark:text-dark-text">
-                    {formatPrice(cartTotal)}
+                    {formatPrice(cartOriginalTotal)}
                   </span>
                 </div>
+                {productDiscountTotal > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      Descuento en productos
+                    </span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      -{formatPrice(productDiscountTotal)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-dark-text-secondary">
                     Envío
@@ -602,9 +640,16 @@ export default function Cart() {
                     {product.name}
                   </h3>
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">
-                      {formatPrice(product.price)}
-                    </span>
+                    <div className="flex flex-col items-start">
+                      {product.descuento > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-0.5">
+                          -{product.descuento}% · {formatPrice(product.originalPrice)}
+                        </span>
+                      )}
+                      <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">
+                        {formatPrice(product.price)}
+                      </span>
+                    </div>
                     <button
                       onClick={() => handleAddSuggested(product)}
                       disabled={addedSuggested[product.id]}

@@ -5,18 +5,20 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   Package, Store, Search, X,
   Eye, Edit3, ExternalLink, EyeOff, Flag, Trash2, ChevronLeft, ChevronRight,
-  Heart, Share2, ImageIcon, Star,
+  Heart, Share2, ImageIcon, Star, Loader2,
   Building2, RefreshCw, BarChart3,
   ShoppingBag,
 } from "lucide-react";
 import { listarProductos as listarProductosAdmin, eliminarProducto as eliminarProductoAdmin } from "../../api/admin";
+import { getResumenTiendas } from "../../api/tiendas";
+import { parsePrecio } from "../../utils/price";
 
 // Normaliza un producto del backend admin a la forma que usa esta vista.
 const mapProdAdmin = (p) => ({
   id: p.id,
   nombre: p.nombre,
   categoria: p.categoria || "",
-  precio: Number(p.precio) || 0,
+  precio: parsePrecio(p.precio),
   stock: p.stock ?? 0,
   estado: p.activo ? "visible" : "oculto",
   tipo_vendedor: p.tipo_vendedor === "Tienda" ? "tienda" : "refugio",
@@ -158,7 +160,7 @@ function ModalProducto({ isOpen, onClose, producto, onToggleEstado, onEliminar }
 
   const handleGuardar = async () => {
     setError("");
-    const precioNum = parseFloat(form.precio);
+    const precioNum = parsePrecio(form.precio);
     const stockNum = parseInt(form.stock, 10);
     if (!form.nombre.trim()) return setError("El nombre es obligatorio");
     if (isNaN(precioNum) || precioNum < 0) return setError("Precio inválido");
@@ -623,54 +625,105 @@ function VistaTiendas() {
 }
 
 // ========================================================
-// COMPONENTE: Estadísticas
+// COMPONENTE: Estadísticas (datos reales del marketplace)
 // ========================================================
 function VistaEstadisticas() {
-  const stats = [
-    { label: "Productos Totales", value: "158", change: "+12", color: "text-rose-500" },
-    { label: "Productos Visibles", value: "134", change: "+8", color: "text-emerald-500" },
-    { label: "Tiendas Activas", value: "24", change: "+3", color: "text-blue-500" },
-    { label: "Ventas Totales", value: "1,847", change: "+22%", color: "text-violet-500" },
+  const [resumen, setResumen] = useState(null);
+  const [productos, setProductos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      try {
+        const [res, prods] = await Promise.all([
+          getResumenTiendas().catch(() => null),
+          listarProductosAdmin().catch(() => []),
+        ]);
+        if (!activo) return;
+        setResumen(res || {});
+        setProductos(Array.isArray(prods) ? prods : []);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    })();
+    return () => { activo = false; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-gray-500 dark:text-dark-text-secondary">
+        <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+        <p className="text-sm">Cargando estadísticas del marketplace...</p>
+      </div>
+    );
+  }
+
+  // Productos de tiendas aliadas (el marketplace está asociado a ellas).
+  const prodsTienda = productos.filter((p) => p.tipo_vendedor === "Tienda");
+  const visibles = prodsTienda.filter((p) => p.activo).length;
+
+  // Distribución por categoría (solo productos visibles de tiendas).
+  const porCategoria = {};
+  prodsTienda.filter((p) => p.activo).forEach((p) => {
+    const cat = p.categoria || "Sin categoría";
+    porCategoria[cat] = (porCategoria[cat] || 0) + 1;
+  });
+  const categorias = Object.entries(porCategoria)
+    .map(([nombre, total]) => ({ nombre, total }))
+    .sort((a, b) => b.total - a.total);
+  const maxCat = Math.max(...categorias.map((c) => c.total), 1);
+
+  const cards = [
+    { icon: Package, label: "Productos Totales", value: resumen.total_productos ?? prodsTienda.length, color: "text-rose-500", bg: "bg-rose-50 dark:bg-rose-500/10" },
+    { icon: Eye, label: "Productos Visibles", value: visibles, color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-500/10" },
+    { icon: Store, label: "Tiendas Activas", value: resumen.activas ?? 0, color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-500/10" },
+    { icon: ShoppingBag, label: "Ventas Totales", value: `$${Number(resumen.total_ventas ?? 0).toLocaleString("es-CO")}`, color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-500/10" },
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Tarjetas de resumen */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => (
-          <div key={s.label} className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 hover:shadow-md transition-all duration-300">
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary font-medium mb-1">{s.label}</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold text-gray-900 dark:text-dark-text">{s.value}</p>
-              <span className={`text-xs font-semibold ${s.color}`}>{s.change}</span>
+        {cards.map((c) => (
+          <div key={c.label} className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+            <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center mb-3`}>
+              <c.icon size={20} className={c.color} />
             </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-dark-text">{c.value}</p>
+            <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{c.label}</p>
           </div>
         ))}
       </div>
-      <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
-        <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4">Distribución por categoría</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            { nombre: "Alimentos", total: 45, activas: 38 },
-            { nombre: "Accesorios", total: 32, activas: 28 },
-            { nombre: "Juguetes", total: 28, activas: 24 },
-            { nombre: "Salud", total: 18, activas: 15 },
-            { nombre: "Higiene", total: 22, activas: 20 },
-            { nombre: "Ropa", total: 15, activas: 12 },
-          ].map((cat) => (
-            <div key={cat.nombre} className="p-4 rounded-xl bg-gray-50 dark:bg-dark-bg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">{cat.nombre}</span>
-                <span className="text-xs text-gray-500 dark:text-dark-text-secondary">{cat.total} productos</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 rounded-full bg-gray-200 dark:bg-dark-border overflow-hidden">
-                  <div className="h-full rounded-full bg-gradient-to-r from-rose-500 to-amber-500" style={{ width: `${(cat.activas / cat.total) * 100}%` }} />
+
+      {/* Distribución por categoría */}
+      <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6 shadow-sm">
+        <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
+          <BarChart3 size={16} className="text-rose-500" />
+          Distribución por categoría
+        </h3>
+        {categorias.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {categorias.map((cat) => (
+              <div key={cat.nombre} className="p-4 rounded-xl bg-gray-50 dark:bg-dark-bg">
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <span className="text-sm font-semibold text-gray-900 dark:text-dark-text truncate">{cat.nombre}</span>
+                  <span className="text-xs text-gray-500 dark:text-dark-text-secondary shrink-0">{cat.total} productos</span>
                 </div>
-                <span className="text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary">{cat.activas} activas</span>
+                <div className="flex-1 h-2 rounded-full bg-gray-200 dark:bg-dark-border overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-rose-500 to-amber-500 transition-all duration-700"
+                    style={{ width: `${Math.max((cat.total / maxCat) * 100, 6)}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 dark:text-dark-text-secondary text-center py-8">
+            No hay productos publicados por tiendas aliadas aún.
+          </p>
+        )}
       </div>
     </div>
   );

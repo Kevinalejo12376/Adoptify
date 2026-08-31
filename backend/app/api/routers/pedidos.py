@@ -18,7 +18,7 @@ from app.core.security import (
 )
 from app.core.lookups import id_por_codigo
 from app.models.usuario import Usuario
-from app.models.producto import Producto
+from app.models.producto import Producto, precio_final
 from app.models.pedido import Pedido, PedidoItem
 from app.models.tienda import Tienda
 from app.models.refugio import Refugio
@@ -111,7 +111,10 @@ def crear_pedido(
         cantidad = max(1, int(item.cantidad or 1))
         if (producto.stock or 0) < cantidad:
             raise HTTPException(status_code=400, detail=f"Stock insuficiente para '{producto.nombre}'")
-        precio = Decimal(str(producto.precio or 0))
+        # Precio final considerando el descuento del producto (fuente única de
+        # verdad: ``precio_final``), para que coincida con el carrito y el
+        # marketplace.
+        precio = Decimal(str(precio_final(producto.precio, producto.descuento)))
         linea = precio * cantidad
         subtotal += linea
         db.add(PedidoItem(
