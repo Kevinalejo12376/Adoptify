@@ -55,6 +55,18 @@ const mostrarValor = (v) => {
   return s === "" ? "No especificado" : s;
 };
 
+// Preguntas del test de personalidad (rol Usuario). Las respuestas se envían al
+// backend para que Gemini las analice junto con la ficha real de la mascota.
+const TEST_QUESTIONS = [
+  { id: "espacio", pregunta: "¿Dónde vives?", opciones: ["Casa con patio", "Apartamento amplio", "Apartamento pequeño"] },
+  { id: "experiencia", pregunta: "¿Tienes experiencia cuidando mascotas?", opciones: ["Sí, mucha", "Algo", "Ninguna"] },
+  { id: "tiempo", pregunta: "¿Cuánto tiempo puedes dedicarle al día?", opciones: ["Más de 4 horas", "Entre 2 y 4 horas", "Menos de 2 horas"] },
+  { id: "otros_animales", pregunta: "¿Tienes otros animales en casa?", opciones: ["Sí, perros", "Sí, gatos", "No tengo"] },
+  { id: "actividad", pregunta: "¿Qué nivel de actividad prefieres?", opciones: ["Alta: paseos y juego", "Media: rutinas normales", "Baja: tranquilidad"] },
+  { id: "familia", pregunta: "¿Con quién vives?", opciones: ["Solo/a", "En pareja", "Con hijos", "Con familia o roommates"] },
+  { id: "compromiso", pregunta: "¿Estás listo para un compromiso de largo plazo?", opciones: ["Sí, totalmente", "Probablemente", "Aún no estoy seguro"] },
+];
+
 export default function AnimalProfile() {
   const { id } = useParams();
   const { addFavorite, removeFavorite, isFavorite, user } = useAuth();

@@ -96,7 +96,7 @@ export default function ProductSelectionModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-y-auto max-h-[92vh]">
+      <div className="relative w-full max-w-2xl m-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-y-auto max-h-[92vh]">
         {/* Header */}
         <div className="relative p-6 pb-4 border-b border-gray-100 dark:border-dark-border">
           <button
@@ -117,18 +117,11 @@ export default function ProductSelectionModal({
 
         {/* Body */}
         <div className="p-4 sm:p-6 space-y-4">
-          {/* Opción 1: Analizar con IA (Recomendada) */}
-          <button
-            onClick={handleAnalizarIA}
-            className="w-full text-left group relative overflow-hidden bg-gradient-to-br from-rose-50 to-amber-50 dark:from-rose-500/5 dark:to-amber-500/5 border-2 border-rose-200 dark:border-rose-500/20 rounded-2xl p-4 sm:p-5 hover:shadow-lg hover:shadow-rose-500/10 transition-all"
-          >
-            {/* Badge recomendada */}
-            <div className="absolute top-3 right-3">
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-[10px] font-bold rounded-full">
-                <Sparkles size={10} />
-                RECOMENDADO
-              </span>
-            </div>
+          {opciones.map((opcion) => {
+            const {
+              Icon, gradiente, sombra, hover, ctaColor, recomendada,
+              beneficios, cta, onClick, titulo, descripcion,
+            } = opcion;
 
             <div className="flex items-start gap-3 sm:gap-4">
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-500/20">
@@ -161,48 +154,11 @@ export default function ProductSelectionModal({
             </div>
           </div>
 
-          {/* Opción 2: Escanear código de barras */}
-          <button
-            onClick={handleBarcodeScan}
-            className="w-full text-left group relative overflow-hidden bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-4 sm:p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
-          >
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
-                <Barcode className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
-                  Escanear código de barras
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-1">
-                  Escanea o escribe el código de barras del producto para obtener su información
-                  automáticamente desde bases de datos mundiales.
-                </p>
-                <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
-                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
-                    Escanea con la cámara
-                  </li>
-                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
-                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
-                    Escribe el código manualmente
-                  </li>
-                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
-                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
-                    Compatible con lectores USB
-                  </li>
-                  <li className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
-                    <span className="w-1 h-1 rounded-full bg-rose-500 flex-shrink-0" />
-                    Autocompleta el formulario
-                  </li>
-                </ul>
-                <div className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-rose-600 dark:text-rose-400 group-hover:gap-2 transition-all">
-                  Escanear ahora
-                  <Barcode size={14} />
-                </div>
-              </div>
-            </div>
-          </button>
+                <div className="flex items-start gap-3 sm:gap-4 pr-12">
+                  {/* Ícono */}
+                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br ${gradiente} flex items-center justify-center flex-shrink-0 shadow-lg ${sombra} group-hover:scale-105 group-hover:rotate-3 transition-transform duration-200`}>
+                    <Icon size={26} className="text-white" />
+                  </div>
 
           {/* Opción 3: Agregar manualmente */}
           <button
@@ -290,12 +246,18 @@ export default function ProductSelectionModal({
                         {cta}
                         <ArrowRight size={14} />
                       </div>
+                    )}
+
+                    {/* CTA */}
+                    <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all ${ctaColor}`}>
+                      {cta}
+                      <ArrowRight size={14} />
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
