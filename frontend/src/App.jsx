@@ -36,6 +36,7 @@ import Favorites from "./pages/Usuario/Favorites";
 import UserOrders from "./pages/Usuario/UserOrders";
 import UserOrderDetail from "./pages/Usuario/UserOrderDetail";
 import UserNotifications from "./pages/Usuario/UserNotifications";
+import MisDonaciones from "./pages/Usuario/MisDonaciones";
 
 // ========================================================
 // IMPORTACIONES DE VISTAS DE REFUGIO
@@ -56,6 +57,7 @@ import ShelterEditProduct from "./pages/Refugio/ShelterEditProduct";
 import ShelterOrders from "./pages/Refugio/ShelterOrders";
 import ShelterOrderDetail from "./pages/Refugio/ShelterOrderDetail";
 import ShelterTeam from "./pages/Refugio/ShelterTeam";
+import ShelterDonaciones from "./pages/Refugio/ShelterDonaciones";
 
 // ========================================================
 // IMPORTACIONES DE VISTAS DE TIENDA ALIADA
@@ -91,6 +93,7 @@ import ProductProfile from "./pages/marketplace/ProductProfile";
 import Cart from "./pages/marketplace/Cart";
 import MarketplaceStoreProfile from "./pages/marketplace/StoreProfile";
 import Forum from "./pages/community/Forum";
+import DonacionPago from "./pages/public/DonacionPago";
 
 // ========================================================
 // IMPORTACIONES DEL PANEL DE ADMINISTRACIÓN
@@ -112,6 +115,7 @@ import AdminAuditoria from "./pages/Admin/Auditoria";
 import AdminConfiguracion from "./pages/Admin/Configuracion";
 import AdminTiendas from "./pages/Admin/GestionTiendas";
 import SolicitudRefugioDetalle from "./pages/Admin/SolicitudRefugioDetalle";
+import AdminDonaciones from "./pages/Admin/Donaciones";
 
 function AppContent() {
   const location = useLocation();
@@ -160,6 +164,7 @@ function AppContent() {
             <Route path="estadisticas" element={<AdminEstadisticas />} />
             <Route path="auditoria" element={<AdminAuditoria />} />
             <Route path="configuracion" element={<AdminConfiguracion />} />
+            <Route path="donaciones" element={<AdminDonaciones />} />
           </Route>
 
           {/* ================================================ */}
@@ -173,6 +178,7 @@ function AppContent() {
           <Route path="/mis-pedidos/:id" element={<UserRoute><UserOrderDetail /></UserRoute>} />
           <Route path="/notificaciones" element={<UserRoute><UserNotifications /></UserRoute>} />
           <Route path="/settings" element={<UserRoute><Settings /></UserRoute>} />
+          <Route path="/mis-donaciones" element={<UserRoute><MisDonaciones /></UserRoute>} />
 
           {/* ================================================ */}
           {/* RUTAS DE REFUGIO (src/pages/Refugio/)            */}
@@ -192,6 +198,7 @@ function AppContent() {
           <Route path="/refugio/pedidos" element={<ShelterPermisoRuta permiso="pedidos"><ShelterOrders /></ShelterPermisoRuta>} />
           <Route path="/refugio/pedidos/:id" element={<ShelterPermisoRuta permiso="pedidos"><ShelterOrderDetail /></ShelterPermisoRuta>} />
           <Route path="/refugio/equipo" element={<ShelterPermisoRuta permiso="administrar_empleados"><ShelterTeam /></ShelterPermisoRuta>} />
+          <Route path="/refugio/donaciones" element={<ShelterPermisoRuta permiso="donaciones"><ShelterDonaciones /></ShelterPermisoRuta>} />
 
           {/* ================================================ */}
           {/* RUTAS DE TIENDA ALIADA (src/pages/Tienda/)       */}
@@ -257,6 +264,7 @@ function AppContent() {
           <Route path="/product/:id" element={<ProductProfile />} />
           <Route path="/cart" element={<UserRoute><Cart /></UserRoute>} />
           <Route path="/forum" element={<Forum />} />
+          <Route path="/donar/:refugioId" element={<DonacionPago />} />
 
           {/* Fallback route */}
           <Route path="*" element={<Home />} />

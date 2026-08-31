@@ -4,11 +4,13 @@ import BackButton from "../../components/BackButton";
 import {
   ArrowLeft, MapPin, Phone, Mail, Star, Heart, Clock, PawPrint,
   CheckCircle, Store, Eye, X, ShoppingBag, ChevronRight, ChevronLeft,
-  Package, Sparkles, Shield, Award, Dog, Shirt, Bone, Stethoscope, Droplets
+  Package, Sparkles, Shield, Award, Dog, Shirt, Bone, Stethoscope, Droplets,
+  HandHeart,
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { useFavorites } from "../../context/FavoritesContext";
 import { obtenerRefugio } from "../../api/refugios";
+import DonarModal from "../../components/DonarModal";
 import { listarMascotas } from "../../api/mascotas";
 import { formatPrice } from "../../utils/price";
 
@@ -44,6 +46,12 @@ export default function ShelterDetails() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  // Modal "¿Cómo deseas ayudar?" (reutilizado con Home / Mis donaciones).
+  // Se guarda también el refugio tal como lo devuelve la API para poder
+  // preseleccionarlo automáticamente en el modal.
+  const [showDonarModal, setShowDonarModal] = useState(false);
+  const [refugioDatos, setRefugioDatos] = useState(null);
+
   // Las resenas aun no tienen endpoint publico -> lista vacia por ahora
   const reviews = [];
   const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 3);
@@ -64,6 +72,7 @@ export default function ShelterDetails() {
       setLoading(true); setNotFound(false);
       try {
         const r = await obtenerRefugio(id);
+        setRefugioDatos(r);
         // Trae las mascotas del refugio (filtra por refugio en cliente)
         let pets = [];
         try {
@@ -197,6 +206,13 @@ export default function ShelterDetails() {
                       Ver Tienda
                     </Link>
                   )}
+                  <button
+                    onClick={() => setShowDonarModal(true)}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-amber-600 border-2 border-amber-500 font-semibold rounded-xl hover:bg-amber-50 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                  >
+                    <HandHeart className="w-5 h-5" />
+                    Quiero donar
+                  </button>
                   <button
                     onClick={() => toggleShelterFavorite(shelter)}
                     className={`inline-flex items-center justify-center gap-2 px-6 py-3 font-semibold rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 ${
@@ -763,6 +779,12 @@ export default function ShelterDetails() {
           </div>
         </div>
       )}
+      {/* Modal "¿Cómo deseas ayudar?" (reutilizado; el refugio del perfil queda preseleccionado) */}
+      <DonarModal
+        isOpen={showDonarModal}
+        onClose={() => setShowDonarModal(false)}
+        refugioInicial={refugioDatos}
+      />
     </div>
   );
 }
