@@ -4,9 +4,11 @@ import { Settings, Store, Bell, Shield, Globe, Save, Building2, MapPin, Phone, M
 import { miPerfil, actualizarPerfil } from "../../api/refugios";
 import { obtenerConfiguracion, actualizarConfiguracion } from "../../api/configuraciones";
 import FieldError from "../../components/FieldError";
+import { useAuth } from "../../context/AuthContext";
 import { claseInput, limpiarEspacios, soloDigitos, validarEmail, validarTelefono10 } from "../../utils/validaciones";
 
 export default function ShelterSettings() {
+  const { updateStoreEnabled, refreshUser } = useAuth();
   const [shelterInfo, setShelterInfo] = useState({
     name: "",
     email: "",
@@ -85,10 +87,21 @@ export default function ShelterSettings() {
   }, []);
 
   // Persiste el estado de la tienda en la base de datos (tienda_habilitada).
-  const handleStoreToggle = () => {
+  // Actualiza el contexto en tiempo real para que la barra de navegación
+  // ("Mi tienda" y "Pedidos") reaccione al instante, sin recargar la página.
+  const handleStoreToggle = async () => {
     const nuevo = !storeEnabled;
     setStoreEnabled(nuevo);
-    actualizarPerfil({ tienda_habilitada: nuevo }).catch(() => {});
+    updateStoreEnabled(nuevo);
+    try {
+      await actualizarPerfil({ tienda_habilitada: nuevo });
+      // Sincroniza el resto de datos del usuario con el backend (fuente de verdad).
+      await refreshUser();
+    } catch {
+      // Si falla la persistencia, se revierte el interruptor local.
+      setStoreEnabled(!nuevo);
+      updateStoreEnabled(!nuevo);
+    }
   };
 
   const handleNotificationToggle = (key) => {

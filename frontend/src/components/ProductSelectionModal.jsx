@@ -87,7 +87,7 @@ export default function ProductSelectionModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
       {/* Overlay */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
@@ -164,33 +164,94 @@ export default function ProductSelectionModal({
                       <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-0.5">
                         {descripcion}
                       </p>
+      {/* Modal */}
+      <div className="relative w-full max-w-2xl m-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-y-auto max-h-[92vh]">
+        {/* Header */}
+        <div className="relative p-6 pb-4 border-b border-gray-100 dark:border-dark-border">
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+          >
+            <X size={18} />
+          </button>
+          <div className="text-center sm:text-left">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text font-display">
+              ¿Cómo deseas agregar tu producto?
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+              Selecciona el método que prefieras para registrar un nuevo producto en tu tienda.
+            </p>
+          </div>
+        </div>
 
-                      {/* Beneficios */}
-                      {beneficios.length > 0 && (
-                        <div className="mt-2.5 flex flex-wrap gap-1.5">
-                          {beneficios.map((beneficio, i) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-dark-bg text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary"
-                            >
-                              <Check size={10} className="text-emerald-500" />
-                              {beneficio}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+        {/* Body */}
+        <div className="p-4 sm:p-6 space-y-4">
+          {opciones.map((opcion) => {
+            const {
+              Icon, gradiente, sombra, hover, ctaColor, recomendada,
+              beneficios, cta, onClick, titulo, descripcion,
+            } = opcion;
 
-                      {/* CTA */}
-                      <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all ${ctaColor}`}>
-                        {cta}
-                        <ArrowRight size={14} />
+            return (
+              <button
+                key={opcion.key}
+                onClick={() => { onClick(); onClose(); }}
+                className={`w-full text-left group relative overflow-hidden bg-white dark:bg-dark-card border-2 rounded-2xl p-4 sm:p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${hover} ${
+                  recomendada
+                    ? "border-rose-200 dark:border-rose-500/30 bg-gradient-to-br from-rose-50/70 to-amber-50/50 dark:from-rose-500/10 dark:to-amber-500/5"
+                    : "border-gray-200 dark:border-dark-border"
+                }`}
+              >
+                {/* Badge recomendada */}
+                {recomendada && (
+                  <div className="absolute top-3 right-3">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-[10px] font-bold rounded-full shadow-sm">
+                      <Zap size={10} />
+                      RECOMENDADO
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-start gap-3 sm:gap-4 pr-12">
+                  {/* Ícono */}
+                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br ${gradiente} flex items-center justify-center flex-shrink-0 shadow-lg ${sombra} group-hover:scale-105 group-hover:rotate-3 transition-transform duration-200`}>
+                    <Icon size={26} className="text-white" />
+                  </div>
+
+                  {/* Contenido */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
+                      {titulo}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-0.5">
+                      {descripcion}
+                    </p>
+
+                    {/* Beneficios */}
+                    {beneficios.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {beneficios.map((beneficio, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-dark-bg text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary"
+                          >
+                            <Check size={10} className="text-emerald-500" />
+                            {beneficio}
+                          </span>
+                        ))}
                       </div>
+                    )}
+
+                    {/* CTA */}
+                    <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all ${ctaColor}`}>
+                      {cta}
+                      <ArrowRight size={14} />
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

@@ -98,6 +98,9 @@ def _run_migrations():
             _agregar_columna_si_no_existe(db, "usuarios", "username", "VARCHAR(50)")
             # Columna para eliminar la foto de perfil anterior de Cloudinary.
             _agregar_columna_si_no_existe(db, "usuarios", "avatar_public_id", "VARCHAR(255)")
+            # Bloqueo por intentos fallidos de inicio de sesión (3 fallos = 15 min).
+            _agregar_columna_si_no_existe(db, "usuarios", "intentos_fallidos", "INTEGER NOT NULL DEFAULT 0")
+            _agregar_columna_si_no_existe(db, "usuarios", "bloqueado_hasta", "TIMESTAMPTZ")
             db.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username)"
             ))
