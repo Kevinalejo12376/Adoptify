@@ -30,16 +30,6 @@ class Tienda(Base):
     horario_semana = Column(String(120))
     horario_fin_semana = Column(String(120))
     rating = Column(Numeric(2, 1), nullable=False, default=0)
-    # --- Stripe Connect ---
-    # Id de la cuenta conectada de Stripe de esta tienda (nunca claves del
-    # vendedor; solo el identificador). Si es NULL la tienda aún no tiene
-    # cuenta Connect.
-    stripe_account_id = Column(String(255))
-    # Estado de la cuenta Connect: no_configurada | pendiente_onboarding |
-    # lista (onboarding completado y charges_enabled) | invalida.
-    stripe_account_status = Column(String(30), nullable=False, default="no_configurada")
-    # True cuando Stripe confirmó que la cuenta puede recibir fondos.
-    stripe_connect_activa = Column(Boolean, nullable=False, default=False)
     # Soft delete: activo=False desactiva la tienda conservando su historial
     # (productos, pedidos, donaciones, actividades, PQRS).
     activo = Column(Boolean, nullable=False, default=True)

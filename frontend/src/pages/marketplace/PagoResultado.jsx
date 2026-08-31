@@ -1,39 +1,88 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { consultarEstadoPago } from "../../api/pagos";
+import { useCart } from "../../context/CartContext";
 import { CheckCircle, XCircle, Clock, Loader2, ShoppingBag, ArrowRight, RotateCcw } from "lucide-react";
+
+// Polling: cada 3s, máximo 20 intentos (~60s), solo mientras el pago está en
+// proceso. Nunca es infinito.
+const POLL_INTERVALO_MS = 3000;
+const POLL_MAX_INTENTOS = 20;
+
+const ESTADOS_FINALES = new Set(["pagado", "fallido", "cancelado", "reembolsado"]);
 
 export default function PagoResultado() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const orderId = searchParams.get("order_id");
   const pagoId = searchParams.get("pago_id");
+  const resultado = searchParams.get("resultado"); // 'success' | 'cancel'
+
+  const { clearCart } = useCart();
 
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [pago, setPago] = useState(null);
+  const carritoLimpio = useRef(false);
+
+  // Sin identificadores y con resultado=cancel -> pantalla de cancelación sin
+  // consultar la API (evita "No se pudo verificar el pago").
+  const esCancelacionSinRef = !sessionId && !orderId && !pagoId && resultado === "cancel";
 
   useEffect(() => {
+    if (esCancelacionSinRef) {
+      setCargando(false);
+      return;
+    }
     let activo = true;
-    (async () => {
-      setCargando(true);
-      setError("");
+    let intentos = 0;
+    let intervalId = null;
+
+    const consultar = async () => {
+      intentos += 1;
       try {
-        // Consulta el estado REAL del pago. La URL de retorno (success_url) NO
-        // es fuente de verdad: la confirmación real viene del webhook de Stripe.
         const data = await consultarEstadoPago({ session_id: sessionId, order_id: orderId, pago_id: pagoId });
         if (!activo) return;
         setPago(data);
+        setError("");
+        // Limpia el carrito SOLO cuando el pago se confirma (no antes).
+        if (data.estado === "pagado" && !carritoLimpio.current) {
+          clearCart();
+          carritoLimpio.current = true;
+        }
+        // Detiene el polling cuando el pago llega a un estado final.
+        if (ESTADOS_FINALES.has(data.estado) || intentos >= POLL_MAX_INTENTOS) {
+          if (intervalId) clearInterval(intervalId);
+          setCargando(false);
+        }
       } catch (e) {
-        if (activo) setError(e?.message || "No se pudo verificar el estado del pago.");
-      } finally {
-        if (activo) setCargando(false);
+        if (!activo) return;
+        setError(e?.message || "No se pudo verificar el estado del pago.");
+        if (intentos >= POLL_MAX_INTENTOS) {
+          if (intervalId) clearInterval(intervalId);
+          setCargando(false);
+        }
+      }
+    };
+
+    (async () => {
+      setCargando(true);
+      await consultar();
+      if (activo && cargandoPendiente()) {
+        intervalId = setInterval(consultar, POLL_INTERVALO_MS);
       }
     })();
-    return () => { activo = false; };
-  }, [sessionId, orderId, pagoId]);
 
-  if (cargando) {
+    // Helper para saber si debe seguir el polling (leído dentro del closure).
+    function cargandoPendiente() {
+      return activo && intentos < POLL_MAX_INTENTOS;
+    }
+
+    return () => { activo = false; if (intervalId) clearInterval(intervalId); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, orderId, pagoId, esCancelacionSinRef]);
+
+  if (cargando && !esCancelacionSinRef) {
     return (
       <div className="min-h-screen pt-24 pb-16 bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
         <div className="max-w-lg mx-auto px-4 text-center py-16">
@@ -44,6 +93,42 @@ export default function PagoResultado() {
           <p className="text-gray-500 dark:text-dark-text-secondary">
             Estamos consultando el estado real de tu pago.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Pantalla de cancelación: el usuario abandonó el Checkout.
+  if (esCancelacionSinRef) {
+    return (
+      <div className="min-h-screen pt-24 pb-16 bg-gradient-to-br from-rose-50 via-white to-amber-50 dark:from-dark-bg dark:via-dark-card dark:to-dark-bg">
+        <div className="max-w-lg mx-auto px-4 text-center py-16">
+          <div className="w-24 h-24 mx-auto mb-6 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
+            <Clock className="w-12 h-12 text-amber-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text font-display mb-2">
+            Pago cancelado
+          </h1>
+          <p className="text-gray-500 dark:text-dark-text-secondary mb-2">
+            No se completó el pago. Tu carrito sigue disponible.
+          </p>
+          <p className="text-gray-500 dark:text-dark-text-secondary mb-8">
+            Puedes volver a intentarlo cuando quieras.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/cart"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all"
+            >
+              <ShoppingBag className="w-4 h-4" /> Volver al carrito
+            </Link>
+            <Link
+              to="/store"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-dark-text font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-dark-border transition-all"
+            >
+              Seguir comprando
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -79,7 +164,6 @@ export default function PagoResultado() {
   const esReembolsado = estado === "reembolsado";
   const esCancelado = estado === "cancelado";
   const esFallido = estado === "fallido";
-  const final = !esPendiente;
 
   const icono = esPagado ? CheckCircle : esReembolsado ? RotateCcw : (esPendiente ? Clock : XCircle);
   const colorFondo = esPagado
@@ -106,7 +190,7 @@ export default function PagoResultado() {
     : "Pago no completado";
 
   const mensaje = esPagado
-    ? "Tu pago fue confirmado por Stripe y tu pedido ya está en proceso."
+    ? "Tu pago fue confirmado y tu pedido ya está en proceso."
     : esReembolsado
     ? "Este pago fue reembolsado."
     : esCancelado
@@ -114,7 +198,7 @@ export default function PagoResultado() {
     : esFallido
     ? "No pudimos procesar el pago. Revisa tus datos e inténtalo de nuevo."
     : esPendiente
-    ? "Tu pago está pendiente de confirmación. Te notificaremos cuando Stripe lo confirme."
+    ? "Tu pago está pendiente de confirmación. Te notificaremos cuando dLocal lo confirme."
     : "El pago no se completó.";
 
   return (
@@ -130,18 +214,13 @@ export default function PagoResultado() {
         <p className="text-gray-500 dark:text-dark-text-secondary mb-2">
           {pago.order_id}
         </p>
-        {pago.estado_stripe && (
+        {pago.estado_pasarela && (
           <p className="text-sm text-gray-400 dark:text-dark-text-secondary mb-8">
-            Estado en Stripe: <span className="font-semibold">{pago.estado_stripe}</span>
+            Estado en dLocal: <span className="font-semibold">{pago.estado_pasarela}</span>
           </p>
         )}
 
-        {!esPendiente && (
-          <p className="text-gray-500 dark:text-dark-text-secondary mb-8">{mensaje}</p>
-        )}
-        {esPendiente && !final && (
-          <p className="text-gray-500 dark:text-dark-text-secondary mb-8">{mensaje}</p>
-        )}
+        <p className="text-gray-500 dark:text-dark-text-secondary mb-8">{mensaje}</p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link

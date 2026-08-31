@@ -65,48 +65,47 @@ class Settings(BaseSettings):
     # --- Frontend ---
     FRONTEND_URL: str = "http://localhost:5173"
 
-    # --- Stripe (pasarela de pagos online) ---
-    # La cuenta de Stripe de Adoptify está registrada en EE.UU. (moneda USD).
-    # NUNCA expongas STRIPE_SECRET_KEY ni STRIPE_WEBHOOK_SECRET en el frontend.
-    STRIPE_SECRET_KEY: str = ""
-    # Secreto del endpoint de webhooks (Stripe Dashboard > Developers > Webhooks).
-    STRIPE_WEBHOOK_SECRET: str = ""
-    # URLs de retorno de Stripe Checkout. Si se dejan vacías se derivan de
-    # FRONTEND_URL + /pago-resultado. Evita hardcodearlas en el código.
-    STRIPE_SUCCESS_URL: str = ""
-    STRIPE_CANCEL_URL: str = ""
-    # Moneda de cobro de Stripe. La cuenta de Adoptify es de EE.UU. -> "usd".
-    STRIPE_CURRENCY: str = "usd"
-    # Tasa de conversión COP -> moneda de Stripe (COP por 1 unidad de STRIPE_CURRENCY).
-    # Ej: 4000 significa 1 USD = 4000 COP. El pedido se mantiene en COP en la BD;
-    # Stripe cobra en STRIPE_CURRENCY usando esta tasa para calcular el monto.
-    STRIPE_CONVERSION_RATE: float = 4000.0
-    # Comisión de la plataforma Adoptify sobre el subtotal de cada tienda (%).
-    # 0 = sin comisión. 10 = 10% de comisión de plataforma.
-    STRIPE_PLATFORM_FEE_PERCENT: float = 0.0
-    # Modelo de Stripe Connect. Único modelo coherente con carritos multi-tienda:
-    # la plataforma cobra el total (separate charge) y luego crea Transferencias
-    # hacia la cuenta conectada de cada tienda por su parte menos la comisión.
-    STRIPE_CONNECT_MODEL: str = "separate_charges_transfers"
-    # Cuentas conectadas tipo 'express' (onboarding alojado por Stripe) creadas
-    # desde el backend con la API key. No se usa el flujo OAuth de Standard
-    # accounts, por lo que STRIPE_CONNECT_CLIENT_ID no es necesario.
+    # --- dLocal (pasarela de pagos online) ---
+    # Adoptify cobra en Colombia (COP). Las claves SOLO se usan desde el backend;
+    # NUNCA se exponen al frontend (no usar VITE_ para credenciales secretas).
+    # Credenciales de dLocal Go (dashboard):
+    #   DLOCAL_API_KEY    -> API Key (forma el Bearer token junto con la Secret)
+    #   DLOCAL_SECRET_KEY -> Secret Key (Bearer token API:SECRET y verificación
+    #                        del webhook si aplica)
+    #   DLOCAL_SMARTFIELDS_API_KEY -> solo si usas SmartFields
+    DLOCAL_ENV: str = "sandbox"  # sandbox | prod
+    DLOCAL_API_KEY: str = ""
+    DLOCAL_SECRET_KEY: str = ""
+    DLOCAL_SMARTFIELDS_API_KEY: str = ""
+    # URL pública del webhook de dLocal: https://TU-BACKEND/api/pagos/webhook
+    DLOCAL_WEBHOOK_URL: str = ""
+    # callback_url/notification_url enviadas a dLocal en el checkout. Si se
+    # dejan vacías se derivan de DLOCAL_WEBHOOK_URL o BACKEND_PUBLIC_URL.
+    DLOCAL_CALLBACK_URL: str = ""
+    # País y moneda de cobro (Colombia) -> van en el JSON del pago (no en headers).
+    DLOCAL_COUNTRY: str = "CO"
+    DLOCAL_CURRENCY: str = "COP"
 
     @property
-    def stripe_success_url(self) -> str:
-        """URL de éxito de Checkout (no es fuente de verdad del pago)."""
-        if self.STRIPE_SUCCESS_URL.strip():
-            return self.STRIPE_SUCCESS_URL.strip()
+    def dlocal_success_url(self) -> str:
+        """URL de éxito del Checkout (no es fuente de verdad del pago)."""
         front = self.FRONTEND_URL.rstrip("/")
         return f"{front}/pago-resultado?resultado=success"
 
     @property
-    def stripe_cancel_url(self) -> str:
-        """URL de cancelación de Checkout."""
-        if self.STRIPE_CANCEL_URL.strip():
-            return self.STRIPE_CANCEL_URL.strip()
+    def dlocal_back_url(self) -> str:
+        """URL de regreso/cancelación del Checkout (back_url de dLocal Go)."""
         front = self.FRONTEND_URL.rstrip("/")
         return f"{front}/pago-resultado?resultado=cancel"
+
+    @property
+    def dlocal_callback_url(self) -> str:
+        """URL a la que dLocal envía las notificaciones (webhook)."""
+        if self.DLOCAL_CALLBACK_URL.strip():
+            return self.DLOCAL_CALLBACK_URL.strip()
+        if self.DLOCAL_WEBHOOK_URL.strip():
+            return f"{self.DLOCAL_WEBHOOK_URL.strip().rstrip('/')}/api/pagos/webhook"
+        return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/pagos/webhook"
 
     # --- Google OAuth ---
     GOOGLE_CLIENT_ID: str = ""

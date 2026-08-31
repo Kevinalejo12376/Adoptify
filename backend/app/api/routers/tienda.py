@@ -145,10 +145,6 @@ def _serialize_tienda(t: Tienda, u: Usuario) -> dict:
         "horario_fin_semana": t.horario_fin_semana,
         "estado": t.estado,
         "rating": float(t.rating) if t.rating is not None else 0,
-        # Stripe Connect: estado de la cuenta conectada (para la UI de pagos).
-        "stripe_account_id": getattr(t, "stripe_account_id", None),
-        "stripe_account_status": getattr(t, "stripe_account_status", "no_configurada"),
-        "stripe_connect_activa": bool(getattr(t, "stripe_connect_activa", False)),
         "responsable_nombre": resp_nombre,
         "responsable_email": u.email if u else None,
         "responsable_telefono": u.telefono if u else None,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import { obtenerPedido } from "../../api/pedidos";
+import { iniciarCheckout } from "../../api/pagos";
 import OrderStatusBadge from "../../components/OrderStatusBadge";
 import OrderTimeline from "../../components/OrderTimeline";
 import {
@@ -43,6 +44,27 @@ export default function UserOrderDetail() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reintentando, setReintentando] = useState(false);
+  const [pagoError, setPagoError] = useState("");
+
+  // Reintenta el pago de un pedido pendiente (dLocal). El backend
+  // valida autorización y que el pedido aún sea pagable.
+  const handleReintentarPago = async () => {
+    setPagoError("");
+    setReintentando(true);
+    try {
+      const pago = await iniciarCheckout({ pedido_id: Number(id) });
+      if (pago?.redirect_url) {
+        window.location.href = pago.redirect_url;
+        return;
+      }
+      setPagoError("No se pudo iniciar el pago. Intenta de nuevo.");
+    } catch (e) {
+      setPagoError(e?.message || "No se pudo iniciar el pago.");
+    } finally {
+      setReintentando(false);
+    }
+  };
 
   const cargarPedido = useCallback(async () => {
     if (!id) return;
@@ -336,6 +358,19 @@ export default function UserOrderDetail() {
                     </p>
                   </div>
                 </div>
+                {order.estado === "pendiente" && (
+                  <button
+                    onClick={handleReintentarPago}
+                    disabled={reintentando}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-amber-500 rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-60"
+                  >
+                    {reintentando ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    Reintentar pago
+                  </button>
+                )}
+                {pagoError && (
+                  <p className={`mt-3 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{pagoError}</p>
+                )}
               </div>
             )}
 
