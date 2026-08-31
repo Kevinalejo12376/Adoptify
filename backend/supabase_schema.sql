@@ -296,6 +296,10 @@ CREATE TABLE usuarios (
     perfil_completo    BOOLEAN NOT NULL DEFAULT false,
     -- Soft delete
     eliminado_en       TIMESTAMPTZ,
+    -- Bloqueo por intentos fallidos de inicio de sesión: tras 3 fallos la
+    -- cuenta queda bloqueada 15 minutos y se habilita automáticamente.
+    intentos_fallidos  INTEGER NOT NULL DEFAULT 0,
+    bloqueado_hasta    TIMESTAMPTZ,
     creado_en          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_usuarios_rol ON usuarios(rol_id);

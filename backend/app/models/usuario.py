@@ -36,6 +36,11 @@ class Usuario(Base):
     # Soft delete: 'activo' ya existía para desactivar cuentas; 'eliminado_en'
     # registra cuándo se desactiva la cuenta de forma definitiva.
     eliminado_en = Column(DateTime(timezone=True))
+    # Bloqueo por intentos fallidos de inicio de sesión: tras 3 fallos la
+    # cuenta queda bloqueada durante 15 minutos ('bloqueado_hasta') y se
+    # habilita automáticamente al vencer ese tiempo.
+    intentos_fallidos = Column(Integer, nullable=False, default=0)
+    bloqueado_hasta = Column(DateTime(timezone=True), nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
     rol = relationship("Rol", lazy="joined")

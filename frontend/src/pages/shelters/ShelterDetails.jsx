@@ -80,6 +80,9 @@ export default function ShelterDetails() {
           name: r.nombre,
           location: r.ubicacion || "",
           verified: r.verificado,
+          // Estado real de la tienda del refugio desde la BD (tiendas.estado
+          // / refugios.tienda_habilitada). Controla el botón "Ver Tienda".
+          tiendaHabilitada: Boolean(r.tienda_habilitada),
           rating: 0,
           totalRatings: 0,
           logo: r.logo_url || null,
@@ -183,13 +186,17 @@ export default function ShelterDetails() {
                     <Phone className="w-5 h-5" />
                     Contactar
                   </button>
-                  <Link
-                    to={`/shelter-store/${shelter.id}`}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-emerald-600 border-2 border-emerald-500 font-semibold rounded-xl hover:bg-emerald-50 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
-                  >
-                    <Store className="w-5 h-5" />
-                    Ver Tienda
-                  </Link>
+                  {/* "Ver Tienda" solo aparece si la tienda del refugio está
+                      activa en la BD (refugios.tienda_habilitada). */}
+                  {shelter.tiendaHabilitada && (
+                    <Link
+                      to={`/shelter-store/${shelter.id}`}
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-emerald-600 border-2 border-emerald-500 font-semibold rounded-xl hover:bg-emerald-50 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+                    >
+                      <Store className="w-5 h-5" />
+                      Ver Tienda
+                    </Link>
+                  )}
                   <button
                     onClick={() => toggleShelterFavorite(shelter)}
                     className={`inline-flex items-center justify-center gap-2 px-6 py-3 font-semibold rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 ${

@@ -133,6 +133,9 @@ export function parsearPrecioInput(valor) {
   const texto = String(valor).replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
   const numero = Number(texto);
   return Number.isFinite(numero) ? numero : 0;
+}
+
+/**
  * Calcula el precio final tras aplicar un porcentaje de descuento (0-100).
  * Es la fuente única de verdad del cálculo del descuento en el frontend y debe
  * coincidir con la función `precio_final` del backend:
