@@ -17,7 +17,7 @@ from app.db.seed import seed_catalogos
 from app.api.routers import (
     auth, mascotas, refugios, solicitudes, productos, catalogos, admin,
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
-    tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
+    tienda, pedidos, pagos, solicitudes_refugio, solicitudes_refugio_admin,
     reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
     ia, donaciones, donaciones_admin,
 )
@@ -142,6 +142,7 @@ def _run_migrations():
         _paso("backfill super admin tiendas", _backfill_super_admin_tiendas)
         _paso("tablas nuevas de tienda", _crear_tablas_nuevas_tienda)
         _paso("equipo de refugio", _crear_tablas_equipo_refugio)
+        _paso("pagos (dLocal)", _crear_tabla_pagos)
         _paso("donaciones_usuarios", _crear_tabla_donaciones_usuarios)
 
         # --- Resumen final ---
@@ -179,6 +180,36 @@ def _agregar_columna_si_no_existe(db, tabla: str, columna: str, tipo: str):
             f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {columna} {tipo}"
         ))
         print(f"[migracion] Columna '{columna}' agregada correctamente.")
+
+
+def _renombrar_columna_si_existe(db, tabla: str, viejo: str, nuevo: str):
+    """Renombra una columna en Supabase/PostgreSQL si existe (idempotente)."""
+    from sqlalchemy import text
+    result = db.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        f"WHERE table_name='{tabla}' AND column_name='{viejo}'"
+    )).fetchone()
+    if result:
+        try:
+            db.execute(text(f"ALTER TABLE {tabla} RENAME COLUMN {viejo} TO {nuevo}"))
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
+
+
+def _eliminar_columna_si_existe(db, tabla: str, columna: str):
+    """Elimina una columna en Supabase/PostgreSQL si existe (idempotente)."""
+    from sqlalchemy import text
+    result = db.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        f"WHERE table_name='{tabla}' AND column_name='{columna}'"
+    )).fetchone()
+    if result:
+        try:
+            db.execute(text(f"ALTER TABLE {tabla} DROP COLUMN IF EXISTS {columna}"))
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
 
 
 def _soft_delete_migrations(db):
@@ -222,6 +253,68 @@ def _soft_delete_migrations(db):
             _agregar_columna_si_no_existe(db, tabla, columna, tipo)
     db.commit()
     print("[migracion] Columnas de soft delete verificadas.")
+
+
+def _crear_tabla_pagos(db):
+    """Crea/actualiza la tabla 'pagos' para dLocal (idempotente, Supabase).
+
+    - Si la tabla no existe, se crea con el esquema de dLocal.
+    - Si ya existía con el esquema de Stripe, se renombran las columnas y se
+      eliminan las exclusivas de Stripe/Connect SIN borrar datos históricos.
+    - En SQLite local las tablas las crea Base.metadata.create_all.
+    """
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS pagos (
+            id BIGSERIAL PRIMARY KEY,
+            pedido_id BIGINT NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            proveedor VARCHAR(20) NOT NULL DEFAULT 'dlocal',
+            order_id VARCHAR(125) NOT NULL,
+            estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+            estado_pasarela VARCHAR(80),
+            monto BIGINT NOT NULL DEFAULT 0,
+            moneda VARCHAR(3) NOT NULL DEFAULT 'COP',
+            metodo_pago VARCHAR(30),
+            redirect_url TEXT,
+            dlocal_payment_id VARCHAR(255),
+            respuesta_pasarela TEXT,
+            notificacion TEXT,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            actualizado_en TIMESTAMPTZ
+        )
+    """))
+    # Renombra columnas del esquema Stripe anterior (conserva datos).
+    for viejo, nuevo in [
+        ("estado_stripe", "estado_pasarela"),
+        ("stripe_checkout_session_id", "dlocal_payment_id"),
+        ("respuesta_stripe", "respuesta_pasarela"),
+    ]:
+        _renombrar_columna_si_existe(db, "pagos", viejo, nuevo)
+    # Columnas exclusivas de Stripe/Connect que ya no se usan.
+    for col in [
+        "stripe_payment_intent_id", "stripe_amount", "stripe_currency",
+        "comision_plataforma", "monto_distribuido", "detalle_distribucion",
+        "stripe_transfer_ids",
+    ]:
+        _eliminar_columna_si_existe(db, "pagos", col)
+    # Garantiza las columnas dLocal (por si la tabla era nueva).
+    _agregar_columna_si_no_existe(db, "pagos", "estado_pasarela", "VARCHAR(80)")
+    _agregar_columna_si_no_existe(db, "pagos", "dlocal_payment_id", "VARCHAR(255)")
+    _agregar_columna_si_no_existe(db, "pagos", "respuesta_pasarela", "TEXT")
+    db.execute(text(
+        "ALTER TABLE pagos ALTER COLUMN proveedor SET DEFAULT 'dlocal'"
+    ))
+    db.execute(text(
+        "UPDATE pagos SET proveedor='dlocal' WHERE proveedor IS NULL OR proveedor=''"
+    ))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_pedido ON pagos(pedido_id)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_order_id ON pagos(order_id)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_estado ON pagos(estado)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_proveedor ON pagos(proveedor)"))
+    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_dlocal_payment ON pagos(dlocal_payment_id)"))
+    db.commit()
+    print("[migracion] Tabla 'pagos' (dLocal) verificada.")
 
 
 def _crear_tabla_foro_imagenes(db):
@@ -910,6 +1003,7 @@ app.include_router(favoritos.router, prefix="/api/favoritos", tags=["Favoritos"]
 app.include_router(foro.router, prefix="/api/foro", tags=["Foro"])
 app.include_router(tienda.router, prefix="/api/tienda", tags=["Tienda (self-service)"])
 app.include_router(pedidos.router, prefix="/api/pedidos", tags=["Pedidos"])
+app.include_router(pagos.router, prefix="/api/pagos", tags=["Pagos"])
 app.include_router(
     solicitudes_refugio.router,
     prefix="/api/solicitudes-refugio",

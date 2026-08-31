@@ -81,7 +81,9 @@ export default function StoreSettings() {
   }
   secciones.push({ id: "password", label: "Contraseña", icon: Lock, desc: "Cambia tu contraseña de acceso" });
 
-  const [activeSection, setActiveSection] = useState(secciones[0]?.id || "password");
+  const [activeSection, setActiveSection] = useState(
+    () => (secciones[0]?.id || "password")
+  );
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

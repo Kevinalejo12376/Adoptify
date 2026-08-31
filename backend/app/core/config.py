@@ -65,6 +65,48 @@ class Settings(BaseSettings):
     # --- Frontend ---
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # --- dLocal (pasarela de pagos online) ---
+    # Adoptify cobra en Colombia (COP). Las claves SOLO se usan desde el backend;
+    # NUNCA se exponen al frontend (no usar VITE_ para credenciales secretas).
+    # Credenciales de dLocal Go (dashboard):
+    #   DLOCAL_API_KEY    -> API Key (forma el Bearer token junto con la Secret)
+    #   DLOCAL_SECRET_KEY -> Secret Key (Bearer token API:SECRET y verificación
+    #                        del webhook si aplica)
+    #   DLOCAL_SMARTFIELDS_API_KEY -> solo si usas SmartFields
+    DLOCAL_ENV: str = "sandbox"  # sandbox | prod
+    DLOCAL_API_KEY: str = ""
+    DLOCAL_SECRET_KEY: str = ""
+    DLOCAL_SMARTFIELDS_API_KEY: str = ""
+    # URL pública del webhook de dLocal: https://TU-BACKEND/api/pagos/webhook
+    DLOCAL_WEBHOOK_URL: str = ""
+    # callback_url/notification_url enviadas a dLocal en el checkout. Si se
+    # dejan vacías se derivan de DLOCAL_WEBHOOK_URL o BACKEND_PUBLIC_URL.
+    DLOCAL_CALLBACK_URL: str = ""
+    # País y moneda de cobro (Colombia) -> van en el JSON del pago (no en headers).
+    DLOCAL_COUNTRY: str = "CO"
+    DLOCAL_CURRENCY: str = "COP"
+
+    @property
+    def dlocal_success_url(self) -> str:
+        """URL de éxito del Checkout (no es fuente de verdad del pago)."""
+        front = self.FRONTEND_URL.rstrip("/")
+        return f"{front}/pago-resultado?resultado=success"
+
+    @property
+    def dlocal_back_url(self) -> str:
+        """URL de regreso/cancelación del Checkout (back_url de dLocal Go)."""
+        front = self.FRONTEND_URL.rstrip("/")
+        return f"{front}/pago-resultado?resultado=cancel"
+
+    @property
+    def dlocal_callback_url(self) -> str:
+        """URL a la que dLocal envía las notificaciones (webhook)."""
+        if self.DLOCAL_CALLBACK_URL.strip():
+            return self.DLOCAL_CALLBACK_URL.strip()
+        if self.DLOCAL_WEBHOOK_URL.strip():
+            return f"{self.DLOCAL_WEBHOOK_URL.strip().rstrip('/')}/api/pagos/webhook"
+        return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/pagos/webhook"
+
     # --- Google OAuth ---
     GOOGLE_CLIENT_ID: str = ""
 

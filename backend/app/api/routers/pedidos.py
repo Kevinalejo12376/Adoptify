@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,14 @@ from app.core.notificaciones import crear_notificacion
 from app.api.routers.ia import crear_tarea_ia
 
 router = APIRouter()
+
+# Reglas de negocio de envío y descuento (fuente de verdad = backend).
+# Único código promocional existente en Adoptify; el descuento se recalcula aquí
+# y NUNCA se confía en el valor enviado por el frontend.
+CODIGO_PROMOCION_VALIDO = "ADOPTIFY10"
+PORCENTAJE_DESCUENTO = Decimal("0.10")
+# Límite razonable del costo de envío (COP) para impedir manipulación.
+ENVIO_MAXIMO_COP = 100000
 
 
 def _registrar_historial(db, pedido_id, estado_id, notas=None):
@@ -59,12 +67,25 @@ def crear_pedido(
     if estado_id is None:
         raise HTTPException(status_code=500, detail="Catalogo de estados de pedido no inicializado")
 
+    # El costo de envío se VALIDA en el backend (nunca se confía ciegamente en
+    # el frontend): debe ser un entero no negativo dentro de un rango razonable.
+    costo_envio = int(Decimal(str(payload.costo_envio or 0)))
+    if costo_envio < 0 or costo_envio > ENVIO_MAXIMO_COP:
+        raise HTTPException(status_code=400, detail="El costo de envío no es válido")
+
+    # El descuento se calcula aquí según el único código promocional existente
+    # (el valor enviado por el frontend se ignora por completo).
+    codigo_promocion = (payload.codigo_promocion or "").strip().upper()
+    aplica_descuento = codigo_promocion == CODIGO_PROMOCION_VALIDO
+    if not aplica_descuento:
+        codigo_promocion = None
+
     pedido = Pedido(
         usuario_id=current_user.id,
         estado_id=estado_id,
-        costo_envio=Decimal(str(payload.costo_envio or 0)),
-        descuento=Decimal(str(payload.descuento or 0)),
-        codigo_promocion=payload.codigo_promocion,
+        costo_envio=costo_envio,
+        descuento=0,
+        codigo_promocion=codigo_promocion,
         nombre_contacto=payload.nombre_contacto or f"{current_user.nombre} {current_user.apellido or ''}".strip(),
         telefono_contacto=payload.telefono_contacto or current_user.telefono,
         direccion_envio=payload.direccion_envio or current_user.ubicacion,
@@ -114,7 +135,13 @@ def crear_pedido(
             vendedores.setdefault(("refugio", producto.refugio_id), []).append(f"{cantidad}x {producto.nombre}")
 
     pedido.subtotal = subtotal
-    pedido.total = subtotal + Decimal(str(payload.costo_envio or 0)) - Decimal(str(payload.descuento or 0))
+    # Descuento real: 10% del subtotal solo con el código válido (backend).
+    if aplica_descuento:
+        descuento = (subtotal * PORCENTAJE_DESCUENTO).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    else:
+        descuento = Decimal("0")
+    pedido.descuento = descuento
+    pedido.total = subtotal + Decimal(str(costo_envio)) - descuento
     db.flush()
 
     # Notifica al comprador
