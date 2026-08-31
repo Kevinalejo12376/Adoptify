@@ -3,7 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Building2, PawPrint, Store,
   ChevronLeft, ShoppingBag, Package,
-  BarChart3, ChevronDown, LogOut, Pin, PinOff, FileDown,
+  BarChart3, ChevronDown, LogOut, Pin, PinOff, FileDown, HandHeart,
 } from "lucide-react";
 
 const menuItems = [
@@ -21,6 +21,7 @@ const menuItems = [
       { icon: BarChart3, label: "Estadísticas", path: "/admin/marketplace/estadisticas" },
     ],
   },
+  { icon: HandHeart, label: "Donaciones", path: "/admin/donaciones" },
   { icon: FileDown, label: "Reportes", path: "/admin/reportes-descargables" },
 ];
 

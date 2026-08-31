@@ -36,8 +36,10 @@ DROP TABLE IF EXISTS
     solicitudes_refugio_historial, solicitudes_refugio_documentos, solicitudes_refugio,
     -- PQRS de tienda
     tienda_pqrs_adjuntos, tienda_pqrs_mensajes, tienda_pqrs,
-    -- Donaciones
+    -- Donaciones (tiendas aliadas -> refugios)
     donacion_items, donaciones,
+    -- Donaciones de personas (usuarios anónimos o registrados) a refugios
+    donaciones_usuarios,
     -- Tienda / RBAC
     tienda_actividades, tienda_imagenes, tienda_usuario_permisos, tienda_usuarios,
     tienda_permisos, tiendas,
@@ -914,6 +916,43 @@ CREATE TABLE donacion_items (
 CREATE INDEX idx_donacion_items_donacion ON donacion_items(donacion_id);
 
 -- ============================================================
+-- 6b. DONACIONES DE PERSONAS A REFUGIOS (dinero / artículos físicos)
+-- ============================================================
+-- Diferente de 'donaciones'/'donacion_items' (donaciones de PRODUCTOS hechas
+-- por Tiendas Aliadas). Aquí un usuario anónimo o registrado dona dinero o
+-- artículos físicos (ropa, accesorios, alimentos...) a un refugio.
+-- La pasarela de pagos NO está integrada aún; 'pago-confirmado' es el punto
+-- de integración futuro. 'referencia' permite rastrear una donación anónima.
+CREATE TABLE donaciones_usuarios (
+    id                     BIGSERIAL PRIMARY KEY,
+    usuario_id             BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    refugio_id             BIGINT NOT NULL REFERENCES refugios(id) ON DELETE SET NULL,
+    tipo                   VARCHAR(20) NOT NULL,          -- 'dinero' | 'fisica'
+    valor                  BIGINT,                        -- COP (solo dinero)
+    detalle                TEXT,
+    estado                 VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+    es_anonimo             BOOLEAN NOT NULL DEFAULT TRUE,
+    nombre_donante         VARCHAR(200),
+    email_contacto         VARCHAR(255),
+    telefono_contacto      VARCHAR(30),
+    refugio_nombre         VARCHAR(150),
+    referencia             VARCHAR(30) UNIQUE,
+    transaccion_id         VARCHAR(200),
+    pasarela_datos         TEXT,
+    motivo_no_recibida     TEXT,
+    confirmado_por_id      BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    confirmado_por_nombre  VARCHAR(200),
+    confirmado_en          TIMESTAMPTZ,
+    post_foro_id           BIGINT REFERENCES foro_posts(id) ON DELETE SET NULL,
+    creado_en              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actualizado_en         TIMESTAMPTZ
+);
+CREATE INDEX idx_don_usr_usuario ON donaciones_usuarios(usuario_id);
+CREATE INDEX idx_don_usr_refugio ON donaciones_usuarios(refugio_id);
+CREATE INDEX idx_don_usr_estado  ON donaciones_usuarios(estado);
+CREATE INDEX idx_don_usr_creado  ON donaciones_usuarios(creado_en);
+
+-- ============================================================
 -- 7. PQRS DE TIENDAS ALIADAS (hacia Administradores de Adoptify)
 -- ============================================================
 
@@ -1193,6 +1232,7 @@ ALTER TABLE movimientos_kardex       ENABLE ROW LEVEL SECURITY;
 -- Donaciones y PQRS de tienda
 ALTER TABLE donaciones               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE donacion_items           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE donaciones_usuarios      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tienda_pqrs              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tienda_pqrs_mensajes     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tienda_pqrs_adjuntos     ENABLE ROW LEVEL SECURITY;

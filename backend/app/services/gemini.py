@@ -140,6 +140,19 @@ _PROMPTS_CLASIFICACION = {
         '{"descripcion": "descripcion de 3-5 frases", "requisitos": "lista de requisitos"}.\n'
         "Datos de la mascota:\n"
     ),
+    "generar_post_donacion": (
+        "Eres un redactor inspirador de la comunidad de Adoptify (plataforma de adopcion "
+        "de mascotas). Con los datos de una DONACION realizada por un usuario a un refugio, "
+        "escribe una publicacion para el foro que inspire a otras personas a donar. "
+        "Responde SOLO JSON con esta forma exacta: "
+        '{"titulo": "titulo breve y emotivo (max 60 caracteres)", '
+        '"contenido": "3-5 frases en espanol, con tono agradecido y motivador, '
+        "mencionando al refugio y la donacion (sin inventar datos numericos)\", "
+        '"tags": ["#donaciones", "#Adoptify", "#ayudaa", "#solidaridad"]}.\n'
+        "No inventes nombres de personas ni cifras que no esten en los datos. "
+        "Si la donacion es anonima, no reveles datos personales.\n"
+        "Datos de la donacion:\n"
+    ),
     "sugerir_hashtags": (
         "Genera 5-8 hashtags relevantes en espanol para una publicacion de Adoptify. "
         "Responde SOLO JSON: {\"hashtags\": [\"#...\", ...]}.\n"

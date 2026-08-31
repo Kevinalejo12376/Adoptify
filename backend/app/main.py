@@ -19,7 +19,7 @@ from app.api.routers import (
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, solicitudes_refugio, solicitudes_refugio_admin,
     reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
-    ia,
+    ia, donaciones, donaciones_admin,
 )
 
 logger = logging.getLogger(__name__)
@@ -139,6 +139,7 @@ def _run_migrations():
         _paso("backfill super admin tiendas", _backfill_super_admin_tiendas)
         _paso("tablas nuevas de tienda", _crear_tablas_nuevas_tienda)
         _paso("equipo de refugio", _crear_tablas_equipo_refugio)
+        _paso("donaciones_usuarios", _crear_tabla_donaciones_usuarios)
 
         # --- Resumen final ---
         ok = sum(1 for _, s in resultados if s)
@@ -629,6 +630,57 @@ def _crear_tablas_equipo_refugio(db):
     db.commit()
 
 
+def _crear_tabla_donaciones_usuarios(db):
+    """Crea la tabla 'donaciones_usuarios' (donaciones de personas a refugios:
+    dinero o artículos físicos) si no existe (Supabase/PostgreSQL).
+
+    En SQLite local la tabla la crea Base.metadata.create_all (modelo
+    DonacionUsuario). No confundir con 'donaciones'/'donacion_items', que son
+    las donaciones de PRODUCTOS de Tiendas Aliadas.
+    """
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS donaciones_usuarios (
+            id BIGSERIAL PRIMARY KEY,
+            usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            refugio_id BIGINT NOT NULL REFERENCES refugios(id) ON DELETE SET NULL,
+            tipo VARCHAR(20) NOT NULL,
+            valor BIGINT,
+            detalle TEXT,
+            estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
+            es_anonimo BOOLEAN NOT NULL DEFAULT TRUE,
+            nombre_donante VARCHAR(200),
+            email_contacto VARCHAR(255),
+            telefono_contacto VARCHAR(30),
+            refugio_nombre VARCHAR(150),
+            referencia VARCHAR(30) UNIQUE,
+            transaccion_id VARCHAR(200),
+            pasarela_datos TEXT,
+            motivo_no_recibida TEXT,
+            confirmado_por_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            confirmado_por_nombre VARCHAR(200),
+            confirmado_en TIMESTAMPTZ,
+            post_foro_id BIGINT REFERENCES foro_posts(id) ON DELETE SET NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+            actualizado_en TIMESTAMPTZ
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_don_usr_usuario ON donaciones_usuarios(usuario_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_don_usr_refugio ON donaciones_usuarios(refugio_id)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_don_usr_estado ON donaciones_usuarios(estado)"
+    ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_don_usr_creado ON donaciones_usuarios(creado_en)"
+    ))
+    db.commit()
+    print("[migracion] Tabla 'donaciones_usuarios' verificada.")
+
+
 def _crear_tablas_nuevas_tienda(db):
     """Crea las tablas nuevas del modulo Tienda (historial, donaciones, PQRS)
     si no existen (Supabase/PostgreSQL)."""
@@ -887,6 +939,12 @@ app.include_router(
     tags=["Adopciones"],
 )
 app.include_router(ia.router, prefix="/api/ia", tags=["IA / n8n"])
+app.include_router(donaciones.router, prefix="/api/donaciones", tags=["Donaciones"])
+app.include_router(
+    donaciones_admin.router,
+    prefix="/api/admin",
+    tags=["Administracion - Donaciones"],
+)
 
 
 @app.get("/")

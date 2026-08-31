@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Heart, Menu, X, Sparkles, User, ChevronDown, LogOut, PawPrint, ShoppingBag, MessageSquare, Home as HomeIcon, Settings, Bell, ShoppingCart, Sun, Moon, Building2, ClipboardList, Store, LayoutDashboard, PackageSearch, Users } from "lucide-react";
+import { Heart, Menu, X, Sparkles, User, ChevronDown, LogOut, PawPrint, ShoppingBag, MessageSquare, Home as HomeIcon, Settings, Bell, ShoppingCart, Sun, Moon, Building2, ClipboardList, Store, LayoutDashboard, PackageSearch, Users, HandHeart } from "lucide-react";
 import { ADOPTIFY_LOGO as logo } from "../constants/assets";
 import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../context/I18nContext";
@@ -297,6 +297,15 @@ export default function Navbar() {
                       >
                         <MessageSquare className="w-4 h-4" />
                         Foro
+                      </Link>
+                    )}
+                    {tienePermisoRefugio("donaciones") && (
+                      <Link
+                        to="/refugio/donaciones"
+                        className={`nav-link text-sm font-medium transition-all flex items-center gap-1.5 px-3 py-2 rounded-xl ${getLinkClasses(isActive("/refugio/donaciones"))}`}
+                      >
+                        <HandHeart className="w-4 h-4" />
+                        Donaciones
                       </Link>
                     )}
                   </>
@@ -634,6 +643,22 @@ export default function Navbar() {
                             <span>Mis Pedidos</span>
                           </Link>
                           <Link
+                            to="/mis-donaciones"
+                            onClick={() => setShowUserMenu(false)}
+                            className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                              isDark
+                                ? (location.pathname.startsWith("/mis-donaciones")
+                                  ? "text-orange-400 font-semibold bg-gradient-to-r from-orange-300/15 via-yellow-300/15 to-pink-300/15"
+                                  : "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-orange-300/15 hover:via-yellow-300/15 hover:to-pink-300/15")
+                                : (location.pathname.startsWith("/mis-donaciones")
+                                  ? "text-rose-600 font-semibold bg-rose-50"
+                                  : "text-gray-700 hover:bg-rose-50")
+                            }`}
+                          >
+                            <HandHeart className="w-4 h-4" />
+                            <span>Mis donaciones</span>
+                          </Link>
+                          <Link
                             to="/notificaciones"
                             onClick={() => setShowUserMenu(false)}
                             className={`flex items-center gap-3 px-4 py-3 transition-colors ${
@@ -845,6 +870,13 @@ export default function Navbar() {
                       Foro
                     </Link>
                   )}
+                  {tienePermisoRefugio("donaciones") && (
+                    <Link to="/refugio/donaciones" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/refugio/donaciones"))}`}>
+                      <HandHeart className="w-4 h-4" />
+                      Donaciones
+                    </Link>
+                  )}
                   <div className={`pt-4 pb-2 border-t flex flex-col gap-2 ${isDark ? "border-white/5" : "border-gray-100"}`}>
                     <Link to="/refugio/perfil" onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/refugio/perfil"))}`}>
@@ -951,6 +983,11 @@ export default function Navbar() {
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(location.pathname.startsWith("/mis-pedidos"))}`}>
                       <PackageSearch className="w-4 h-4" />
                       Mis Pedidos
+                    </Link>
+                    <Link to="/mis-donaciones" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(location.pathname.startsWith("/mis-donaciones"))}`}>
+                      <HandHeart className="w-4 h-4" />
+                      Mis donaciones
                     </Link>
                     <Link to="/notificaciones" onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/notificaciones"))}`}>

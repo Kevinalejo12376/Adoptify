@@ -5,6 +5,7 @@ import ScrollToTop from "../../components/ScrollToTop";
 import AnimatedSection from "../../components/AnimatedSection";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import { useAuth } from "../../context/AuthContext";
+import DonarModal from "../../components/DonarModal";
 import { CAROUSEL_IMAGES } from "../../assets/images";
 import { estadisticasPublicas, listarRefugios } from "../../api/refugios";
 import { listarMascotas } from "../../api/mascotas";
@@ -66,6 +67,8 @@ export default function Home() {
   const [productosError, setProductosError] = useState(null);
   const [topicsLoading, setTopicsLoading] = useState(true);
   const [topicsError, setTopicsError] = useState(null);
+  // Modal "¿Cómo deseas ayudar?" (sistema de donaciones).
+  const [showDonarModal, setShowDonarModal] = useState(false);
 
   useEffect(() => {
     estadisticasPublicas().then(setStats).catch(() => setStats(null));
@@ -610,41 +613,21 @@ export default function Home() {
                     </div>
                     <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
                     <div className="flex justify-between items-center">
-                      <span className="text-2xl font-bold text-rose-600 font-display">{formatPrice(product.precio)}</span>
+                      <div className="flex flex-col items-start">
+                        {Number(product.descuento) > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-600 mb-0.5">
+                            -{product.descuento}% · <span className="line-through">{formatPrice(product.precio)}</span>
+                          </span>
+                        )}
+                        <span className="text-2xl font-bold text-rose-600 font-display">
+                          {formatPrice(precioConDescuento(product.precio, product.descuento))}
+                        </span>
+                      </div>
                       <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Ver
                       </Link>
                     </div>
-              {productos.map((product) => (
-                <div key={product.id} className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:scale-105">
-                  <div className="w-full h-48 mb-4 rounded-xl bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center overflow-hidden">
-                    {product.imagen_url || (product.imagenes && product.imagenes[0]?.url) ? (
-                      <img
-                        src={product.imagen_url || (product.imagenes && product.imagenes[0]?.url)}
-                        alt={product.nombre}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ShoppingBag className="w-16 h-16 text-rose-500" />
-                    )}
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">{product.nombre}</h3>
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col items-start">
-                      {Number(product.descuento) > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-600 mb-0.5">
-                          -{product.descuento}% · <span className="line-through">{formatPrice(product.precio)}</span>
-                        </span>
-                      )}
-                      <span className="text-2xl font-bold text-rose-600 font-display">
-                        {formatPrice(precioConDescuento(product.precio, product.descuento))}
-                      </span>
-                    </div>
-                    <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Ver
-                    </Link>
                   </div>
                 );
               })}
@@ -671,10 +654,13 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <Link to="/login" className="inline-flex items-center px-8 py-4 bg-white text-rose-600 font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+            <button
+              onClick={() => setShowDonarModal(true)}
+              className="inline-flex items-center px-8 py-4 bg-white text-rose-600 font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 cursor-pointer"
+            >
               Quiero ayudar
               <ArrowRight className="w-5 h-5 ml-2" />
-            </Link>
+            </button>
           </div>
         </div>
       </section>
@@ -787,6 +773,9 @@ export default function Home() {
 
       {/* Scroll to Top Button */}
       <ScrollToTop />
+
+      {/* Modal "¿Cómo deseas ayudar?" (donaciones) */}
+      <DonarModal isOpen={showDonarModal} onClose={() => setShowDonarModal(false)} />
     </div>
   );
 }
