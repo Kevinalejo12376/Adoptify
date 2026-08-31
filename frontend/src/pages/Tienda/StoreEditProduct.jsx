@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { obtenerMiProducto, crearMiProducto, crearMiProductoConImagenes, actualizarMiProducto } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
-import { normalizarPrecioInput, parsearPrecioInput } from "../../utils/price";
+import { formatPrice, normalizarPrecioInput, parsePrecio, parsearPrecioInput, precioConDescuento } from "../../utils/price";
 import { readAndValidateImage, fileToBase64, MAX_IMAGE_SIZE_MB } from "../../utils/imageUtils";
 import ImageEditorModal from "../../components/ImageEditorModal";
 
@@ -83,76 +83,6 @@ function SubidaImagenesProducto({ value = [], onChange, maxImages = 5 }) {
     setQueue([]);
   };
 
-// Campos específicos según la categoría seleccionada (mismas reglas que en el
-// rol Refugio): Alimentos -> talla/tamaño (peso/volumen), Accesorios -> S/M/L/XL,
-// Juguetes -> S/M/L, Ropa -> XS..XXL, Salud -> dosis/tabletas, Higiene -> volumen.
-const categoryFields = {
-  Ropa: { sizes: true, material: true, colors: true, sizeOptions: ["XS", "S", "M", "L", "XL", "XXL"], label: "Prenda de vestir" },
-  Accesorios: { sizes: true, material: true, colors: true, sizeOptions: ["S", "M", "L", "XL"], label: "Accesorio" },
-  Alimentos: { sizes: true, material: false, colors: false, sizeOptions: ["250g", "500g", "1kg", "2kg", "5kg", "250ml", "500ml", "1L", "1.5L"], label: "Alimento" },
-  Juguetes: { sizes: true, material: true, colors: true, sizeOptions: ["S", "M", "L"], label: "Juguete" },
-  Salud: { sizes: true, material: false, colors: false, sizeOptions: ["3 dosis", "6 dosis", "12 dosis", "30 tabletas", "60 tabletas", "120 tabletas"], label: "Producto de salud" },
-  Higiene: { sizes: true, material: false, colors: false, sizeOptions: ["250ml", "500ml", "1L"], label: "Producto de higiene" },
-};
-
-const CategorySpecificFields = ({ data, setData, colorInput, setColorInput, onAddColor, onRemoveColor }) => {
-  const fields = categoryFields[data.categoria];
-  if (!fields) return null;
-
-  return (
-    <>
-      {fields.sizes && (
-        <div className="sm:col-span-2">
-          <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Tallas / Tamaños</label>
-          <div className="flex flex-wrap gap-2">
-            {fields.sizeOptions.map((size) => {
-              const isSelected = (data.tallas || []).includes(size);
-              return (
-                <button key={size} type="button"
-                  onClick={() => {
-                    const current = data.tallas || [];
-                    setData("tallas", isSelected ? current.filter((s) => s !== size) : [...current, size]);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                    isSelected
-                      ? "bg-rose-100 dark:bg-rose-500/20 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-400"
-                      : "bg-white dark:bg-dark-bg border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:border-rose-300 dark:hover:border-rose-500/40"
-                  }`}>
-                  {size}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {fields.material && (
-        <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Material</label>
-          <input type="text" value={data.material || ""} onChange={(e) => setData("material", e.target.value)}
-            className={inputCls} placeholder="Ej: Cuero sintético, Algodón, Caucho" />
-        </div>
-      )}
-      {fields.colors && (
-        <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Colores Disponibles</label>
-          <div className="flex gap-2 mb-2">
-            <input type="text" value={colorInput} onChange={(e) => setColorInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAddColor(); } }}
-              className="flex-1 px-3.5 py-2 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-              placeholder="Ej: Negro, Marrón, Rojo" />
-            <button type="button" onClick={onAddColor}
-              className="px-3 py-2 bg-gray-100 dark:bg-dark-border rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-colors">
-              <Plus size={16} />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(data.colores || []).map((item) => (
-              <span key={item} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-dark-bg rounded-lg text-xs font-medium text-gray-700 dark:text-dark-text">
-                {item}
-                <button type="button" onClick={() => onRemoveColor(item)} className="text-gray-400 hover:text-red-500">
-                  <X size={12} />
-                </button>
-              </span>
   const removeImage = (index) => {
     onChange?.(imagenes.filter((_, i) => i !== index));
   };
@@ -243,10 +173,6 @@ const CategorySpecificFields = ({ data, setData, colorInput, setColorInput, onAd
           </div>
         </div>
       )}
-    </>
-  );
-};
-
 
       {/* Editor de imagen */}
       <ImageEditorModal
@@ -259,6 +185,86 @@ const CategorySpecificFields = ({ data, setData, colorInput, setColorInput, onAd
     </div>
   );
 }
+
+// ============================================================
+// Campos específicos según la categoría seleccionada (mismas reglas que en el
+// rol Refugio): Alimentos -> talla/tamaño (peso/volumen), Accesorios -> S/M/L/XL,
+// Juguetes -> S/M/L, Ropa -> XS..XXL, Salud -> dosis/tabletas, Higiene -> volumen.
+// ============================================================
+const categoryFields = {
+  Ropa: { sizes: true, material: true, colors: true, sizeOptions: ["XS", "S", "M", "L", "XL", "XXL"], label: "Prenda de vestir" },
+  Accesorios: { sizes: true, material: true, colors: true, sizeOptions: ["S", "M", "L", "XL"], label: "Accesorio" },
+  Alimentos: { sizes: true, material: false, colors: false, sizeOptions: ["250g", "500g", "1kg", "2kg", "5kg", "250ml", "500ml", "1L", "1.5L"], label: "Alimento" },
+  Juguetes: { sizes: true, material: true, colors: true, sizeOptions: ["S", "M", "L"], label: "Juguete" },
+  Salud: { sizes: true, material: false, colors: false, sizeOptions: ["3 dosis", "6 dosis", "12 dosis", "30 tabletas", "60 tabletas", "120 tabletas"], label: "Producto de salud" },
+  Higiene: { sizes: true, material: false, colors: false, sizeOptions: ["250ml", "500ml", "1L"], label: "Producto de higiene" },
+};
+
+const CategorySpecificFields = ({ data, setData, colorInput, setColorInput, onAddColor, onRemoveColor }) => {
+  const fields = categoryFields[data.categoria];
+  if (!fields) return null;
+
+  return (
+    <>
+      {fields.sizes && (
+        <div className="sm:col-span-2">
+          <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Tallas / Tamaños</label>
+          <div className="flex flex-wrap gap-2">
+            {fields.sizeOptions.map((size) => {
+              const isSelected = (data.tallas || []).includes(size);
+              return (
+                <button key={size} type="button"
+                  onClick={() => {
+                    const current = data.tallas || [];
+                    setData("tallas", isSelected ? current.filter((s) => s !== size) : [...current, size]);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    isSelected
+                      ? "bg-rose-100 dark:bg-rose-500/20 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-400"
+                      : "bg-white dark:bg-dark-bg border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:border-rose-300 dark:hover:border-rose-500/40"
+                  }`}>
+                  {size}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {fields.material && (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Material</label>
+          <input type="text" value={data.material || ""} onChange={(e) => setData("material", e.target.value)}
+            className={inputCls} placeholder="Ej: Cuero sintético, Algodón, Caucho" />
+        </div>
+      )}
+      {fields.colors && (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Colores Disponibles</label>
+          <div className="flex gap-2 mb-2">
+            <input type="text" value={colorInput} onChange={(e) => setColorInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAddColor(); } }}
+              className="flex-1 px-3.5 py-2 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+              placeholder="Ej: Negro, Marrón, Rojo" />
+            <button type="button" onClick={onAddColor}
+              className="px-3 py-2 bg-gray-100 dark:bg-dark-border rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-colors">
+              <Plus size={16} />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(data.colores || []).map((item) => (
+              <span key={item} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-dark-bg rounded-lg text-xs font-medium text-gray-700 dark:text-dark-text">
+                {item}
+                <button type="button" onClick={() => onRemoveColor(item)} className="text-gray-400 hover:text-red-500">
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 // ============================================================
 // Modal de confirmación moderno
@@ -727,8 +733,6 @@ export default function StoreEditProduct() {
           </div>
         )}
 
-        {/* Precio y Stock (únicos campos que debe llenar el vendedor si viene de IA) */}
-        <div className={`bg-white dark:bg-dark-card rounded-2xl border ${aiImages.length > 0 ? "border-rose-200 dark:border-rose-500/20 ring-2 ring-rose-500/10" : "border-gray-100 dark:border-dark-border"} p-6`}>
         {/* ===== Precio y Stock ===== */}
         <div className={`bg-white dark:bg-dark-card rounded-2xl border ${fromIA && isNew ? "border-rose-200 dark:border-rose-500/20 ring-2 ring-rose-500/10" : "border-gray-100 dark:border-dark-border"} p-5 sm:p-6`}>
           <div className="flex items-center gap-2 mb-4">

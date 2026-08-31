@@ -523,7 +523,39 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         .filter(func.lower(Usuario.email) == email_buscado)
         .first()
     )
+
+    ahora = datetime.now(timezone.utc)
+
+    # ─── Bloqueo por intentos fallidos ─────────────────────────────────
+    # Si la cuenta acumuló 3 intentos fallidos, queda bloqueada durante 15
+    # minutos. Mientras el bloqueo esté activo se rechaza el ingreso; al
+    # vencer el tiempo, la cuenta se habilita automáticamente en el siguiente
+    # intento.
+    if user and user.bloqueado_hasta and user.bloqueado_hasta > ahora:
+        seg_restantes = (user.bloqueado_hasta - ahora).total_seconds()
+        minutos = max(1, int(seg_restantes // 60) + (1 if seg_restantes % 60 else 0))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "Cuenta temporalmente bloqueada por 3 intentos fallidos. "
+                f"Inténtalo de nuevo en {minutos} min."
+            ),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if user and user.bloqueado_hasta and user.bloqueado_hasta <= ahora:
+        # El bloqueo ya venció: se desbloquea la cuenta automáticamente.
+        user.bloqueado_hasta = None
+        user.intentos_fallidos = 0
+
     if not user or not verify_password(form_data.password, user.hashed_password):
+        # Credenciales incorrectas: se acumula un intento fallido.
+        if user:
+            user.intentos_fallidos = (user.intentos_fallidos or 0) + 1
+            if user.intentos_fallidos >= 3:
+                # Al alcanzar 3 fallos se bloquea la cuenta durante 15 minutos.
+                user.bloqueado_hasta = ahora + timedelta(minutes=15)
+                user.intentos_fallidos = 0
+            db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contrasena incorrectos",
@@ -536,6 +568,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail="Tu cuenta está desactivada",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Inicio de sesión exitoso: se reinicia el contador de intentos fallidos.
+    if user.intentos_fallidos or user.bloqueado_hasta:
+        user.intentos_fallidos = 0
+        user.bloqueado_hasta = None
+        db.commit()
     access_token = create_access_token(
         data={"sub": user.email},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),

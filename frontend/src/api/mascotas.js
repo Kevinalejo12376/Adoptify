@@ -17,6 +17,19 @@ export async function obtenerMascota(id) {
   return apiFetch(`${base}/${id}`, { auth: false });
 }
 
+/** Calcula la compatibilidad usuario-mascota con IA (Gemini).
+ * @param {number} mascotaId id de la mascota.
+ * @param {object} respuestas respuestas del test de personalidad del usuario
+ *   (pregunta -> opción seleccionada).
+ */
+export async function calcularCompatibilidad(mascotaId, respuestas) {
+  return apiFetch(`${base}/${mascotaId}/compatibilidad`, {
+    method: "POST",
+    body: { respuestas },
+    auth: false,
+  });
+}
+
 /** Mascotas del refugio autenticado. */
 export async function misMascotas() {
   return apiFetch(`${base}/mias`);
