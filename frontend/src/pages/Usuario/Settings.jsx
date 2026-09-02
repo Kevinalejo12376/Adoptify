@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { Bell, Shield, Eye, EyeOff, Globe, Moon, Sun, ChevronRight, LogOut, Trash2, HelpCircle, Mail, X, Send, FileText, Scale, Cookie, CheckCircle, XCircle, Loader2, KeyRound, Lock } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useI18n } from "../../context/I18nContext";
@@ -311,6 +312,7 @@ export default function Settings() {
   return (
     <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-rose-50 via-white to-amber-50">
       <div className="max-w-4xl mx-auto">
+        <BackButton fallback="/dashboard" label="Volver" className="mb-4" />
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-2 font-display">

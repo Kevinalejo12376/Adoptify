@@ -52,6 +52,11 @@ export async function restablecerPasswordTienda(id, nuevaPassword) {
   );
 }
 
+/** Envía un correo de verificación para que la tienda restablezca su contraseña */
+export async function enviarEnlacePasswordTienda(id) {
+  return apiFetch(`${base}/${id}/enviar-enlace-password`, { method: "POST" });
+}
+
 /** Elimina una tienda */
 export async function eliminarTienda(id) {
   return apiFetch(`${base}/${id}`, { method: "DELETE" });

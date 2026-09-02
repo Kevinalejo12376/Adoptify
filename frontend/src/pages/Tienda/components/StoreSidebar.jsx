@@ -1,46 +1,48 @@
 import { useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Package, ShoppingCart, Store, BarChart3, Bell, Settings,
+  LayoutDashboard, Package, ShoppingCart, BarChart3,
   ChevronLeft, ChevronRight, LogOut, PawPrint as LogoIcon, Star, ClipboardList,
-  History, HeartHandshake, Pin, PinOff,
+  History, HeartHandshake, Pin, PinOff, Loader2,
 } from "lucide-react";
 import { useStore } from "../../../context/StoreContext";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard" },
-  { icon: Package, label: "Productos", path: "/tienda/productos" },
-  { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
-  { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos" },
-  { icon: Store, label: "Perfil Tienda", path: "/tienda/perfil" },
-  { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas" },
-  { icon: Bell, label: "Notificaciones", path: "/tienda/notificaciones" },
-  { icon: Settings, label: "Configuración", path: "/tienda/configuracion" },
-];
-// El menu lateral se simplifica a las opciones principales de trabajo.
+// El menu lateral muestra las opciones de trabajo esenciales de la tienda
+// (Dashboard, Productos, Kardex, Pedidos y Estadisticas) para cualquier
+// miembro activo (super admin o admin) SIN depender de permisos finos. Esto
+// evita que el menu colapse a un solo item ("Kardex") mientras el contexto de
+// permisos carga o cuando el administrador aun no tiene permisos asignados.
+// Las opciones avanzadas (Historial de actividad y Donaciones) solo se
+// muestran si el usuario posee el permiso correspondiente.
 // Las demas funcionalidades (perfil, administradores, notificaciones, PQRS,
 // configuracion y cerrar sesion) se acceden desde el menu del perfil.
 function useMenuItems() {
   const { tienePermiso } = useStore();
 
-  const items = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard", permiso: "dashboard.ver" },
-    { icon: Package, label: "Productos", path: "/tienda/productos", permiso: "productos.ver" },
+  const itemsBase = [
+    { icon: LayoutDashboard, label: "Dashboard", path: "/tienda/dashboard" },
+    { icon: Package, label: "Productos", path: "/tienda/productos" },
     { icon: ClipboardList, label: "Kardex", path: "/tienda/kardex" },
-    { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos", permiso: "pedidos.ver" },
-    { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas", permiso: "reportes.ver_estadisticas" },
+    { icon: ShoppingCart, label: "Pedidos", path: "/tienda/pedidos" },
+    { icon: BarChart3, label: "Estadísticas", path: "/tienda/estadisticas" },
+  ];
+
+  const itemsConPermiso = [
     { icon: History, label: "Historial de actividad", path: "/tienda/actividad", permiso: "historial.ver" },
     { icon: HeartHandshake, label: "Donaciones", path: "/tienda/donaciones", permiso: "donaciones.ver" },
   ];
 
-  return items.filter((item) => {
-    if (item.permiso) return tienePermiso(item.permiso);
-    return true;
-  });
+  return [
+    ...itemsBase,
+    ...itemsConPermiso.filter((item) => tienePermiso(item.permiso)),
+  ];
 }
 
 export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, storeLogo, onLogout, fijado, onToggleFijar }) {
   const location = useLocation();
+  // Mientras el contexto de la tienda carga los permisos (BD), se muestra un
+  // indicador en lugar del menú filtrado (evita que aparezca solo "Kardex").
+  const { loading: contextoCargando } = useStore();
   const menuItems = useMenuItems();
   const sidebarRef = useRef(null);
   // "Fijar" se controla desde StoreLayout para poder ajustar el margen del contenido.
@@ -107,7 +109,12 @@ export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, sto
 
         {/* Menu dinamico segun permisos */}
         <nav className="flex-1 overflow-y-auto scrollbar-hide py-3 px-2 space-y-0.5">
-          {menuItems.map((item) => {
+          {contextoCargando ? (
+            <div className={`flex flex-col items-center justify-center text-gray-400 dark:text-dark-text-secondary ${collapsed ? "py-6" : "py-8"}`}>
+              <Loader2 className="w-5 h-5 animate-spin text-rose-500 mb-2" />
+              {!collapsed && <span className="text-xs">Cargando menú...</span>}
+            </div>
+          ) : menuItems.map((item) => {
             const active = isActive(item.path);
             return (
               <NavLink
@@ -174,7 +181,7 @@ export default function StoreSidebar({ collapsed, setCollapsed, storeNombre, sto
       {/* Sidebar Mobile */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-dark-card border-t border-gray-100 dark:border-dark-border safe-area-bottom">
         <div className="flex overflow-x-auto scrollbar-hide px-1 py-1">
-          {menuItems.map((item) => {
+          {!contextoCargando && menuItems.map((item) => {
             const active = isActive(item.path);
             return (
               <NavLink

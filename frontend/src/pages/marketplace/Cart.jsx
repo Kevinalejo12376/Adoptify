@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import BackButton from "../../components/BackButton";
 import { listarProductos } from "../../api/productos";
 import { crearPedido } from "../../api/pedidos";
-import { formatPrice } from "../../utils/price";
+import { iniciarCheckout } from "../../api/pagos";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 import { useAuth } from "../../context/AuthContext";
 import {
   ShoppingCart,
@@ -53,9 +55,28 @@ export default function Cart() {
   const [checkoutError, setCheckoutError] = useState("");
   const [orderResult, setOrderResult] = useState(null);
 
+  // Métodos de pago: "contraentrega" (pago al recibir) o "dlocal" (pago en línea).
+  const [metodoPago, setMetodoPago] = useState("contraentrega");
+
   const shipping = cartTotal >= 50 ? 0 : 9.99;
   const discount = promoApplied ? cartTotal * 0.1 : 0;
   const finalTotal = cartTotal + shipping - discount;
+
+  // Descuento por producto: el item.price ya es el precio final (calculado con
+  // precioConDescuento al agregar al carrito), por lo que cartTotal ya lo
+  // incluye. Se muestran aquí el subtotal a precio original y el total ahorrado
+  // para que el resumen sea transparente y consistente:
+  //   subtotalOriginal - descuentoProductos === cartTotal
+  const cartOriginalTotal = cart.reduce(
+    (total, item) => total + (Number(item.originalPrice) || Number(item.price) || 0) * item.quantity,
+    0
+  );
+  const productDiscountTotal = cart.reduce(
+    (total, item) =>
+      total +
+      ((Number(item.originalPrice) || Number(item.price) || 0) - (Number(item.price) || 0)) * item.quantity,
+    0
+  );
 
   const handleApplyPromo = () => {
     if (promoCode.toLowerCase() === "adoptify10") {
@@ -86,7 +107,9 @@ export default function Cart() {
         const mapped = (data || []).slice(0, 3).map((p) => ({
           id: p.id,
           name: p.nombre,
-          price: Number(p.precio) || 0,
+          descuento: Number(p.descuento) || 0,
+          originalPrice: parsePrecio(p.precio),
+          price: precioConDescuento(p.precio, p.descuento),
           category: p.categoria,
           color: "from-rose-300 to-amber-300",
           description: p.descripcion || "",
@@ -112,8 +135,26 @@ export default function Cart() {
         costo_envio: shipping,
         descuento: discount,
         codigo_promocion: promoApplied ? promoCode : null,
-        metodo_pago: "Contra entrega",
+        metodo_pago: metodoPago === "dlocal" ? "dLocal" : "Contra entrega",
       });
+
+      // Si el usuario eligió pago en línea, se crea el pago en el backend y se
+      // redirige al Checkout alojado de dLocal (la Secret Key nunca toca el
+      // navegador). El carrito NO se vacía aquí: si el usuario cancela o el pago
+      // falla, podrá volver a intentarlo sin perder los productos. Se limpia
+      // únicamente cuando el pago se confirma (ver PagoResultado).
+      if (metodoPago === "dlocal") {
+        const pago = await iniciarCheckout({ pedido_id: pedido.id });
+        if (pago?.redirect_url) {
+          window.location.href = pago.redirect_url;
+          return;
+        }
+        // Sin URL de dLocal (fallback): se muestra el pedido y el usuario podrá
+        // reintentar el pago desde "Mis pedidos".
+        setOrderResult(pedido);
+        return;
+      }
+
       clearCart();
       setOrderResult(pedido);
     } catch (e) {
@@ -167,13 +208,11 @@ export default function Cart() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-2 text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors mb-4"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Seguir comprando
-            </Link>
+            <BackButton
+              fallback="/store"
+              label="Seguir comprando"
+              className="text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 mb-4"
+            />
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-dark-text font-display">
               Carrito de Compras
             </h1>
@@ -235,13 +274,11 @@ export default function Cart() {
         {/* Header */}
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <Link
-              to="/store"
-              className="inline-flex items-center gap-2 text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors mb-3"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Seguir comprando
-            </Link>
+            <BackButton
+              fallback="/store"
+              label="Seguir comprando"
+              className="text-sm font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 mb-3"
+            />
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-dark-text font-display">
               Carrito de Compras
             </h1>
@@ -361,8 +398,21 @@ export default function Cart() {
                         </div>
                       </div>
 
-                      {/* Price */}
+                      {/* Price (original tachado + descuento + final) */}
                       <div className="text-right">
+                        {item.descuento > 0 && (
+                          <>
+                            <span className="block text-xs text-gray-400 dark:text-dark-text-secondary line-through">
+                              {formatPrice((Number(item.originalPrice) || Number(item.price)) * item.quantity)}
+                            </span>
+                            <span className="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-0.5">
+                              -{item.descuento}% · Ahorras{" "}
+                              {formatPrice(
+                                ((Number(item.originalPrice) || Number(item.price)) - Number(item.price)) * item.quantity
+                              )}
+                            </span>
+                          </>
+                        )}
                         <span className="text-xl font-bold text-rose-600 dark:text-rose-400 font-display">
                           {formatPrice(item.price * item.quantity)}
                         </span>
@@ -433,9 +483,19 @@ export default function Cart() {
                     Subtotal ({cartCount} productos)
                   </span>
                   <span className="font-semibold text-gray-900 dark:text-dark-text">
-                    {formatPrice(cartTotal)}
+                    {formatPrice(cartOriginalTotal)}
                   </span>
                 </div>
+                {productDiscountTotal > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      Descuento en productos
+                    </span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      -{formatPrice(productDiscountTotal)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-dark-text-secondary">
                     Envío
@@ -470,6 +530,54 @@ export default function Cart() {
                       {formatPrice(finalTotal)}
                     </span>
                   </div>
+                </div>
+              </div>
+
+              {/* Payment method selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-text mb-2">
+                  Método de pago
+                </label>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setMetodoPago("contraentrega")}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                      metodoPago === "contraentrega"
+                        ? "border-rose-500 bg-rose-50 dark:bg-rose-900/20"
+                        : "border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card"
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${metodoPago === "contraentrega" ? "border-rose-500" : "border-gray-300"}`}>
+                      {metodoPago === "contraentrega" && <span className="w-2 h-2 rounded-full bg-rose-500" />}
+                    </span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-dark-text">
+                      Contra entrega
+                    </span>
+                  </button>
+
+                  {/* Pago en línea (dLocal). El usuario se redirige al Checkout
+                      alojado de dLocal. */}
+                  <button
+                    type="button"
+                    onClick={() => setMetodoPago("dlocal")}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                      metodoPago === "dlocal"
+                        ? "border-rose-500 bg-rose-50 dark:bg-rose-900/20"
+                        : "border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card"
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${metodoPago === "dlocal" ? "border-rose-500" : "border-gray-300"}`}>
+                      {metodoPago === "dlocal" && <span className="w-2 h-2 rounded-full bg-rose-500" />}
+                    </span>
+                    <CreditCard className="w-4 h-4 text-violet-500" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-dark-text">
+                      Pago en línea (dLocal)
+                    </span>
+                    <span className="ml-auto text-xs text-gray-400 dark:text-dark-text-secondary">
+                      Tarjeta / débito / crédito
+                    </span>
+                  </button>
                 </div>
               </div>
 
@@ -532,9 +640,16 @@ export default function Cart() {
                     {product.name}
                   </h3>
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">
-                      {formatPrice(product.price)}
-                    </span>
+                    <div className="flex flex-col items-start">
+                      {product.descuento > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-0.5">
+                          -{product.descuento}% · {formatPrice(product.originalPrice)}
+                        </span>
+                      )}
+                      <span className="text-lg font-bold text-rose-600 dark:text-rose-400 font-display">
+                        {formatPrice(product.price)}
+                      </span>
+                    </div>
                     <button
                       onClick={() => handleAddSuggested(product)}
                       disabled={addedSuggested[product.id]}

@@ -461,7 +461,7 @@ function TabSolicitudes({ solicitudes, stats, cargando, filtro, setFiltro, busqu
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1 truncate">
                     <MapPin size={11} className="text-gray-400" />
-                    {`${[s.departamento, s.municipio || s.ciudad].filter(Boolean).join(", ") || "Ubicación no indicada"}`} · Solicitud #{s.id}
+                    {[s.departamento, s.municipio || s.ciudad].filter(Boolean).join(", ") || "Ubicación no indicada"}
                   </p>
                 </div>
               </div>
@@ -680,7 +680,7 @@ function ModalEliminarSolicitud({ solicitud, onClose, onConfirmar }) {
           </div>
           <h3 className="text-lg font-bold text-gray-900 mb-2">Eliminar solicitud</h3>
           <p className="text-sm text-gray-600 leading-relaxed mb-6">
-            Se eliminará la solicitud de <strong>{solicitud.nombre_refugio}</strong> (Solicitud #{solicitud.id}).
+            Se eliminará la solicitud de <strong>{solicitud.nombre_refugio}</strong>.
             Esta acción no se puede deshacer.
           </p>
           <div className="flex gap-3">

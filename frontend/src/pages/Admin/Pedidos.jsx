@@ -18,8 +18,6 @@ export default function AdminPedidos() {
   useEffect(() => { cargar(); }, [cargar]);
 
   const columnas = [
-    { key: "id", titulo: "#", ordenable: true },
-    { key: "usuario_id", titulo: "Usuario ID", ordenable: true },
     { key: "estado", titulo: "Estado", tipo: "badge", ordenable: true },
     {
       key: "total", titulo: "Total", ordenable: true,

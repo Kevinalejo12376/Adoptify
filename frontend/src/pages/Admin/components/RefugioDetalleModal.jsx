@@ -181,7 +181,7 @@ export default function RefugioDetalleModal({ refugio, onClose, onActualizar, no
           )}
           <div className="flex-1 min-w-0">
             <h2 className="text-lg sm:text-xl font-bold text-white truncate">{detalle?.nombre || refugio.nombre}</h2>
-            <p className="text-xs text-white/80 mt-0.5">Detalle del refugio · ID #{detalle?.id}</p>
+            <p className="text-xs text-white/80 mt-0.5">Detalle del refugio</p>
           </div>
           <button onClick={onClose} className="shrink-0 w-9 h-9 rounded-xl bg-white/20 text-white hover:bg-white/30 flex items-center justify-center transition-colors" title="Cerrar">
             <X size={18} />

@@ -140,6 +140,19 @@ _PROMPTS_CLASIFICACION = {
         '{"descripcion": "descripcion de 3-5 frases", "requisitos": "lista de requisitos"}.\n'
         "Datos de la mascota:\n"
     ),
+    "generar_post_donacion": (
+        "Eres un redactor inspirador de la comunidad de Adoptify (plataforma de adopcion "
+        "de mascotas). Con los datos de una DONACION realizada por un usuario a un refugio, "
+        "escribe una publicacion para el foro que inspire a otras personas a donar. "
+        "Responde SOLO JSON con esta forma exacta: "
+        '{"titulo": "titulo breve y emotivo (max 60 caracteres)", '
+        '"contenido": "3-5 frases en espanol, con tono agradecido y motivador, '
+        "mencionando al refugio y la donacion (sin inventar datos numericos)\", "
+        '"tags": ["#donaciones", "#Adoptify", "#ayudaa", "#solidaridad"]}.\n'
+        "No inventes nombres de personas ni cifras que no esten en los datos. "
+        "Si la donacion es anonima, no reveles datos personales.\n"
+        "Datos de la donacion:\n"
+    ),
     "sugerir_hashtags": (
         "Genera 5-8 hashtags relevantes en espanol para una publicacion de Adoptify. "
         "Responde SOLO JSON: {\"hashtags\": [\"#...\", ...]}.\n"
@@ -157,6 +170,21 @@ _PROMPTS_CLASIFICACION = {
         "Usa el CONTEXTO (historial y pedidos del usuario) para responder sobre el estado "
         "de pedidos si se te pregunta; no inventes datos ni consultes nada fuera de lo dado.\n\n"
         "CONTEXTO (historial de la conversacion):\n"
+    ),
+    "compatibilidad": (
+        "Eres un asesor experto en adopcion de mascotas de Adoptify. Analiza las "
+        "respuestas de un test de personalidad del adoptante junto con la ficha de "
+        "una mascota disponible para adopcion y calcula el NIVEL DE COMPATIBILIDAD "
+        "real entre ambos. Responde SOLO JSON con esta forma exacta:\n"
+        '{"porcentaje": 0-100, "mensaje": "mensaje personalizado en espanol"}\n'
+        "Reglas IMPORTANTES:\n"
+        "- porcentaje: numero entero entre 0 y 100 que refleje la compatibilidad "
+        "real, considerando el estilo de vida, experiencia, espacio disponible, "
+        "tiempo, otros animales y las necesidades y personalidad de la mascota.\n"
+        "- mensaje: 2-3 frases atractivas, empaticas y coherentes con el porcentaje, "
+        "mencionando a la mascota por su nombre y dando razones concretas basadas "
+        "en la ficha y las respuestas. Nunca inventes datos de la mascota.\n\n"
+        "DATOS:\n"
     ),
 }
 
@@ -182,7 +210,16 @@ async def clasificar_contenido(tipo: str, texto: str) -> dict:
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt + texto}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024},
+        "generationConfig": {
+            "temperature": 0.1,
+            # gemini-2.5-flash usa "thinking" por defecto, que consume el
+            # presupuesto de tokens y puede TRUNCAR la respuesta JSON a mitad
+            # de un string. Se desactiva el thinking y se amplía el límite para
+            # que la salida llegue completa y parseable (compatibilidad, chatbot,
+            # moderación, etc.).
+            "maxOutputTokens": 2048,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
     }
 
     url = f"{GEMINI_API_URL}?key={api_key}"

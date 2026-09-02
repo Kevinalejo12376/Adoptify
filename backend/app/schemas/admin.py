@@ -17,7 +17,10 @@ class AdminUsuarioCreate(BaseModel):
     nombre: str
     apellido: Optional[str]
     email: str
-    password: str
+    # Opcional: la contraseña se establece mediante el enlace seguro enviado por
+    # correo al crear la cuenta (flujo de refugios). Si se envía, se ignora en el
+    # backend para no definir contraseñas en texto plano.
+    password: Optional[str] = None
     telefono: Optional[str]
     tipo_documento: Optional[str] = None
     numero_documento: Optional[str] = None
@@ -58,6 +61,8 @@ class AdminUsuarioCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def _validar_password(cls, v):
+        if v is None or str(v).strip() == "":
+            return None
         return validar_password(v)
 
     @field_validator("telefono")

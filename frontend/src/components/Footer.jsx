@@ -145,6 +145,13 @@ export default function Footer() {
                           Foro
                         </button>
                       </li>
+                      <li>
+                        <button onClick={() => navigateWithScroll("/refugio/donaciones")}
+                          className="group flex items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 cursor-pointer w-full text-left">
+                          <span className="w-1 h-1 bg-rose-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:w-2" />
+                          Donaciones
+                        </button>
+                      </li>
                       {isStoreEnabled && (
                         <li>
                           <button onClick={() => navigateWithScroll("/refugio/tienda")}
@@ -191,6 +198,13 @@ export default function Footer() {
                           className="group flex items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 cursor-pointer w-full text-left">
                           <span className="w-1 h-1 bg-rose-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:w-2" />
                           {t("nav.foro")}
+                        </button>
+                      </li>
+                      <li>
+                        <button onClick={() => navigateWithScroll("/mis-donaciones")}
+                          className="group flex items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 cursor-pointer w-full text-left">
+                          <span className="w-1 h-1 bg-rose-500 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:w-2" />
+                          Mis donaciones
                         </button>
                       </li>
                     </>

@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 import requests
-from sqlalchemy.orm import Session
 
 # ---------------------------------------------------------------------------
 # Logo institucional (servido desde Cloudinary)
@@ -38,6 +37,48 @@ LOGO_URL = (
 )
 
 _logo_bytes_cache: Optional[bytes] = None
+
+# ---------------------------------------------------------------------------
+# Paleta sutil centralizada (identidad Adoptify suavizada para documentos
+# formales). Se usa en PDF (ReportLab) y Excel (openpyxl) para que todos los
+# reportes de todos los roles compartan exactamente el mismo estilo.
+# ---------------------------------------------------------------------------
+HEX_PRIMARIO = "F43F5E"  # Rose-500 (titulos y acentos, moderado)
+HEX_ACENTO = "F59E0B"  # Amber-500
+HEX_ROSA = "FB7185"  # Rose-400 (degradados sutiles)
+HEX_NARANJA = "FBBF24"  # Amber-400 (degradados sutiles)
+HEX_ROSA_100 = "FFE4E6"  # Rose-100 (encabezados de tabla)
+HEX_AMBAR_100 = "FEF3C7"  # Amber-100 (encabezados de tabla)
+HEX_ROSA_50 = "FFF1F2"  # Rose-50 (zebra)
+HEX_AMBAR_50 = "FFFBEB"  # Amber-50 (zebra)
+HEX_TEXTO = "1F2937"  # Gray-800
+HEX_TEXTO_SUAVE = "6B7280"  # Gray-500
+HEX_BORDE = "F3D3D8"  # Borde rosado muy suave
+HEX_ENCABEZADO_TEXTO = "9F1239"  # Rose-800 (texto sobre encabezado claro)
+
+
+def extraer_datos_usuario(usuario: Any) -> Optional[Dict[str, str]]:
+    """Extrae el nombre legible y el correo de un usuario (objeto o dict).
+
+    Acepta tanto instancias del modelo ``Usuario`` (atributos ``nombre``,
+    ``apellido`` y ``email``) como diccionarios, para poder etiquetar el
+    documento con quien lo genero. Devuelve ``None`` si no hay usuario.
+    """
+    if not usuario:
+        return None
+    if isinstance(usuario, dict):
+        nombre = f"{usuario.get('nombre', '')} {usuario.get('apellido', '') or ''}".strip()
+        return {
+            "nombre": nombre or "—",
+            "email": usuario.get("email") or "—",
+        }
+    nombre = (
+        f"{getattr(usuario, 'nombre', '')} {getattr(usuario, 'apellido', '') or ''}".strip()
+    )
+    return {
+        "nombre": nombre or "—",
+        "email": getattr(usuario, "email", None) or "—",
+    }
 
 
 def obtener_logo_bytes() -> Optional[bytes]:
@@ -184,8 +225,12 @@ class GeneradorReporte(ABC):
     # ------------------------------------------------------------------
     # Generacion de archivos (en memoria)
     # ------------------------------------------------------------------
-    def generar_pdf(self, db: Session) -> bytes:
-        """Construye el PDF del reporte en memoria y devuelve sus bytes."""
+    def generar_pdf(self, db: Session, usuario: Any = None) -> bytes:
+        """Construye el PDF del reporte en memoria y devuelve sus bytes.
+
+        ``usuario`` (opcional) es quien genera el reporte y se muestra en los
+        metadatos del documento para dejar trazabilidad del autor.
+        """
         # Import perezoso: evita ciclos de importacion dentro del paquete.
         from app.services.reportes import pdf as pdf_utils
 
@@ -196,10 +241,15 @@ class GeneradorReporte(ABC):
             subtitulo=meta["subtitulo"],
             columnas=self.columnas,
             filas=filas,
+            usuario=usuario,
         )
 
-    def generar_excel(self, db: Session) -> bytes:
-        """Construye el libro Excel del reporte en memoria y devuelve sus bytes."""
+    def generar_excel(self, db: Session, usuario: Any = None) -> bytes:
+        """Construye el libro Excel del reporte en memoria y devuelve sus bytes.
+
+        ``usuario`` (opcional) es quien genera el reporte y se muestra en los
+        metadatos del documento para dejar trazabilidad del autor.
+        """
         # Import perezoso: evita ciclos de importacion dentro del paquete.
         from app.services.reportes import excel as excel_utils
 
@@ -210,6 +260,7 @@ class GeneradorReporte(ABC):
             subtitulo=meta["subtitulo"],
             columnas=self.columnas,
             filas=filas,
+            usuario=usuario,
         )
 
     # ------------------------------------------------------------------

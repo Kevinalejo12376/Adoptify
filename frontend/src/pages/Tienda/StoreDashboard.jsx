@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useStore } from "../../context/StoreContext";
 import { estadisticasTienda, misProductosTienda, misPedidosTienda } from "../../api/tienda";
+import ProductSelectionModal from "../../components/ProductSelectionModal";
 
 function StatCard({ icon: Icon, label, value, color, bgColor }) {
   return (
@@ -32,6 +33,7 @@ export default function StoreDashboard() {
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showSelectionModal, setShowSelectionModal] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -90,10 +92,11 @@ export default function StoreDashboard() {
           </p>
         </div>
         {puedeCrearProducto && (
-          <Link to="/tienda/productos/nuevo" className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-base font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all">
+          <button onClick={() => setShowSelectionModal(true)}
+            className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-base font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all">
             <PlusCircle size={18} />
             Nuevo Producto
-          </Link>
+          </button>
         )}
       </div>
 
@@ -202,17 +205,33 @@ export default function StoreDashboard() {
         <div className="bg-white dark:bg-dark-card rounded-2xl p-6 border border-gray-100 dark:border-dark-border">
           <h3 className="text-base font-bold text-gray-900 dark:text-dark-text mb-4">Accesos Rápidos</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            {accesosRapidos.map((item) => (
-              <Link key={item.path} to={item.path} className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 dark:border-dark-border hover:shadow-md hover:border-rose-100 dark:hover:border-rose-500/20 transition-all group">
-                <div className={`w-12 h-12 rounded-xl ${item.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                  <item.icon size={22} className={item.color} />
-                </div>
-                <span className="text-sm font-medium text-gray-600 dark:text-dark-text-secondary">{item.label}</span>
-              </Link>
-            ))}
+            {accesosRapidos.map((item) =>
+              item.path === "/tienda/productos/nuevo" ? (
+                <button key={item.path} onClick={() => setShowSelectionModal(true)}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 dark:border-dark-border hover:shadow-md hover:border-rose-100 dark:hover:border-rose-500/20 transition-all group">
+                  <div className={`w-12 h-12 rounded-xl ${item.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <item.icon size={22} className={item.color} />
+                  </div>
+                  <span className="text-sm font-medium text-gray-600 dark:text-dark-text-secondary">{item.label}</span>
+                </button>
+              ) : (
+                <Link key={item.path} to={item.path} className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 dark:border-dark-border hover:shadow-md hover:border-rose-100 dark:hover:border-rose-500/20 transition-all group">
+                  <div className={`w-12 h-12 rounded-xl ${item.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <item.icon size={22} className={item.color} />
+                  </div>
+                  <span className="text-sm font-medium text-gray-600 dark:text-dark-text-secondary">{item.label}</span>
+                </Link>
+              )
+            )}
           </div>
         </div>
       )}
+
+      {/* Modal de selección de método de agregado (IA, código de barras, manual) */}
+      <ProductSelectionModal
+        isOpen={showSelectionModal}
+        onClose={() => setShowSelectionModal(false)}
+      />
     </div>
   );
 }

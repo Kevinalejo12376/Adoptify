@@ -67,6 +67,17 @@ export async function changePasswordRequest(passwordActual, passwordNueva) {
   });
 }
 
+/** Establece la contraseña de una cuenta creada por administración (usuario,
+ * administrador de tienda o empleado de refugio) usando el enlace seguro de
+ * 24 horas enviado por correo. */
+export async function crearPasswordCuenta(token, password) {
+  return apiFetch("/api/auth/crear-password", {
+    method: "POST",
+    body: { token, password },
+    auth: false,
+  });
+}
+
 /** Inicia sesion. Guarda el token y devuelve el usuario (via /me). */
 export async function loginRequest(email, password) {
   const data = await apiFetch("/api/auth/login", {

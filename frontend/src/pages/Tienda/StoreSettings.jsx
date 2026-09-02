@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Store, User, Users, Lock, Save, Loader2, Upload, AlertCircle, CheckCircle2, ShieldCheck,
+  Eye, EyeOff,
 } from "lucide-react";
 import { useStore } from "../../context/StoreContext";
 import {
@@ -25,10 +26,31 @@ import {
 const inputCls = "w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all";
 
 function Field({ label, value, onChange, type = "text", placeholder = "", error = "" }) {
+  const [mostrar, setMostrar] = useState(false);
+  const esPassword = type === "password";
   return (
     <div>
       <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">{label}</label>
-      <input type={type} value={value || ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={claseInput(inputCls, !!error)} />
+      <div className="relative">
+        <input
+          type={esPassword && mostrar ? "text" : type}
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`${claseInput(inputCls, !!error)} ${esPassword ? "pr-10" : ""}`}
+        />
+        {esPassword && (
+          <button
+            type="button"
+            onClick={() => setMostrar((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-text-secondary dark:hover:text-white transition-colors"
+            aria-label={mostrar ? "Ocultar contraseña" : "Mostrar contraseña"}
+            tabIndex={-1}
+          >
+            {mostrar ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        )}
+      </div>
       <FieldError mensaje={error} />
     </div>
   );
@@ -59,7 +81,9 @@ export default function StoreSettings() {
   }
   secciones.push({ id: "password", label: "Contraseña", icon: Lock, desc: "Cambia tu contraseña de acceso" });
 
-  const [activeSection, setActiveSection] = useState(secciones[0]?.id || "password");
+  const [activeSection, setActiveSection] = useState(
+    () => (secciones[0]?.id || "password")
+  );
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

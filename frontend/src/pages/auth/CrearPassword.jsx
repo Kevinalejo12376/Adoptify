@@ -7,6 +7,7 @@ import {
 import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
 import { crearPasswordRefugio } from "../../api/solicitudesRefugio";
 import { crearPasswordTienda } from "../../api/solicitudesTienda";
+import { crearPasswordCuenta } from "../../api/auth";
 
 export default function CrearPassword() {
   const { token } = useParams();
@@ -37,12 +38,22 @@ export default function CrearPassword() {
     try {
       // Primero se intenta el endpoint de Tienda Aliada (valida contraseña fuerte
       // y registra el historial de la tienda). Si el enlace es de un refugio, el
-      // backend responde 404 y se usa el endpoint de refugio.
+      // backend responde 404 y se usa el endpoint de refugio. Si tampoco es de un
+      // refugio, es una cuenta creada por administración (usuario, administrador
+      // de tienda o empleado de refugio) y se usa el endpoint genérico /auth/crear-password.
       try {
         await crearPasswordTienda(token, password);
       } catch (eTienda) {
         if (eTienda?.status === 404) {
-          await crearPasswordRefugio(token, password);
+          try {
+            await crearPasswordRefugio(token, password);
+          } catch (eRefugio) {
+            if (eRefugio?.status === 404) {
+              await crearPasswordCuenta(token, password);
+            } else {
+              throw eRefugio;
+            }
+          }
         } else {
           throw eTienda;
         }
@@ -109,7 +120,7 @@ export default function CrearPassword() {
           <div className="mb-6 rounded-2xl bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-100 p-4 flex gap-3">
             <Sparkles size={18} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-sm text-gray-600 leading-relaxed">
-              Tu solicitud fue aprobada. Define la contraseña de acceso para tu cuenta.
+              Tu cuenta fue creada. Define la contraseña de acceso para tu cuenta.
             </p>
           </div>
 

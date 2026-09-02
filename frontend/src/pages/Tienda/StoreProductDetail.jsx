@@ -10,6 +10,7 @@ import {
 import { listarResenas } from "../../api/productos";
 import { useStore } from "../../context/StoreContext";
 import ConfirmModal from "../../components/ConfirmModal";
+import { parsePrecio } from "../../utils/price";
 
 export default function StoreProductDetail() {
   const { id } = useParams();
@@ -38,7 +39,7 @@ export default function StoreProductDetail() {
         vendidos: p.ventas || 0,
         tallas: p.tallas ? String(p.tallas).split(",").map((s) => s.trim()).filter(Boolean) : [],
         colores: p.colores ? String(p.colores).split(",").map((s) => s.trim()).filter(Boolean) : [],
-        precio: Number(p.precio) || 0,
+        precio: parsePrecio(p.precio),
       });
       setStockDraft(p.stock ?? 0);
       const rs = await listarResenas(id).catch(() => []);
@@ -139,9 +140,17 @@ export default function StoreProductDetail() {
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border p-6">
             <div className="flex flex-col sm:flex-row gap-6">
-              <div className="w-full sm:w-48 h-48 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-bg dark:to-dark-border rounded-xl flex items-center justify-center flex-shrink-0">
-                <Package size={64} className="text-gray-300 dark:text-gray-600" />
-              </div>
+              {product.imagen_url || (product.imagenes && product.imagenes[0]?.url) ? (
+                <img
+                  src={product.imagen_url || product.imagenes[0].url}
+                  alt={product.nombre}
+                  className="w-full sm:w-48 h-48 object-cover rounded-xl flex-shrink-0 border border-gray-100 dark:border-dark-border"
+                />
+              ) : (
+                <div className="w-full sm:w-48 h-48 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-bg dark:to-dark-border rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Package size={64} className="text-gray-300 dark:text-gray-600" />
+                </div>
+              )}
               <div className="flex-1 space-y-4">
                 <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-bold ${product.estado === "visible" ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-500"}`}>
                   {product.estado === "visible" ? "Visible" : "Oculto"}

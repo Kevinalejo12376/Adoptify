@@ -42,7 +42,7 @@ DATOS = {
     ],
     cat.EstadoSolicitud: [
         ("pendiente", "Pendiente"),
-        ("en_revision", "En revision"),
+        ("en_revision", "En revisión"),
         ("contactado", "Contactado"),
         ("finalizada", "Finalizada"),
         ("cerrada", "Cerrada"),
@@ -94,7 +94,7 @@ DATOS = {
 FORO_CATEGORIAS = [
     ("adopciones", "Adopciones", "PawPrint"),
     ("eventos", "Eventos", "Calendar"),
-    ("campanas", "Campanas", "Megaphone"),
+    ("campanas", "Campañas", "Megaphone"),
     ("donaciones", "Donaciones", "HandHeart"),
     ("rescates", "Rescates", "LifeBuoy"),
     ("historias", "Historias", "BookOpen"),

@@ -118,7 +118,7 @@ export default function ShelterProductDetail() {
                 {images.length > 0 ? (
                   <>
                     <div className="relative h-72 sm:h-96 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-dark-border dark:to-dark-bg">
-                      <img src={images[currentImageIndex]?.src} alt={product.name}
+                      <img src={images[currentImageIndex]?.url} alt={product.name}
                         className="w-full h-full object-cover" />
                       {images.length > 1 && (
                         <>
@@ -144,7 +144,7 @@ export default function ShelterProductDetail() {
                               ? "border-rose-500 ring-2 ring-rose-200 dark:ring-rose-500/30"
                               : "border-gray-200 dark:border-dark-border opacity-70 hover:opacity-100"
                           }`}>
-                          <img src={img.src} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                          <img src={img.url} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>

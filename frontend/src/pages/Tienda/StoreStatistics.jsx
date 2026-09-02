@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
-  DollarSign, ShoppingCart, Users, Star, Package, TrendingUp, Loader2,
+  DollarSign, ShoppingCart, Star, Package, TrendingUp, Loader2,
 } from "lucide-react";
 import { estadisticasTienda, misProductosTienda } from "../../api/tienda";
 
@@ -149,6 +149,7 @@ export default function StoreStatistics() {
   const s = stats || {};
   const top = s.top_productos || [];
   const leastSold = [...products].sort((a, b) => (a.ventas || 0) - (b.ventas || 0)).slice(0, 5);
+  const outOfStock = [...products].sort((a, b) => (a.stock || 0) - (b.stock || 0)).filter((p) => (p.stock || 0) <= 0).slice(0, 6);
 
   const summary = [
     { icon: DollarSign, color: "text-emerald-500", label: "Ingresos", value: `$${Number(s.ingresos ?? 0).toLocaleString("es-CO")}` },
@@ -277,25 +278,54 @@ export default function StoreStatistics() {
           </div>
         </div>
 
-        {/* Clientes frecuentes (aún no disponible) */}
+        {/* Productos activos vs totales */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden">
           <div className="p-4 border-b border-gray-100 dark:border-dark-border">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Clientes Frecuentes</h3>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Productos Activos</h3>
           </div>
-          <div className="text-center py-10">
-            <Users size={26} className="mx-auto text-gray-300 dark:text-dark-border mb-2" />
-            <p className="text-sm text-gray-400">Aún no hay datos de clientes</p>
+          <div className="p-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-500 dark:text-dark-text-secondary">Activos / Totales</span>
+              <span className="text-sm font-bold text-gray-900 dark:text-dark-text">{s.productos_activos ?? 0} / {s.total_productos ?? 0}</span>
+            </div>
+            <div className="h-2.5 rounded-full bg-gray-100 dark:bg-dark-border overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-700"
+                style={{ width: `${s.total_productos ? Math.round(((s.productos_activos ?? 0) / s.total_productos) * 100) : 0}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+              {s.productos_activos ?? 0} de {s.total_productos ?? 0} productos visibles en el marketplace.
+            </p>
           </div>
         </div>
 
-        {/* Calificaciones (aún no disponible) */}
+        {/* Productos sin stock */}
         <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border overflow-hidden">
           <div className="p-4 border-b border-gray-100 dark:border-dark-border">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Calificaciones Recientes</h3>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-dark-text">Productos sin stock</h3>
           </div>
-          <div className="text-center py-10">
-            <Star size={26} className="mx-auto text-gray-300 dark:text-dark-border mb-2" />
-            <p className="text-sm text-gray-400">Aún no hay calificaciones</p>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-dark-border bg-gray-50/50 dark:bg-dark-bg/50">
+                  <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Producto</th>
+                  <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase">Stock</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+                {outOfStock.length > 0 ? outOfStock.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-dark-border">
+                    <td className="px-4 py-2.5 text-sm font-semibold text-gray-900 dark:text-dark-text">{product.nombre}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <span className="text-sm font-medium text-red-500">{product.stock || 0}</span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={2} className="px-4 py-8 text-center text-sm text-gray-400">Todos los productos tienen stock</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

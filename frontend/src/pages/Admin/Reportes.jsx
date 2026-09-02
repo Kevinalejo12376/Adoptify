@@ -26,7 +26,6 @@ export default function AdminReportes() {
 
   const columnas = [
     { key: "tipo_objeto", titulo: "Tipo", render: (v) => TIPOS[v] || v, ordenable: true },
-    { key: "objeto_id", titulo: "ID Objeto", render: (v) => v || "—", ordenable: false },
     { key: "motivo", titulo: "Motivo", ordenable: false },
     { key: "estado", titulo: "Estado", tipo: "badge", ordenable: true },
     { key: "creado_en", titulo: "Fecha", tipo: "fecha", ordenable: true },

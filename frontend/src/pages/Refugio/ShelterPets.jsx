@@ -577,6 +577,13 @@ export default function ShelterPets() {
   const handleAddPet = async (payload, idempotencyKey) => {
     setError(null);
 
+    // Evitar duplicados: mismo nombre (ignorando mayúsculas) ya registrado.
+    const nombreMascota = (payload.name || "").trim().toLowerCase();
+    if (nombreMascota && pets.some((p) => (p.name || "").trim().toLowerCase() === nombreMascota)) {
+      setToast({ message: "Esta mascota ya está registrada.", type: "error" });
+      return;
+    }
+
     // Sube las imágenes seleccionadas a Cloudinary (permanentes) y guarda las
     // secure_url para almacenarlas en la base de datos (mascota_imagenes).
     const imagenesSubidas = [];
@@ -593,24 +600,34 @@ export default function ShelterPets() {
       }
     }
 
-    await crearMascota({
-      nombre: payload.name,
-      tipo: TIPO_MAP[payload.type] || "perro",
-      tamano: TAMANO_MAP[payload.size] || null,
-      genero: GENERO_MAP[payload.gender] || null,
-      estado: ESTADO_MAP[payload.status] || "disponible",
-      raza: payload.breed,
-      edad_valor: payload.edadValor,
-      edad_unidad: payload.edadUnidad,
-      peso: payload.weight || null,
-      color: payload.color || "",
-      salud: payload.health || "",
-      personalidad: Array.isArray(payload.personality) ? payload.personality : [],
-      descripcion: payload.description,
-      vacunado: !!payload.vaccinated,
-      esterilizado: !!payload.sterilized,
-      imagenes: imagenesSubidas,
-    }, idempotencyKey);
+    try {
+      await crearMascota({
+        nombre: payload.name,
+        tipo: TIPO_MAP[payload.type] || "perro",
+        tamano: TAMANO_MAP[payload.size] || null,
+        genero: GENERO_MAP[payload.gender] || null,
+        estado: ESTADO_MAP[payload.status] || "disponible",
+        raza: payload.breed,
+        edad_valor: payload.edadValor,
+        edad_unidad: payload.edadUnidad,
+        peso: payload.weight || null,
+        color: payload.color || "",
+        salud: payload.health || "",
+        personalidad: Array.isArray(payload.personality) ? payload.personality : [],
+        descripcion: payload.description,
+        vacunado: !!payload.vaccinated,
+        esterilizado: !!payload.sterilized,
+        imagenes: imagenesSubidas,
+      }, idempotencyKey);
+    } catch (err) {
+      // Si el backend rechaza por duplicado, muestra el mensaje flotante.
+      const msg = (err?.message || "").toLowerCase();
+      if (msg.includes("ya está registrada")) {
+        setToast({ message: "Esta mascota ya está registrada.", type: "error" });
+        return;
+      }
+      throw err; // los demás errores los maneja el formulario
+    }
 
     // Éxito: cierra el modal, limpia el formulario, refresca la lista y muestra
     // un toast independiente (NO usa la campana de notificaciones).

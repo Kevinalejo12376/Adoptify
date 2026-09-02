@@ -10,6 +10,11 @@ python-multipart==0.0.32
 httpx==0.27.0
 google-auth==2.38.0
 requests==2.32.3
+# Dependencias transitorias de requests fijadas a versiones compatibles con requests 2.32.3
+# (evitan el RequestsDependencyWarning por urllib3 >2.2, charset_normalizer !=3.0 o chardet >5.0)
+urllib3==2.2.3
+charset_normalizer==3.0.1
+chardet==5.0.0
 cloudinary==1.41.0
 # Generación de reportes (PDF con ReportLab, Excel con openpyxl)
 reportlab==4.2.5

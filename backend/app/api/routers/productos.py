@@ -15,7 +15,7 @@ from app.core.lookups import id_por_codigo
 from app.models.usuario import Usuario
 from app.models.refugio import Refugio
 from app.models.tienda import Tienda
-from app.models.producto import Producto
+from app.models.producto import Producto, ProductoImagen
 from app.models.interaccion import Resena
 from app.models.catalogos import CategoriaProducto
 from app.schemas.producto import ProductoCreate, ProductoUpdate, ProductoResponse, ResenaCreate
@@ -56,6 +56,39 @@ def _refugio_de(current_user: Usuario, db: Session) -> Refugio:
     return refugio
 
 
+def _persistir_imagenes_producto(db: Session, producto: Producto, urls) -> None:
+    """Crea registros ``ProductoImagen`` a partir de URLs de Cloudinary (producto nuevo)."""
+    if not urls:
+        return
+    limpias = [u.strip() for u in urls if u and isinstance(u, str) and u.strip()]
+    for orden, url in enumerate(limpias):
+        db.add(ProductoImagen(producto_id=producto.id, url=url, etiqueta="", orden=orden))
+
+
+def _sincronizar_imagenes_producto(db: Session, producto: Producto, urls) -> None:
+    """Reemplaza las imágenes del producto por la lista de URLs dada (Cloudinary).
+
+    - Las URLs ya existentes se conservan y reordenan.
+    - Las nuevas se agregan como registros ``ProductoImagen``.
+    - Las que ya no estén en la lista se eliminan de la BD.
+    """
+    if urls is None:
+        return
+    limpias = [u.strip() for u in urls if u and isinstance(u, str) and u.strip()]
+    actuales = {img.url: img for img in (producto.imagenes or [])}
+    nuevas = set(limpias)
+    # Eliminar imágenes que ya no están en la lista
+    for url, img in list(actuales.items()):
+        if url not in nuevas:
+            db.delete(img)
+    # Agregar nuevas y reordenar las conservadas
+    for orden, url in enumerate(limpias):
+        if url in actuales:
+            actuales[url].orden = orden
+        else:
+            db.add(ProductoImagen(producto_id=producto.id, url=url, etiqueta="", orden=orden))
+
+
 @router.get("/", response_model=List[ProductoResponse])
 def listar_productos(
     db: Session = Depends(get_db),
@@ -83,11 +116,14 @@ def mis_productos(
     current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
     db: Session = Depends(get_db),
 ):
-    """Productos del refugio autenticado."""
+    """Productos del refugio autenticado (excluye los eliminados con soft delete)."""
     refugio = _refugio_de(current_user, db)
     productos = (
         db.query(Producto)
-        .filter(Producto.refugio_id == refugio.id)
+        .filter(
+            Producto.refugio_id == refugio.id,
+            Producto.eliminado_en.is_(None),
+        )
         .order_by(Producto.creado_en.desc())
         .all()
     )
@@ -134,10 +170,30 @@ def crear_producto(
 ):
     """Crea un producto asociado al refugio autenticado."""
     refugio = _refugio_de(current_user, db)
+
+    # Evitar duplicados: no permitir dos productos con el mismo nombre
+    # (ignorando mayúsculas) dentro del mismo refugio.
+    nombre_normalizado = (payload.nombre or "").strip()
+    if nombre_normalizado:
+        duplicado = (
+            db.query(Producto)
+            .filter(
+                Producto.refugio_id == refugio.id,
+                Producto.nombre.ilike(nombre_normalizado),
+                Producto.eliminado_en.is_(None),
+            )
+            .first()
+        )
+        if duplicado:
+            raise HTTPException(
+                status_code=409, detail="Este producto ya está registrado."
+            )
+
     producto = Producto(
         nombre=payload.nombre,
         categoria_id=id_por_codigo(db, CategoriaProducto, payload.categoria),
         precio=payload.precio,
+        descuento=payload.descuento,
         descripcion=payload.descripcion,
         descripcion_larga=payload.descripcion_larga,
         calidad=payload.calidad,
@@ -150,6 +206,8 @@ def crear_producto(
         tienda_id=None,
     )
     db.add(producto)
+    db.flush()  # Obtener ID sin commit final
+    _persistir_imagenes_producto(db, producto, payload.imagenes)
     db.commit()
     db.refresh(producto)
     return serialize_producto(producto)
@@ -174,10 +232,13 @@ def actualizar_producto(
 ):
     producto = _producto_del_refugio(producto_id, current_user, db)
     datos = payload.model_dump(exclude_unset=True)
+    # Las imágenes se manejan aparte (persistencia en producto_imagenes).
+    imagenes = datos.pop("imagenes", None)
     if "categoria" in datos:
         producto.categoria_id = id_por_codigo(db, CategoriaProducto, datos.pop("categoria"))
     for campo, valor in datos.items():
         setattr(producto, campo, valor)
+    _sincronizar_imagenes_producto(db, producto, imagenes)
     db.commit()
     db.refresh(producto)
     return serialize_producto(producto)
