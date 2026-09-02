@@ -165,33 +165,21 @@ export default function ProductSelectionModal({
                       <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-0.5">
                         {descripcion}
                       </p>
-      {/* Modal */}
-      <div className="relative w-full max-w-2xl m-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-y-auto max-h-[92vh]">
-        {/* Header */}
-        <div className="relative p-6 pb-4 border-b border-gray-100 dark:border-dark-border">
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
-          >
-            <X size={18} />
-          </button>
-          <div className="text-center sm:text-left">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text font-display">
-              ¿Cómo deseas agregar tu producto?
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-              Selecciona el método que prefieras para registrar un nuevo producto en tu tienda.
-            </p>
-          </div>
-        </div>
 
-        {/* Body */}
-        <div className="p-4 sm:p-6 space-y-4">
-          {opciones.map((opcion) => {
-            const {
-              Icon, gradiente, sombra, hover, ctaColor, recomendada,
-              beneficios, cta, onClick, titulo, descripcion,
-            } = opcion;
+                      {/* Beneficios */}
+                      {beneficios.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {beneficios.map((beneficio, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-dark-bg text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary"
+                            >
+                              <Check size={10} className="text-emerald-500" />
+                              {beneficio}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
             <div className="flex items-start gap-3 sm:gap-4">
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-500/20">
@@ -316,18 +304,12 @@ export default function ProductSelectionModal({
                         {cta}
                         <ArrowRight size={14} />
                       </div>
-                    )}
-
-                    {/* CTA */}
-                    <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all ${ctaColor}`}>
-                      {cta}
-                      <ArrowRight size={14} />
                     </div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
