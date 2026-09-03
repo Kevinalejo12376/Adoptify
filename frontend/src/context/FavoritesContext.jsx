@@ -44,19 +44,6 @@ const mapRefugioFav = (r) => ({
   animals: Number(r.animals) || 0,
 });
 
-// Normaliza un refugio favorito del backend a la forma que usan las vistas.
-// Tolera el formato del backend (nombre/ubicacion/descripcion) y el ya
-// mapeado (name/location/description) por si el frontend lo normalizó.
-const mapRefugioFav = (r) => ({
-  id: r.id,
-  name: r.name || r.nombre || "",
-  location: r.location || r.ubicacion || r.municipio || r.departamento || "",
-  description: r.description || r.descripcion || "",
-  logo_url: r.logo_url || null,
-  rating: Number(r.rating) || 0,
-  animals: Number(r.animals) || 0,
-});
-
 export const FavoritesProvider = ({ children }) => {
   // Favoritos de productos: persistidos en la base de datos.
   const [storeFavorites, setStoreFavorites] = useState([]);
