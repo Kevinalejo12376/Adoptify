@@ -1,35 +1,11 @@
 """
 Endpoints de descarga de reportes (PDF / Excel) para administradores.
-<<<<<<< HEAD
 
 Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
 servidor, y se devuelven como respuesta de descarga directa (StreamingResponse)
 con las cabeceras correctas (Content-Type, Content-Disposition) para forzar la
 descarga en el navegador. No se almacena ninguna copia en el servidor; los
 recursos se liberan automaticamente al finalizar la respuesta.
-Descarga de reportes descargables (PDF / Excel) para administradores.
-
-Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
-servidor, y se devuelven como respuesta de descarga directa via
-``StreamingResponse`` con las cabeceras correctas (``Content-Type``,
-``Content-Disposition``) para forzar la descarga en el navegador. No se
-almacena ninguna copia en el servidor; los recursos se liberan
-automaticamente al finalizar la respuesta.
-<<<<<<< HEAD
-Descarga de reportes descargables (PDF / Excel) para administradores.
-
-Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
-servidor, y se devuelven como respuesta de descarga directa.
-=======
-=======
-
-Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
-servidor, y se devuelven como respuesta de descarga directa (StreamingResponse)
-con las cabeceras correctas (Content-Type, Content-Disposition) para forzar la
-descarga en el navegador. No se almacena ninguna copia en el servidor; los
-recursos se liberan automaticamente al finalizar la respuesta.
->>>>>>> c445638 (Migración de dLocal a Stripe)
->>>>>>> 9ec2927 (Migración de dLocal a Stripe)
 """
 # pyrefly: ignore [missing-import]
 from datetime import datetime, timezone

@@ -86,9 +86,20 @@ export const actualizarMiProducto = (id, payload) =>
 export const actualizarStockMiProducto = (id, stock) =>
   apiFetch(`${base}/productos/${id}/stock`, { method: "PATCH", body: { stock } });
 
-/** Elimina un producto de mi tienda. */
+/** Elimina un producto de mi tienda: pasa a Borradores (papelera de 30 días). */
 export const eliminarMiProducto = (id) =>
   apiFetch(`${base}/productos/${id}`, { method: "DELETE" });
+
+/** Productos de mi tienda en BORRADORES (papelera, restaurables < 30 días). */
+export const papeleraProductosTienda = () => apiFetch(`${base}/productos/papelera`);
+
+/** Restaura un producto de mi tienda desde Borradores. */
+export const restaurarMiProducto = (id) =>
+  apiFetch(`${base}/productos/${id}/restaurar`, { method: "POST" });
+
+/** Elimina definitivamente un producto de mi tienda desde Borradores. */
+export const eliminarMiProductoDefinitivo = (id) =>
+  apiFetch(`${base}/productos/${id}/definitivo`, { method: "DELETE" });
 
 /** Envía imágenes para análisis por IA y devuelve datos estructurados del producto. */
 export const analizarProductoConIA = (imagenesBase64) =>

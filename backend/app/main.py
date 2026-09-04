@@ -62,6 +62,21 @@ def _run_migrations():
     """
     if getattr(engine.dialect, "name", "") == "sqlite":
         print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
+        # En una BD SQLite ya existente (creada antes del cambio de modelos), la
+        # columna 'uuid' no la crea create_all: se agrega aquí para que las URLs
+        # públicas /animal/<uuid> y /product/<uuid> funcionen igual en local.
+        from app.db.database import SessionLocal
+        db_local = SessionLocal()
+        try:
+            _migrar_uuid_publico(db_local)
+        except Exception as e:  # noqa: BLE001
+            try:
+                db_local.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+            print(f"[migracion] AVISO: 'uuid público' no se aplicó en SQLite ({type(e).__name__}: {e}).")
+        finally:
+            db_local.close()
         return
 
     from app.db.database import SessionLocal
@@ -101,11 +116,31 @@ def _run_migrations():
             # Bloqueo por intentos fallidos de inicio de sesión (3 fallos = 15 min).
             _agregar_columna_si_no_existe(db, "usuarios", "intentos_fallidos", "INTEGER NOT NULL DEFAULT 0")
             _agregar_columna_si_no_existe(db, "usuarios", "bloqueado_hasta", "TIMESTAMPTZ")
+            # Ubicación detallada del perfil (autocompletada con "Usar mi ubicación actual").
+            _agregar_columna_si_no_existe(db, "usuarios", "departamento", "VARCHAR(150)")
+            _agregar_columna_si_no_existe(db, "usuarios", "municipio", "VARCHAR(150)")
+            _agregar_columna_si_no_existe(db, "usuarios", "direccion", "VARCHAR(200)")
             db.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username)"
             ))
             db.commit()
-        _paso("usuarios (perfil_completo, username, avatar_public_id)", _migrar_usuarios)
+        _paso("usuarios (perfil_completo, username, avatar_public_id, ubicacion detallada)", _migrar_usuarios)
+
+        # --- Catálogo de ubicación: departamentos y municipios ---
+        _paso("departamentos y municipios", _crear_tabla_departamentos_municipios)
+
+        # --- Solicitudes de adopción (datos completos del solicitante) ---
+        def _migrar_solicitudes_adopcion(db):
+            for col, tipo in [
+                ("departamento", "VARCHAR(150)"),
+                ("municipio", "VARCHAR(150)"),
+                ("direccion", "VARCHAR(200)"),
+                ("tipo_documento", "VARCHAR(30)"),
+                ("numero_documento", "VARCHAR(30)"),
+            ]:
+                _agregar_columna_si_no_existe(db, "solicitudes_adopcion", col, tipo)
+            db.commit()
+        _paso("solicitudes_adopcion (datos del solicitante)", _migrar_solicitudes_adopcion)
 
         # --- Refugios (logo_url, tiktok, departamento, municipio) ---
         def _migrar_refugios(db):
@@ -138,21 +173,13 @@ def _run_migrations():
         _paso("movimientos_kardex", _crear_tabla_movimientos_kardex)
         _paso("razas_mascota (catálogo)", _crear_tabla_razas_mascota)
         _paso("mascota_imagenes", _crear_tabla_mascota_imagenes)
+        _paso("uuid público (mascotas y productos)", _migrar_uuid_publico)
         _paso("RBAC tienda", _crear_tablas_rbac_tienda)
         _paso("backfill super admin tiendas", _backfill_super_admin_tiendas)
         _paso("tablas nuevas de tienda", _crear_tablas_nuevas_tienda)
         _paso("equipo de refugio", _crear_tablas_equipo_refugio)
-<<<<<<< HEAD
-<<<<<<< HEAD
         _paso("pagos (dLocal)", _crear_tabla_pagos)
         _paso("donaciones_usuarios", _crear_tabla_donaciones_usuarios)
-=======
-        _paso("pagos (Stripe)", _crear_tabla_pagos)
-        _paso("tiendas (Stripe Connect)", _migrar_stripe_connect_tiendas)
->>>>>>> c445638 (Migración de dLocal a Stripe)
-=======
-        _paso("pagos (dLocal)", _crear_tabla_pagos)
->>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
 
         # --- Resumen final ---
         ok = sum(1 for _, s in resultados if s)
@@ -174,6 +201,28 @@ def _run_migrations():
         print(f"[migracion] Error general ejecutando migraciones: {e}")
     finally:
         db.close()
+
+
+def _crear_tabla_departamentos_municipios(db):
+    """Crea las tablas de catálogo de ubicación (departamentos y municipios)
+    si aún no existen. Se siembran luego en seed_catalogos()."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS departamentos (
+            id BIGSERIAL PRIMARY KEY,
+            codigo VARCHAR(10) UNIQUE NOT NULL,
+            nombre VARCHAR(80) NOT NULL
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS municipios (
+            id BIGSERIAL PRIMARY KEY,
+            departamento_id BIGINT REFERENCES departamentos(id),
+            codigo VARCHAR(20) UNIQUE NOT NULL,
+            nombre VARCHAR(80) NOT NULL
+        )
+    """))
+    db.commit()
 
 
 def _agregar_columna_si_no_existe(db, tabla: str, columna: str, tipo: str):
@@ -221,6 +270,44 @@ def _eliminar_columna_si_existe(db, tabla: str, columna: str):
             db.rollback()
 
 
+def _migrar_uuid_publico(db):
+    """Agrega la columna ``uuid`` (VARCHAR 36) a ``mascotas`` y ``productos`` y
+    backfillea los registros existentes. Funciona en PostgreSQL/Supabase y en
+    SQLite local (idempotente).
+
+    El ``uuid`` es el identificador público de las URLs /animal/<uuid> y
+    /product/<uuid>; el id numérico se conserva como PK y FK interna.
+    """
+    import uuid as _uuid
+    from sqlalchemy import inspect, text
+
+    def _columna_uuid(tabla):
+        columnas = {c["name"] for c in inspect(db.bind).get_columns(tabla)}
+        if "uuid" not in columnas:
+            print(f"[migracion] Agregando columna 'uuid' a {tabla}...")
+            db.execute(text(f"ALTER TABLE {tabla} ADD COLUMN uuid VARCHAR(36)"))
+            db.commit()
+        # Backfill portable entre motores: asigna uuid4 a filas sin valor.
+        rows = db.execute(
+            text(f"SELECT id FROM {tabla} WHERE uuid IS NULL")
+        ).fetchall()
+        for (pk,) in rows:
+            db.execute(
+                text(f"UPDATE {tabla} SET uuid = :u WHERE id = :id"),
+                {"u": str(_uuid.uuid4()), "id": pk},
+            )
+        if rows:
+            db.commit()
+        # Índice único para resolver rápido por uuid (idempotente en ambos motores).
+        db.execute(text(
+            f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{tabla}_uuid ON {tabla}(uuid)"
+        ))
+        db.commit()
+
+    _columna_uuid("mascotas")
+    _columna_uuid("productos")
+
+
 def _soft_delete_migrations(db):
     """Agrega las columnas de borrado lógico (activo / eliminado_en) a las
     tablas principales si no existen (Supabase/PostgreSQL).
@@ -265,28 +352,11 @@ def _soft_delete_migrations(db):
 
 
 def _crear_tabla_pagos(db):
-<<<<<<< HEAD
-<<<<<<< HEAD
     """Crea/actualiza la tabla 'pagos' para dLocal (idempotente, Supabase).
 
     - Si la tabla no existe, se crea con el esquema de dLocal.
     - Si ya existía con el esquema de Stripe, se renombran las columnas y se
       eliminan las exclusivas de Stripe/Connect SIN borrar datos históricos.
-=======
-    """Crea/actualiza la tabla 'pagos' para Stripe (idempotente, Supabase).
-
-    - Si la tabla no existe, se crea con el esquema de Stripe.
-    - Si ya existía con el esquema de dLocal, se agregan las columnas nuevas
-      SIN borrar datos históricos: los registros previos quedan marcados con
-      ``proveedor='dlocal'`` y los nuevos serán ``proveedor='stripe'``.
->>>>>>> c445638 (Migración de dLocal a Stripe)
-=======
-    """Crea/actualiza la tabla 'pagos' para dLocal (idempotente, Supabase).
-
-    - Si la tabla no existe, se crea con el esquema de dLocal.
-    - Si ya existía con el esquema de Stripe, se renombran las columnas y se
-      eliminan las exclusivas de Stripe/Connect SIN borrar datos históricos.
->>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
     - En SQLite local las tablas las crea Base.metadata.create_all.
     """
     from sqlalchemy import text
@@ -295,62 +365,26 @@ def _crear_tabla_pagos(db):
             id BIGSERIAL PRIMARY KEY,
             pedido_id BIGINT NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
             usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
-<<<<<<< HEAD
-<<<<<<< HEAD
             proveedor VARCHAR(20) NOT NULL DEFAULT 'dlocal',
             order_id VARCHAR(125) NOT NULL,
             estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
             estado_pasarela VARCHAR(80),
-=======
-            proveedor VARCHAR(20) NOT NULL DEFAULT 'stripe',
-            order_id VARCHAR(125) NOT NULL,
-            estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
-            estado_stripe VARCHAR(80),
->>>>>>> c445638 (Migración de dLocal a Stripe)
-=======
-            proveedor VARCHAR(20) NOT NULL DEFAULT 'dlocal',
-            order_id VARCHAR(125) NOT NULL,
-            estado VARCHAR(30) NOT NULL DEFAULT 'pendiente',
-            estado_pasarela VARCHAR(80),
->>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
             monto BIGINT NOT NULL DEFAULT 0,
             moneda VARCHAR(3) NOT NULL DEFAULT 'COP',
             metodo_pago VARCHAR(30),
             redirect_url TEXT,
-<<<<<<< HEAD
-<<<<<<< HEAD
             dlocal_payment_id VARCHAR(255),
             respuesta_pasarela TEXT,
-=======
-            stripe_checkout_session_id VARCHAR(255),
-            stripe_payment_intent_id VARCHAR(255),
-            stripe_amount BIGINT,
-            stripe_currency VARCHAR(3),
-            comision_plataforma BIGINT,
-            monto_distribuido BIGINT,
-            detalle_distribucion TEXT,
-            stripe_transfer_ids TEXT,
-            respuesta_stripe TEXT,
->>>>>>> c445638 (Migración de dLocal a Stripe)
-=======
-            dlocal_payment_id VARCHAR(255),
-            respuesta_pasarela TEXT,
->>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
             notificacion TEXT,
             creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
             actualizado_en TIMESTAMPTZ
         )
     """))
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
     # Renombra columnas del esquema Stripe anterior (conserva datos).
     for viejo, nuevo in [
         ("estado_stripe", "estado_pasarela"),
         ("stripe_checkout_session_id", "dlocal_payment_id"),
         ("respuesta_stripe", "respuesta_pasarela"),
-<<<<<<< HEAD
     ]:
         _renombrar_columna_si_existe(db, "pagos", viejo, nuevo)
     # Columnas exclusivas de Stripe/Connect que ya no se usan.
@@ -367,43 +401,6 @@ def _crear_tabla_pagos(db):
     db.execute(text(
         "ALTER TABLE pagos ALTER COLUMN proveedor SET DEFAULT 'dlocal'"
     ))
-=======
-    # Columnas que pudieron faltar si la tabla ya existía (migración dLocal).
-    for col, tipo in [
-        ("proveedor", "VARCHAR(20) NOT NULL DEFAULT 'stripe'"),
-        ("estado_stripe", "VARCHAR(80)"),
-        ("stripe_checkout_session_id", "VARCHAR(255)"),
-        ("stripe_payment_intent_id", "VARCHAR(255)"),
-        ("stripe_amount", "BIGINT"),
-        ("stripe_currency", "VARCHAR(3)"),
-        ("comision_plataforma", "BIGINT"),
-        ("monto_distribuido", "BIGINT"),
-        ("detalle_distribucion", "TEXT"),
-        ("stripe_transfer_ids", "TEXT"),
-        ("respuesta_stripe", "TEXT"),
-    ]:
-        _agregar_columna_si_no_existe(db, "pagos", col, tipo)
-    # Marca los registros históricos de dLocal (la columna ya no existe en el
-    # modelo, pero los datos previos se conservan identificados por proveedor).
->>>>>>> c445638 (Migración de dLocal a Stripe)
-=======
-    ]:
-        _renombrar_columna_si_existe(db, "pagos", viejo, nuevo)
-    # Columnas exclusivas de Stripe/Connect que ya no se usan.
-    for col in [
-        "stripe_payment_intent_id", "stripe_amount", "stripe_currency",
-        "comision_plataforma", "monto_distribuido", "detalle_distribucion",
-        "stripe_transfer_ids",
-    ]:
-        _eliminar_columna_si_existe(db, "pagos", col)
-    # Garantiza las columnas dLocal (por si la tabla era nueva).
-    _agregar_columna_si_no_existe(db, "pagos", "estado_pasarela", "VARCHAR(80)")
-    _agregar_columna_si_no_existe(db, "pagos", "dlocal_payment_id", "VARCHAR(255)")
-    _agregar_columna_si_no_existe(db, "pagos", "respuesta_pasarela", "TEXT")
-    db.execute(text(
-        "ALTER TABLE pagos ALTER COLUMN proveedor SET DEFAULT 'dlocal'"
-    ))
->>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
     db.execute(text(
         "UPDATE pagos SET proveedor='dlocal' WHERE proveedor IS NULL OR proveedor=''"
     ))
@@ -411,35 +408,9 @@ def _crear_tabla_pagos(db):
     db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_order_id ON pagos(order_id)"))
     db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_estado ON pagos(estado)"))
     db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_proveedor ON pagos(proveedor)"))
-<<<<<<< HEAD
-<<<<<<< HEAD
     db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_dlocal_payment ON pagos(dlocal_payment_id)"))
     db.commit()
     print("[migracion] Tabla 'pagos' (dLocal) verificada.")
-=======
-    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_session ON pagos(stripe_checkout_session_id)"))
-    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_pi ON pagos(stripe_payment_intent_id)"))
-    db.commit()
-    print("[migracion] Tabla 'pagos' (Stripe) verificada.")
-
-
-def _migrar_stripe_connect_tiendas(db):
-    """Agrega las columnas de Stripe Connect a 'tiendas' si no existen."""
-    from sqlalchemy import text
-    for col, tipo in [
-        ("stripe_account_id", "VARCHAR(255)"),
-        ("stripe_account_status", "VARCHAR(30) NOT NULL DEFAULT 'no_configurada'"),
-        ("stripe_connect_activa", "BOOLEAN NOT NULL DEFAULT FALSE"),
-    ]:
-        _agregar_columna_si_no_existe(db, "tiendas", col, tipo)
-    db.commit()
-    print("[migracion] Columnas de Stripe Connect en 'tiendas' verificadas.")
->>>>>>> c445638 (Migración de dLocal a Stripe)
-=======
-    db.execute(text("CREATE INDEX IF NOT EXISTS idx_pagos_dlocal_payment ON pagos(dlocal_payment_id)"))
-    db.commit()
-    print("[migracion] Tabla 'pagos' (dLocal) verificada.")
->>>>>>> 5b4c0b2 (feat(Pasarela-de-pagos): pasarela de pagos implementada y funcional)
 
 
 def _crear_tabla_foro_imagenes(db):

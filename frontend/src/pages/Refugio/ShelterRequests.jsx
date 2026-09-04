@@ -90,6 +90,12 @@ export default function ShelterRequests() {
         time: s.creada_en ? new Date(s.creada_en).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "",
         message: s.mensaje || "",
         location: s.ubicacion || "",
+        // Datos completos y actualizados del solicitante (desde su perfil).
+        departamento: s.departamento || "",
+        municipio: s.municipio || "",
+        direccion: s.direccion || "",
+        tipoDocumento: s.tipo_documento || "",
+        numeroDocumento: s.numero_documento || "",
         hasFamily: s.tiene_familia,
         hasExperience: s.tiene_experiencia,
         notas: s.notas || "",
@@ -447,9 +453,26 @@ export default function ShelterRequests() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-dark-text-secondary">Ubicación</p>
-                    <p className="font-semibold text-gray-900 dark:text-white">{selectedRequest.location}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {[selectedRequest.departamento, selectedRequest.municipio, selectedRequest.direccion]
+                        .filter(Boolean)
+                        .join(", ") || selectedRequest.location || "—"}
+                    </p>
                   </div>
                 </div>
+                {(selectedRequest.numeroDocumento || selectedRequest.tipoDocumento) && (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-500/10 dark:to-purple-500/10 border border-violet-100/50 dark:border-violet-500/10">
+                    <div className="w-9 h-9 rounded-lg bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-violet-600/70 dark:text-violet-400/70 font-medium">Documento</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {[selectedRequest.tipoDocumento, selectedRequest.numeroDocumento].filter(Boolean).join(" ") || "—"}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Message */}

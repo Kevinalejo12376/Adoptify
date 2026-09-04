@@ -17,6 +17,9 @@ class UsuarioCreate(BaseModel):
     # codigo del catalogo roles: 'usuario' | 'refugio'
     rol: str = "usuario"
     ubicacion: Optional[str] = None
+    departamento: Optional[str] = None
+    municipio: Optional[str] = None
+    direccion: Optional[str] = None
     # Nombre del refugio (solo si rol == 'refugio')
     nombre_refugio: Optional[str] = None
 
@@ -25,6 +28,9 @@ class ProfileUpdate(BaseModel):
     """Esquema para que el usuario complete/actualice su perfil."""
     telefono: Optional[str] = None
     ubicacion: Optional[str] = None
+    departamento: Optional[str] = None
+    municipio: Optional[str] = None
+    direccion: Optional[str] = None
     bio: Optional[str] = None
     website: Optional[str] = None
     twitter: Optional[str] = None
@@ -47,6 +53,20 @@ class ProfileUpdate(BaseModel):
         if v and v.strip():
             if not re.match(r'^[\d\s\+\-\(\)]{7,20}$', v.strip()):
                 raise ValueError("El formato del teléfono no es válido")
+        return v.strip() if v else v
+
+    @field_validator("departamento", "municipio")
+    @classmethod
+    def validate_zona(cls, v):
+        if v and len(v.strip()) > 150:
+            raise ValueError("Máximo 150 caracteres")
+        return v.strip() if v else v
+
+    @field_validator("direccion")
+    @classmethod
+    def validate_direccion(cls, v):
+        if v and len(v.strip()) > 200:
+            raise ValueError("La dirección no puede exceder 200 caracteres")
         return v.strip() if v else v
 
     @field_validator("twitter", "instagram")
@@ -74,6 +94,9 @@ class ProfileResponse(BaseModel):
     tipo_documento: Optional[str] = None
     numero_documento: Optional[str] = None
     ubicacion: Optional[str] = None
+    departamento: Optional[str] = None
+    municipio: Optional[str] = None
+    direccion: Optional[str] = None
     bio: Optional[str] = None
     website: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -94,6 +117,9 @@ class UsuarioResponse(BaseModel):
     tipo_documento: Optional[str] = None
     numero_documento: Optional[str] = None
     ubicacion: Optional[str] = None
+    departamento: Optional[str] = None
+    municipio: Optional[str] = None
+    direccion: Optional[str] = None
 
 
 # ─── Esquemas para verificación de email / recuperación de contraseña ───
@@ -123,7 +149,29 @@ class RegistrarConCodigoRequest(BaseModel):
     numero_documento: Optional[str] = None
     rol: str = "usuario"
     ubicacion: Optional[str] = None
+    departamento: Optional[str] = None
+    municipio: Optional[str] = None
+    direccion: Optional[str] = None
     nombre_refugio: Optional[str] = None
+
+
+class CheckRegistroRequest(BaseModel):
+    """Valida en la BD si el correo o el documento ya están registrados.
+
+    Se usa ANTES de enviar el código de verificación para impedir el registro
+    de usuarios duplicados con mensajes claros en un modal.
+    """
+    email: Optional[str] = None
+    tipo_documento: Optional[str] = None
+    numero_documento: Optional[str] = None
+
+
+class CheckRegistroResponse(BaseModel):
+    """Resultado de la validación de registro contra la BD."""
+    email_registrado: bool = False
+    documento_registrado: bool = False
+    correo: Optional[str] = None
+    documento: Optional[str] = None
 
 
 class ResetPasswordRequest(BaseModel):

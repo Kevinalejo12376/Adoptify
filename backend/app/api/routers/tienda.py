@@ -45,6 +45,11 @@ from app.core.config import settings
 from app.core.email import enviar_correo_cuenta_creada
 from app.services.solicitudes_tienda import crear_enlace_password
 from app.core.softdelete import soft_delete, soft_delete_no_commit, liberar_email
+from app.core.papelera import (
+    restaurar as restaurar_papelera,
+    eliminar_definitivo as eliminar_definitivo_papelera,
+    filtro_estado_papelera,
+)
 from app.models.usuario import Usuario
 from app.models.tienda import (
     Tienda,
@@ -859,11 +864,38 @@ def mis_productos(
     current_user: Usuario = Depends(requiere_permiso("productos.ver")),
     db: Session = Depends(get_db),
 ):
+    """Productos vivos de mi tienda (excluye los que están en la papelera)."""
     tienda = _mi_tienda(current_user, db)
     productos = (
         db.query(Producto)
-        .filter(Producto.tienda_id == tienda.id)
+        .filter(
+            Producto.tienda_id == tienda.id,
+            Producto.eliminado_en.is_(None),
+        )
         .order_by(Producto.creado_en.desc())
+        .all()
+    )
+    return [serialize_producto(p) for p in productos]
+
+
+@router.get("/productos/papelera")
+def papelera_productos(
+    current_user: Usuario = Depends(requiere_permiso("productos.ver")),
+    db: Session = Depends(get_db),
+):
+    """Productos en BORRADORES (papelera) de mi tienda.
+
+    Solo se listan los que siguen restaurables (eliminados en los últimos 30
+    días). Los que superaron los 30 días ya se purgaron y no se devuelven.
+    """
+    tienda = _mi_tienda(current_user, db)
+    productos = (
+        db.query(Producto)
+        .filter(
+            Producto.tienda_id == tienda.id,
+            filtro_estado_papelera(Producto),
+        )
+        .order_by(Producto.eliminado_en.desc())
         .all()
     )
     return [serialize_producto(p) for p in productos]
@@ -1210,19 +1242,49 @@ def eliminar_producto(
     current_user: Usuario = Depends(requiere_permiso("productos.eliminar")),
     db: Session = Depends(get_db),
 ):
+    """Elimina un producto de mi tienda: pasa a BORRADORES (papelera de 30 días)."""
     tienda = _mi_tienda(current_user, db)
     producto = _mi_producto(producto_id, current_user, db)
     nombre_producto = producto.nombre
-    # Soft delete: desactiva el producto conservando kardex, pedidos y donaciones.
+    # Soft delete: oculta el producto conservando kardex, pedidos y donaciones.
     soft_delete_no_commit(db, producto)
     db.commit()
     registrar_actividad(
         db, tienda.id, current_user,
         tipo_accion="producto.eliminar",
-        accion="Eliminó el producto",
+        accion="Mueve el producto a Borradores",
         elemento_tipo="producto",
         elemento=nombre_producto,
     )
+    return None
+
+
+@router.post("/productos/{producto_id}/restaurar")
+def restaurar_producto_papelera(
+    producto_id: int,
+    current_user: Usuario = Depends(requiere_permiso("productos.activar")),
+    db: Session = Depends(get_db),
+):
+    """Restaura un producto desde BORRADORES: vuelve a estar visible en la tienda."""
+    producto = _mi_producto(producto_id, current_user, db)
+    if not producto.eliminado_en:
+        raise HTTPException(status_code=400, detail="Este producto no está en la papelera")
+    restaurar_papelera(db, producto)
+    return serialize_producto(producto)
+
+
+@router.delete("/productos/{producto_id}/definitivo", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto_definitivo(
+    producto_id: int,
+    current_user: Usuario = Depends(requiere_permiso("productos.eliminar")),
+    db: Session = Depends(get_db),
+):
+    """Elimina definitivamente un producto desde BORRADORES (archivado
+    permanente, no restaurable)."""
+    producto = _mi_producto(producto_id, current_user, db)
+    if not producto.eliminado_en:
+        raise HTTPException(status_code=400, detail="Este producto no está en la papelera")
+    eliminar_definitivo_papelera(db, producto)
     return None
 
 
@@ -1232,7 +1294,12 @@ def estadisticas(
     db: Session = Depends(get_db),
 ):
     tienda = _mi_tienda(current_user, db)
-    productos = db.query(Producto).filter(Producto.tienda_id == tienda.id).all()
+    # Las estadísticas ignoran los productos que están en la papelera.
+    productos = (
+        db.query(Producto)
+        .filter(Producto.tienda_id == tienda.id, Producto.eliminado_en.is_(None))
+        .all()
+    )
     total = len(productos)
     activos = sum(1 for p in productos if p.activo)
     sin_stock = sum(1 for p in productos if (p.stock or 0) <= 0)

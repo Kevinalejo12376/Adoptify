@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   X,
   User,
@@ -14,12 +14,11 @@ import {
   Loader2,
   Quote,
   Navigation,
-  MapPinned,
-  Crosshair,
-  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { updateProfile } from "../api/auth";
+import { getDepartamentos, getMunicipios } from "../api/catalogos";
+import { obtenerUbicacionDetallada } from "../utils/ubicacion";
 
 // ─── Expresiones regulares de validación ───
 const REGEX = {
@@ -27,110 +26,9 @@ const REGEX = {
   website: /^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/[\w\-\.\/?%&=]*)?$/,
 };
 
-// ─── Hook personalizado para geolocalización ───
-function useGeolocation() {
-  const [state, setState] = useState({
-    loading: false,
-    coords: null,
-    address: "",
-    error: "",
-    denied: false,
-  });
-  const [manualMode, setManualMode] = useState(false);
-  const isMounted = useRef(true);
-
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  const reverseGeocode = useCallback(async (lat, lng) => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es`,
-        { headers: { "Accept-Language": "es" } }
-      );
-      if (!res.ok) throw new Error("No se pudo obtener la dirección");
-      const data = await res.json();
-      const addr = data.address || {};
-      // Construir una dirección legible: ciudad, región, país
-      const parts = [
-        addr.city || addr.town || addr.municipality || addr.county,
-        addr.state || addr.region,
-        addr.country,
-      ].filter(Boolean);
-      return parts.join(", ");
-    } catch {
-      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    }
-  }, []);
-
-  const requestLocation = useCallback(async () => {
-    if (!navigator.geolocation) {
-      setState((prev) => ({
-        ...prev,
-        error: "Tu navegador no soporta geolocalización. Puedes escribir tu ubicación manualmente.",
-        loading: false,
-      }));
-      setManualMode(true);
-      return;
-    }
-
-    setState((prev) => ({ ...prev, loading: true, error: "" }));
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        if (!isMounted.current) return;
-        const { latitude, longitude } = position.coords;
-        setState((prev) => ({ ...prev, coords: { lat: latitude, lng: longitude } }));
-
-        // Intentar obtener dirección legible
-        const address = await reverseGeocode(latitude, longitude);
-        if (isMounted.current) {
-          setState((prev) => ({
-            ...prev,
-            address,
-            loading: false,
-          }));
-        }
-      },
-      (error) => {
-        if (!isMounted.current) return;
-        let msg = "";
-        let denied = false;
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            msg = "Permiso de ubicación denegado. Puedes escribir tu ubicación manualmente.";
-            denied = true;
-            break;
-          case error.POSITION_UNAVAILABLE:
-            msg = "No se pudo obtener la ubicación. Intenta de nuevo o escríbela manualmente.";
-            break;
-          case error.TIMEOUT:
-            msg = "La solicitud de ubicación expiró. Intenta de nuevo o escríbela manualmente.";
-            break;
-          default:
-            msg = "Error al obtener ubicación. Escríbela manualmente.";
-        }
-        setState((prev) => ({ ...prev, error: msg, loading: false, denied }));
-        setManualMode(true);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000,
-      }
-    );
-  }, [reverseGeocode]);
-
-  const reset = useCallback(() => {
-    setState({ loading: false, coords: null, address: "", error: "", denied: false });
-    setManualMode(false);
-  }, []);
-
-  return { ...state, manualMode, setManualMode, requestLocation, reset };
-}
+// Nota: la geolocalización se resuelve con la utilidad compartida
+// `obtenerUbicacionDetallada` de ../utils/ubicacion (la misma que usa el
+// registro de refugios) para autocompletar Departamento, Municipio y Dirección.
 
 // ─── Campo de formulario reutilizable (rediseñado) ───
 function FormField({
@@ -285,12 +183,26 @@ function FormField({
 // ─── Componente principal: CompleteProfileModal ───
 export default function CompleteProfileModal({ isOpen, onClose, onComplete }) {
   const { user } = useAuth();
-  const geo = useGeolocation();
+
+  // Estado de la geolocalización ("Usar mi ubicación actual").
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState("");
+  const [geoOk, setGeoOk] = useState(false);
+  // Catálogos de ubicación (departamentos y municipios desde la BD).
+  const [departamentos, setDepartamentos] = useState([]);
+  const [municipios, setMunicipios] = useState([]);
+  const [departamentoId, setDepartamentoId] = useState(null);
+  const [municipiosCargando, setMunicipiosCargando] = useState(false);
+  // Municipio detectado por geolocalización que no está en el catálogo.
+  const [municipioExtra, setMunicipioExtra] = useState("");
 
   // Estado del formulario
   const [formData, setFormData] = useState({
     telefono: "",
     ubicacion: "",
+    departamento: "",
+    municipio: "",
+    direccion: "",
     bio: "",
     website: "",
     twitter: "",
@@ -310,6 +222,9 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete }) {
       setFormData({
         telefono: user?.phone || "",
         ubicacion: user?.location || "",
+        departamento: user?.departamento || "",
+        municipio: user?.municipio || "",
+        direccion: user?.direccion || "",
         bio: "",
         website: "",
         twitter: "",
@@ -320,37 +235,116 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete }) {
       setSubmitError("");
       setSubmitSuccess(false);
       setStep(1);
-      geo.reset();
+      setGeoLoading(false);
+      setGeoError("");
+      setGeoOk(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, user]);
 
-  // Cuando la geolocalización obtiene una dirección, actualizar el formulario
+  // ─── Carga los departamentos (catálogo de la BD) al abrir el modal ───
   useEffect(() => {
-    if (geo.address && geo.address !== formData.ubicacion) {
-      setFormData((prev) => ({ ...prev, ubicacion: geo.address }));
-      // Validar el campo después de actualizar
-      const err = validateField("ubicacion", geo.address);
-      setErrors((prev) => {
-        const next = { ...prev };
-        if (err) next.ubicacion = err;
-        else delete next.ubicacion;
-        return next;
+    if (!isOpen) return;
+    let activo = true;
+    setDepartamentos([]);
+    setMunicipios([]);
+    setDepartamentoId(null);
+    setMunicipioExtra("");
+    getDepartamentos()
+      .then((data) => {
+        if (!activo) return;
+        const lista = data || [];
+        setDepartamentos(lista);
+        // Si el usuario ya tiene un departamento guardado, se preselecciona.
+        const depto = lista.find((d) => d.nombre === (user?.departamento || ""));
+        if (depto) {
+          setDepartamentoId(depto.id);
+          cargarMunicipios(depto.id, user?.municipio || "");
+        }
+      })
+      .catch(() => {
+        if (activo) setDepartamentos([]);
       });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geo.address]);
-
-  // Solicitar ubicación al montar el modal
-  useEffect(() => {
-    if (isOpen && !user?.location) {
-      const timer = setTimeout(() => {
-        geo.requestLocation();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
+    return () => { activo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // Carga los municipios del departamento seleccionado.
+  const cargarMunicipios = useCallback(async (deptoId, municipioDetectado = "") => {
+    setMunicipiosCargando(true);
+    setMunicipioExtra("");
+    try {
+      if (deptoId) {
+        const data = await getMunicipios(deptoId);
+        const lista = data || [];
+        setMunicipios(lista);
+        // Si el municipio autocompletado (geolocalización) no está en el
+        // catálogo, se agrega como opción extra para no perder el valor.
+        if (municipioDetectado && !lista.some((m) => m.nombre === municipioDetectado)) {
+          setMunicipioExtra(municipioDetectado);
+        }
+      } else {
+        setMunicipios([]);
+      }
+    } catch {
+      setMunicipios([]);
+    } finally {
+      setMunicipiosCargando(false);
+    }
+  }, []);
+
+  // Al cambiar el departamento se recargan sus municipios y se limpia el previo.
+  const handleDepartamentoChange = (nombre, id) => {
+    setFormData((prev) => ({
+      ...prev,
+      departamento: nombre,
+      municipio: "",
+      ubicacion: [prev.direccion, nombre].filter(Boolean).join(", "),
+    }));
+    setMunicipioExtra("");
+    setDepartamentoId(id);
+    cargarMunicipios(id);
+  };
+
+  // ─── Usar mi ubicación actual (geolocalización) ───
+  // Reutiliza la misma función que el registro de refugios: autocompleta
+  // Departamento, Municipio y Dirección y deriva el campo legado `ubicacion`.
+  const usarMiUbicacion = async () => {
+    setGeoLoading(true);
+    setGeoError("");
+    setGeoOk(false);
+    try {
+      const ubi = await obtenerUbicacionDetallada();
+      setFormData((prev) => ({
+        ...prev,
+        departamento: ubi.departamento,
+        municipio: ubi.municipio,
+        direccion: ubi.direccion,
+        ubicacion: [ubi.municipio, ubi.departamento, ubi.direccion].filter(Boolean).join(", "),
+      }));
+      setErrors((prev) => ({
+        ...prev,
+        departamento: "",
+        municipio: "",
+        direccion: "",
+      }));
+      // Carga los municipios del departamento detectado (si existe en el catálogo).
+      const depto = departamentos.find((d) => d.nombre === ubi.departamento);
+      if (depto) {
+        setDepartamentoId(depto.id);
+        await cargarMunicipios(depto.id, ubi.municipio);
+      } else {
+        setMunicipios([]);
+        setDepartamentoId(null);
+        setMunicipioExtra(ubi.municipio || "");
+      }
+      setGeoOk(true);
+    } catch (e) {
+      setGeoError(e?.message || "No se pudo obtener tu ubicación. Completa los campos manualmente.");
+    } finally {
+      setGeoLoading(false);
+    }
+  };
 
   // ─── Validación de campo individual ───
   const validateField = useCallback((name, value) => {
@@ -364,8 +358,16 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete }) {
         return "";
 
       case "ubicacion":
+      case "departamento":
+      case "municipio":
         if (val && val.length > 150) {
-          return "La ubicación no puede exceder 150 caracteres";
+          return "No puede exceder 150 caracteres";
+        }
+        return "";
+
+      case "direccion":
+        if (val && val.length > 200) {
+          return "La dirección no puede exceder 200 caracteres";
         }
         return "";
 
@@ -396,15 +398,22 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete }) {
   // ─── Manejar cambio en cualquier campo ───
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [name]: value };
+      // Si se edita manualmente algún campo de ubicación, se sincroniza el
+      // campo legado `ubicacion` para mantener la coherencia con la BD.
+      if (name === "departamento" || name === "municipio" || name === "direccion") {
+        next.ubicacion = [
+          next.municipio,
+          next.departamento,
+          next.direccion,
+        ].filter(Boolean).join(", ");
+      }
+      return next;
+    });
 
     if (name === "bio") {
       setBioCharCount(value.length);
-    }
-
-    // Si estamos en modo manual de ubicación y el usuario escribe, actualizar
-    if (name === "ubicacion" && geo.manualMode) {
-      // validar normal
     }
 
     // Validar en tiempo real
@@ -440,7 +449,9 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete }) {
 
     setIsSubmitting(true);
     try {
-      // Enviar solo campos con contenido
+      // Enviar solo campos con contenido. La ubicación detallada
+      // (departamento/municipio/dirección) se envía además del campo legado
+      // `ubicacion` para que la BD guarde toda la información.
       const payload = {};
       Object.entries(formData).forEach(([key, value]) => {
         if (value && value.trim()) {
@@ -596,45 +607,134 @@ export default function CompleteProfileModal({ isOpen, onClose, onComplete }) {
                     placeholder="+57 300 123 4567"
                     helperText="Para que los refugios puedan contactarte"
                   />
-                  <FormField
-                    label="Ubicación"
-                    name="ubicacion"
-                    value={formData.ubicacion}
-                    onChange={handleChange}
-                    error={errors.ubicacion}
-                    icon={geo.loading ? Loader2 : geo.denied ? MapPin : MapPinned}
-                    placeholder={
-                      geo.loading
-                        ? "Obteniendo ubicación..."
-                        : "Bogotá, Colombia"
-                    }
-                    disabled={geo.loading}
-                    helperText={
-                      geo.loading
-                        ? "Detectando tu ubicación..."
-                        : geo.denied
-                        ? "Permiso denegado — puedes escribir tu ubicación"
-                        : !formData.ubicacion && !geo.denied
-                        ? "Haz clic en el icono para detectar tu ubicación"
-                        : "Tu ciudad o región"
-                    }
-                    rightIcon={
-                      !geo.loading ? (geo.denied ? RefreshCw : Crosshair) : null
-                    }
-                    onRightIconClick={() => {
-                      if (geo.denied) {
-                        geo.reset();
-                        geo.requestLocation();
-                      } else {
-                        geo.requestLocation();
-                      }
-                    }}
-                    rightIconTooltip={
-                      geo.denied
-                        ? "Reintentar geolocalización"
-                        : "Detectar mi ubicación"
-                    }
-                  />
+                </div>
+
+                {/* ─── Ubicación detallada con "Usar mi ubicación actual" ─── */}
+                <div className="pt-2.5">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-rose-500" />
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Ubicación
+                      </h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={usarMiUbicacion}
+                      disabled={geoLoading}
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                        geoOk
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                          : "bg-white border-rose-200 text-rose-600 hover:bg-rose-50"
+                      }`}
+                    >
+                      {geoLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Navigation className="w-3.5 h-3.5" />
+                      )}
+                      {geoLoading ? "Obteniendo ubicación..." : "Usar mi ubicación actual"}
+                    </button>
+                  </div>
+
+                  {geoError && (
+                    <div className="flex items-start gap-2 mb-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
+                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+                      <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+                        {geoError}
+                      </p>
+                    </div>
+                  )}
+                  {geoOk && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Ubicación detectada. Puedes editar los campos si es necesario.
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Departamento
+                      </label>
+                      <select
+                        value={formData.departamento}
+                        onChange={(e) => {
+                          const nombre = e.target.value;
+                          const depto = departamentos.find((d) => d.nombre === nombre);
+                          handleDepartamentoChange(nombre, depto?.id ?? null);
+                        }}
+                        className={`w-full px-4 py-2.5 bg-white dark:bg-gray-800/50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-0 dark:text-white text-gray-900 transition-all duration-200 text-sm ${
+                          errors.departamento
+                            ? "border-red-300 dark:border-red-500 bg-red-50/30 dark:bg-red-900/10 focus:ring-red-400/40 focus:border-red-400"
+                            : "border-gray-200 dark:border-gray-600/50 hover:border-gray-300 dark:hover:border-gray-500 focus:ring-rose-400/40 focus:border-rose-400"
+                        }`}
+                      >
+                        <option value="">Selecciona un departamento</option>
+                        {departamentos.map((d) => (
+                          <option key={d.id} value={d.nombre}>{d.nombre}</option>
+                        ))}
+                        {formData.departamento && !departamentos.some((d) => d.nombre === formData.departamento) && (
+                          <option value={formData.departamento}>{formData.departamento}</option>
+                        )}
+                      </select>
+                      {errors.departamento && (
+                        <p className="text-xs text-red-500">{errors.departamento}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Municipio
+                      </label>
+                      <select
+                        value={formData.municipio}
+                        onChange={(e) => {
+                          const nombre = e.target.value;
+                          setFormData((prev) => ({
+                            ...prev,
+                            municipio: nombre,
+                            ubicacion: [nombre, prev.departamento, prev.direccion].filter(Boolean).join(", "),
+                          }));
+                        }}
+                        disabled={!departamentoId || municipiosCargando}
+                        className={`w-full px-4 py-2.5 bg-white dark:bg-gray-800/50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-0 dark:text-white text-gray-900 transition-all duration-200 text-sm disabled:opacity-60 disabled:cursor-not-allowed ${
+                          errors.municipio
+                            ? "border-red-300 dark:border-red-500 bg-red-50/30 dark:bg-red-900/10 focus:ring-red-400/40 focus:border-red-400"
+                            : "border-gray-200 dark:border-gray-600/50 hover:border-gray-300 dark:hover:border-gray-500 focus:ring-rose-400/40 focus:border-rose-400"
+                        }`}
+                      >
+                        <option value="">
+                          {municipiosCargando ? "Cargando municipios..." : "Selecciona un municipio"}
+                        </option>
+                        {municipios.map((m) => (
+                          <option key={m.id} value={m.nombre}>{m.nombre}</option>
+                        ))}
+                        {municipioExtra && (
+                          <option value={municipioExtra}>{municipioExtra}</option>
+                        )}
+                        {formData.municipio &&
+                          !municipios.some((m) => m.nombre === formData.municipio) &&
+                          formData.municipio !== municipioExtra && (
+                            <option value={formData.municipio}>{formData.municipio}</option>
+                          )}
+                      </select>
+                      {errors.municipio && (
+                        <p className="text-xs text-red-500">{errors.municipio}</p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <FormField
+                        label="Dirección"
+                        name="direccion"
+                        value={formData.direccion}
+                        onChange={handleChange}
+                        error={errors.direccion}
+                        icon={MapPin}
+                        placeholder="Calle, carrera, barrio..."
+                        helperText="Los refugios podrán ver esta información"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 

@@ -62,14 +62,41 @@ def crear_solicitud(
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
 
     estado_id = id_por_codigo(db, EstadoSolicitud, "pendiente", requerido=True)
+
+    # ── Datos del solicitante ────────────────────────────────────────────
+    # Los datos de contacto y ubicación se toman SIEMPRE del perfil ACTUALIZADO
+    # del usuario autenticado (fuente de verdad), de modo que el refugio reciba
+    # la información completa y más reciente aunque el usuario la haya
+    # modificado recientemente. El payload del frontend actúa como respaldo.
+    nombre_contacto = (
+        payload.nombre_contacto
+        or f"{current_user.nombre} {current_user.apellido or ''}".strip()
+    )
+    email_contacto = payload.email_contacto or current_user.email
+    telefono_contacto = payload.telefono_contacto or current_user.telefono
+    ubicacion = payload.ubicacion or current_user.ubicacion
+    departamento = payload.departamento or getattr(current_user, "departamento", None)
+    municipio = payload.municipio or getattr(current_user, "municipio", None)
+    direccion = payload.direccion or getattr(current_user, "direccion", None)
+    tipo_documento = (
+        payload.tipo_documento
+        or (current_user.tipo_documento.codigo if current_user.tipo_documento else None)
+    )
+    numero_documento = payload.numero_documento or current_user.numero_documento
+
     solicitud = SolicitudAdopcion(
         mascota_id=payload.mascota_id,
         usuario_id=current_user.id,
         estado_id=estado_id,
-        nombre_contacto=payload.nombre_contacto,
-        email_contacto=payload.email_contacto,
-        telefono_contacto=payload.telefono_contacto,
-        ubicacion=payload.ubicacion,
+        nombre_contacto=nombre_contacto,
+        email_contacto=email_contacto,
+        telefono_contacto=telefono_contacto,
+        ubicacion=ubicacion,
+        departamento=departamento,
+        municipio=municipio,
+        direccion=direccion,
+        tipo_documento=tipo_documento,
+        numero_documento=numero_documento,
         mensaje=payload.mensaje,
         tiene_familia=payload.tiene_familia,
         tiene_experiencia=payload.tiene_experiencia,

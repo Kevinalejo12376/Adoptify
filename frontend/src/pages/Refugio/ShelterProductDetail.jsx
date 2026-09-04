@@ -330,10 +330,10 @@ export default function ShelterProductDetail() {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDelete}
         title="¿Eliminar producto?"
-        message={`Esta acción no se puede deshacer. ${product.name} será eliminado permanentemente de la tienda.`}
-        confirmText="Eliminar"
+        message={`${product.name} pasará a Borradores y se eliminará definitivamente a los 30 días. Podrás restaurarlo desde "Borradores" mientras tanto.`}
+        confirmText="Mover a Borradores"
         cancelText="Cancelar"
-        type="danger"
+        type="warning"
       />
     </div>
   );

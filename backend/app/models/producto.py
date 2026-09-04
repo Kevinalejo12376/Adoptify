@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+import uuid
+# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Text, Numeric, BigInteger, Boolean, DateTime, ForeignKey, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
@@ -61,6 +63,12 @@ class Producto(Base):
     __tablename__ = "productos"
 
     id = Column(Integer, primary_key=True, index=True)
+    # Identificador público único (URL amigable /product/<uuid>). El id numérico
+    # sigue siendo la PK y la FK interna; el uuid solo se expone en URLs públicas.
+    uuid = Column(
+        String(36), unique=True, index=True, nullable=False,
+        default=lambda: str(uuid.uuid4()),
+    )
     nombre = Column(String(150), nullable=False)
     categoria_id = Column(Integer, ForeignKey("categorias_producto.id"))
     # Moneda: COP sin centavos -> entero (BigInteger). El punto de miles es solo formato.

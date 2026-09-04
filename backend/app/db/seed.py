@@ -224,6 +224,120 @@ REFUGIO_PERMISOS = [
     ("administrar_empleados", "Administrar empleados", "empleados", "Crear, editar, eliminar empleados y asignar permisos"),
 ]
 
+# ── Ubicación: departamentos y municipios de Colombia ─────────────────────────
+# Se usan como listas desplegables en el perfil del usuario. El código se genera
+# automáticamente al sembrar (no se expone al usuario; solo el nombre se guarda).
+DEPARTAMENTOS = [
+    "Amazonas", "Antioquia", "Arauca", "Atlántico", "Bolívar", "Boyacá",
+    "Caldas", "Caquetá", "Casanare", "Cauca", "Cesar", "Chocó", "Córdoba",
+    "Cundinamarca", "Guainía", "Guaviare", "Huila", "La Guajira", "Magdalena",
+    "Meta", "Nariño", "Norte de Santander", "Putumayo", "Quindío", "Risaralda",
+    "San Andrés y Providencia", "Santander", "Sucre", "Tolima", "Valle del Cauca",
+    "Vaupés", "Vichada", "Bogotá D.C.",
+]
+
+MUNICIPIOS_POR_DEPARTAMENTO = {
+    "Amazonas": ["Leticia", "Puerto Nariño", "El Encanto", "La Chorrera"],
+    "Antioquia": ["Medellín", "Bello", "Envigado", "Itagüí", "Sabaneta", "Rionegro",
+                  "Marinilla", "La Ceja", "Apartadó", "Turbo", "Caucasia", "Yarumal",
+                  "Santa Fe de Antioquia", "Andes", "Amagá", "Barbosa", "Caldas",
+                  "Copacabana", "Girardota", "Támesis"],
+    "Arauca": ["Arauca", "Arauquita", "Tame", "Saravena"],
+    "Atlántico": ["Barranquilla", "Soledad", "Malambo", "Puerto Colombia",
+                  "Sabanalarga", "Baranoa", "Galapa", "Sabanagrande"],
+    "Bolívar": ["Cartagena", "Magangué", "Turbaco", "El Carmen de Bolívar",
+                "Mompox", "Arjona", "María la Baja", "Calamar", "San Juan Nepomuceno"],
+    "Boyacá": ["Tunja", "Duitama", "Sogamoso", "Chiquinquirá", "Paipa",
+               "Villa de Leyva", "Moniquirá", "Garagoa", "Puerto Boyacá", "Ramiriquí"],
+    "Caldas": ["Manizales", "Villamaría", "Chinchiná", "La Dorada", "Riosucio",
+               "Salamina", "Neira", "Palestina", "Aguadas"],
+    "Caquetá": ["Florencia", "San Vicente del Caguán", "Belén de los Andaquíes", "El Doncello"],
+    "Casanare": ["Yopal", "Aguazul", "Tauramena", "Villanueva", "Paz de Ariporo"],
+    "Cauca": ["Popayán", "Santander de Quilichao", "Puerto Tejada", "Piendamó",
+              "Silvia", "Corinto", "Miranda", "Guapi", "Timbío"],
+    "Cesar": ["Valledupar", "Aguachica", "La Paz", "San Diego", "Bosconia", "Codazzi"],
+    "Chocó": ["Quibdó", "Istmina", "Condoto", "Tadó", "Nuquí", "Bahía Solano"],
+    "Córdoba": ["Montería", "Cereté", "Lorica", "Sahagún", "Tierralta",
+                "Montelíbano", "Planeta Rica", "Ciénaga de Oro"],
+    "Cundinamarca": ["Soacha", "Zipaquirá", "Chía", "Facatativá", "Fusagasugá",
+                     "Madrid", "Mosquera", "Cajicá", "Girardot", "Ubaté", "La Calera",
+                     "Cota", "Funza", "Sibaté", "Tocancipá", "Tenjo", "Tabio",
+                     "Sopó", "Sesquilé", "Nemocón", "Guatavita"],
+    "Guainía": ["Inírida", "Puerto Colombia (Guainía)"],
+    "Guaviare": ["San José del Guaviare", "El Retorno", "Calamar (Guaviare)"],
+    "Huila": ["Neiva", "Pitalito", "Garzón", "La Plata", "Campoalegre", "Gigante",
+              "Palermo", "Rivera"],
+    "La Guajira": ["Riohacha", "Maicao", "Uribia", "Manaure", "Albania",
+                   "Barrancas", "San Juan del Cesar"],
+    "Magdalena": ["Santa Marta", "Ciénaga", "Fundación", "El Banco", "Plato",
+                  "Aracataca", "Pivijay"],
+    "Meta": ["Villavicencio", "Acacías", "Granada", "Puerto López", "San Martín",
+             "Restrepo", "Guamal"],
+    "Nariño": ["Pasto", "Tumaco", "Ipiales", "Túquerres", "Barbacoas",
+               "La Unión", "El Charco"],
+    "Norte de Santander": ["Cúcuta", "Ocaña", "Pamplona", "Los Patios",
+                           "Villa del Rosario", "Chinácota", "El Zulia"],
+    "Putumayo": ["Mocoa", "Puerto Asís", "Orito", "Sibundoy",
+                 "Valle del Guamuez", "San Miguel"],
+    "Quindío": ["Armenia", "Calarcá", "La Tebaida", "Montenegro", "Quimbaya",
+                "Salento", "Circasia"],
+    "Risaralda": ["Pereira", "Dosquebradas", "Santa Rosa de Cabal", "La Virginia",
+                  "Belén de Umbría", "Marsella"],
+    "San Andrés y Providencia": ["San Andrés", "Providencia"],
+    "Santander": ["Bucaramanga", "Floridablanca", "Girón", "Piedecuesta",
+                  "Barrancabermeja", "San Gil", "Vélez", "Socorro", "Málaga"],
+    "Sucre": ["Sincelejo", "Corozal", "Tolú", "Sampués", "San Marcos", "Morroa"],
+    "Tolima": ["Ibagué", "Espinal", "Melgar", "Honda", "Chaparral", "Líbano",
+               "Mariquita", "Flandes"],
+    "Valle del Cauca": ["Cali", "Palmira", "Buenaventura", "Tuluá", "Buga",
+                        "Cartago", "Jamundí", "Yumbo", "Candelaria", "Dagua",
+                        "Guacarí", "Roldanillo"],
+    "Vaupés": ["Mitú"],
+    "Vichada": ["Puerto Carreño", "La Primavera"],
+    "Bogotá D.C.": ["Bogotá D.C."],
+}
+
+
+def _seed_ubicacion(db):
+    """Siembra departamentos y municipios de Colombia (idempotente).
+
+    Los códigos se generan a partir de la posición del departamento y del id
+    del departamento (para el municipio), de modo que no dependan del nombre
+    (que puede repetirse entre departamentos, p. ej. "Riosucio" en Caldas y
+    Chocó). Si un departamento ya existe por nombre, se reutiliza.
+    """
+    deptos_por_nombre = {}
+    for idx, nombre in enumerate(DEPARTAMENTOS, start=1):
+        codigo = f"D{idx:02d}"
+        depto = db.query(cat.Departamento).filter(cat.Departamento.codigo == codigo).first()
+        if depto is None:
+            depto = db.query(cat.Departamento).filter(cat.Departamento.nombre == nombre).first()
+        if depto is None:
+            depto = cat.Departamento(codigo=codigo, nombre=nombre)
+            db.add(depto)
+            db.flush()
+        deptos_por_nombre[nombre] = depto
+
+    db.flush()
+    for depto_nombre, municipios in MUNICIPIOS_POR_DEPARTAMENTO.items():
+        depto = deptos_por_nombre.get(depto_nombre)
+        if depto is None:
+            continue
+        for i, nombre in enumerate(municipios, start=1):
+            codigo = f"M{depto.id:04d}-{i:03d}"
+            existe = db.query(cat.Municipio).filter(cat.Municipio.codigo == codigo).first()
+            if existe is None:
+                existe = (
+                    db.query(cat.Municipio)
+                    .filter(
+                        cat.Municipio.departamento_id == depto.id,
+                        cat.Municipio.nombre == nombre,
+                    )
+                    .first()
+                )
+            if existe is None:
+                db.add(cat.Municipio(codigo=codigo, nombre=nombre, departamento_id=depto.id))
+
 
 def seed_catalogos():
     db = SessionLocal()
@@ -262,6 +376,8 @@ def seed_catalogos():
         for codigo, nombre, modulo, descripcion in REFUGIO_PERMISOS:
             if codigo not in existentes_rp:
                 db.add(RefugioPermiso(codigo=codigo, nombre=nombre, modulo=modulo, descripcion=descripcion))
+
+        _seed_ubicacion(db)
 
         db.commit()
 

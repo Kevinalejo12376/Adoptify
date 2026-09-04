@@ -8,7 +8,7 @@ import {
   MessageCircle, Clock, TrendingUp,
   Dog, Cat, CheckCircle, AlertCircle,
   Image, Globe, Plus, Trash2,
-  ArrowUp, Quote, Sparkles, Loader2
+  ArrowUp, Quote, Sparkles, Loader2, Navigation
 } from "lucide-react";
 import { misSolicitudes } from "../../api/solicitudes";
 import { idsMascotasFavoritas } from "../../api/favoritos";
@@ -19,6 +19,8 @@ import {
 } from "../../utils/validaciones";
 import { useImageUpload } from "../../hooks/useImageUpload";
 import { readAndValidateImage } from "../../utils/imageUtils";
+import { obtenerUbicacionDetallada } from "../../utils/ubicacion";
+import { getDepartamentos, getMunicipios } from "../../api/catalogos";
 import ImageEditorModal from "../../components/ImageEditorModal";
 
 // Perfil base (se completa con los datos reales del usuario autenticado).
@@ -27,6 +29,9 @@ const EMPTY_USER = {
   email: "",
   phone: "",
   location: "",
+  departamento: "",
+  municipio: "",
+  direccion: "",
   bio: "",
   joinDate: "",
   avatar: null,
@@ -279,8 +284,109 @@ function AvatarModal({ isOpen, onClose, currentAvatar, onAvatarChange, busy = fa
 // ─── Edit Profile Modal ───
 function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onCancel }) {
   const [errors, setErrors] = useState({});
+  // Estado de la geolocalización ("Usar mi ubicación actual").
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState("");
+  const [geoOk, setGeoOk] = useState(false);
+  // Catálogos de ubicación (departamentos y municipios desde la BD).
+  const [departamentos, setDepartamentos] = useState([]);
+  const [municipios, setMunicipios] = useState([]);
+  const [departamentoId, setDepartamentoId] = useState(null);
+  const [municipiosCargando, setMunicipiosCargando] = useState(false);
+  const [municipioExtra, setMunicipioExtra] = useState("");
 
-  if (!isOpen) return null;
+  // Carga los departamentos (catálogo) al abrir el modal.
+  useEffect(() => {
+    let activo = true;
+    setDepartamentos([]);
+    setMunicipios([]);
+    setDepartamentoId(null);
+    setMunicipioExtra("");
+    getDepartamentos()
+      .then((data) => {
+        if (!activo) return;
+        const lista = data || [];
+        setDepartamentos(lista);
+        const depto = lista.find((d) => d.nombre === (editedUser?.departamento || ""));
+        if (depto) {
+          setDepartamentoId(depto.id);
+          cargarMunicipios(depto.id, editedUser?.municipio || "");
+        }
+      })
+      .catch(() => {
+        if (activo) setDepartamentos([]);
+      });
+    return () => { activo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Carga los municipios del departamento seleccionado.
+  const cargarMunicipios = async (deptoId, municipioDetectado = "") => {
+    setMunicipiosCargando(true);
+    setMunicipioExtra("");
+    try {
+      if (deptoId) {
+        const data = await getMunicipios(deptoId);
+        const lista = data || [];
+        setMunicipios(lista);
+        if (municipioDetectado && !lista.some((m) => m.nombre === municipioDetectado)) {
+          setMunicipioExtra(municipioDetectado);
+        }
+      } else {
+        setMunicipios([]);
+      }
+    } catch {
+      setMunicipios([]);
+    } finally {
+      setMunicipiosCargando(false);
+    }
+  };
+
+  // Al cambiar el departamento se recargan sus municipios y se limpia el previo.
+  const handleDepartamentoChange = (nombre, id) => {
+    setEditedUser((prev) => ({
+      ...prev,
+      departamento: nombre,
+      municipio: "",
+      location: [prev.direccion, nombre].filter(Boolean).join(", "),
+    }));
+    setMunicipioExtra("");
+    setDepartamentoId(id);
+    cargarMunicipios(id);
+  };
+
+  // Reutiliza la misma función del registro de refugios: autocompleta
+  // Departamento, Municipio y Dirección y deriva la ubicación legada.
+  const usarMiUbicacion = async () => {
+    setGeoLoading(true);
+    setGeoError("");
+    setGeoOk(false);
+    try {
+      const ubi = await obtenerUbicacionDetallada();
+      setEditedUser((prev) => ({
+        ...prev,
+        departamento: ubi.departamento,
+        municipio: ubi.municipio,
+        direccion: ubi.direccion,
+        location: [ubi.municipio, ubi.departamento, ubi.direccion].filter(Boolean).join(", "),
+      }));
+      // Carga los municipios del departamento detectado (si existe en el catálogo).
+      const depto = departamentos.find((d) => d.nombre === ubi.departamento);
+      if (depto) {
+        setDepartamentoId(depto.id);
+        await cargarMunicipios(depto.id, ubi.municipio);
+      } else {
+        setMunicipios([]);
+        setDepartamentoId(null);
+        setMunicipioExtra(ubi.municipio || "");
+      }
+      setGeoOk(true);
+    } catch (e) {
+      setGeoError(e?.message || "No se pudo obtener tu ubicación. Completa los campos manualmente.");
+    } finally {
+      setGeoLoading(false);
+    }
+  };
 
   const handleSaveClick = () => {
     const nuevos = {
@@ -296,6 +402,9 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
       email: normalizarEmail(editedUser.email),
     });
   };
+
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-modal-overlay" />
@@ -336,13 +445,113 @@ function EditProfileModal({ isOpen, user, editedUser, setEditedUser, onSave, onC
                 className={claseInput("w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all", !!errors.phone)} />
               <FieldError mensaje={errors.phone} />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Ubicación</label>
-              <input type="text" value={editedUser.location}
-                onChange={e => setEditedUser({ ...editedUser, location: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+          </div>
+
+          {/* ─── Ubicación detallada con "Usar mi ubicación actual" ─── */}
+          <div className="rounded-2xl border border-gray-100 dark:border-dark-border p-4 bg-gray-50/50 dark:bg-dark-bg/40">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-rose-500" />
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Ubicación</h4>
+              </div>
+              <button
+                type="button"
+                onClick={usarMiUbicacion}
+                disabled={geoLoading}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                  geoOk
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-white border-rose-200 text-rose-600 hover:bg-rose-50"
+                }`}
+              >
+                {geoLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Navigation className="w-3.5 h-3.5" />
+                )}
+                {geoLoading ? "Obteniendo ubicación..." : "Usar mi ubicación actual"}
+              </button>
+            </div>
+
+            {geoError && (
+              <div className="flex items-start gap-2 mb-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+                <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">{geoError}</p>
+              </div>
+            )}
+            {geoOk && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-2 flex items-center gap-1">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Ubicación detectada. Puedes editar los campos si es necesario.
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Departamento</label>
+                <select
+                  value={editedUser.departamento || ""}
+                  onChange={(e) => {
+                    const nombre = e.target.value;
+                    const depto = departamentos.find((d) => d.nombre === nombre);
+                    handleDepartamentoChange(nombre, depto?.id ?? null);
+                  }}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all"
+                >
+                  <option value="">Selecciona un departamento</option>
+                  {departamentos.map((d) => (
+                    <option key={d.id} value={d.nombre}>{d.nombre}</option>
+                  ))}
+                  {editedUser.departamento && !departamentos.some((d) => d.nombre === editedUser.departamento) && (
+                    <option value={editedUser.departamento}>{editedUser.departamento}</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Municipio</label>
+                <select
+                  value={editedUser.municipio || ""}
+                  onChange={(e) => {
+                    const nombre = e.target.value;
+                    setEditedUser((prev) => ({
+                      ...prev,
+                      municipio: nombre,
+                      location: [nombre, prev.departamento, prev.direccion].filter(Boolean).join(", "),
+                    }));
+                  }}
+                  disabled={!departamentoId || municipiosCargando}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {municipiosCargando ? "Cargando municipios..." : "Selecciona un municipio"}
+                  </option>
+                  {municipios.map((m) => (
+                    <option key={m.id} value={m.nombre}>{m.nombre}</option>
+                  ))}
+                  {municipioExtra && (
+                    <option value={municipioExtra}>{municipioExtra}</option>
+                  )}
+                  {editedUser.municipio &&
+                    !municipios.some((m) => m.nombre === editedUser.municipio) &&
+                    editedUser.municipio !== municipioExtra && (
+                      <option value={editedUser.municipio}>{editedUser.municipio}</option>
+                    )}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Dirección</label>
+                <input type="text" value={editedUser.direccion || ""}
+                  onChange={e => setEditedUser((prev) => ({
+                    ...prev,
+                    direccion: e.target.value,
+                    location: [prev.municipio, prev.departamento, e.target.value].filter(Boolean).join(", "),
+                  }))}
+                  placeholder="Calle, carrera, barrio..."
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border-2 border-gray-100 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent dark:text-white transition-all" />
+              </div>
             </div>
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Biografía</label>
             <textarea rows="4" value={editedUser.bio}
@@ -410,6 +619,9 @@ export default function UserProfile() {
         email: authUser.email || "",
         phone: authUser.phone || "",
         location: authUser.location || "",
+        departamento: authUser.departamento || "",
+        municipio: authUser.municipio || "",
+        direccion: authUser.direccion || "",
         bio: authUser.bio || "",
         // Imágenes persistentes (secure_url de Cloudinary) recuperadas desde
         // el backend (/me o /profile). Permiten reconstruir el perfil después
@@ -476,9 +688,19 @@ export default function UserProfile() {
   // Guarda los datos editados en la base de datos y actualiza la interfaz.
   // Si falla la API se conservan los cambios locales para poder reintentar.
   const handleSave = async () => {
+    // Deriva la ubicación legada desde los campos detallados si no se llenó.
+    const ubicacionDerivada =
+      editedUser.location?.trim() ||
+      [editedUser.municipio, editedUser.departamento, editedUser.direccion]
+        .filter(Boolean)
+        .join(", ") ||
+      null;
     const payload = {
       telefono: editedUser.phone || null,
-      ubicacion: editedUser.location || null,
+      ubicacion: ubicacionDerivada,
+      departamento: editedUser.departamento || null,
+      municipio: editedUser.municipio || null,
+      direccion: editedUser.direccion || null,
       bio: editedUser.bio || null,
       website: editedUser.website || null,
       twitter: editedUser.social?.twitter || null,

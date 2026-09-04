@@ -52,7 +52,22 @@ export async function actualizarMascota(id, payload) {
   return apiFetch(`${base}/${id}`, { method: "PUT", body: payload });
 }
 
-/** Elimina una mascota (refugio). */
+/** Elimina una mascota (refugio): pasa a Borradores (papelera de 30 días). */
 export async function eliminarMascota(id) {
   return apiFetch(`${base}/${id}`, { method: "DELETE" });
+}
+
+/** Mascotas del refugio en BORRADORES (papelera, restaurables < 30 días). */
+export async function papeleraMascotas() {
+  return apiFetch(`${base}/papelera`);
+}
+
+/** Restaura una mascota desde Borradores. */
+export async function restaurarMascota(id) {
+  return apiFetch(`${base}/${id}/restaurar`, { method: "POST" });
+}
+
+/** Elimina definitivamente una mascota desde Borradores. */
+export async function eliminarMascotaDefinitiva(id) {
+  return apiFetch(`${base}/${id}/definitivo`, { method: "DELETE" });
 }

@@ -99,3 +99,19 @@ def tipos_post_foro(db: Session = Depends(get_db)):
 @router.get("/tipos-reaccion", response_model=List[CatalogoItem])
 def tipos_reaccion(db: Session = Depends(get_db)):
     return _listar(db, cat.TipoReaccion)
+
+
+@router.get("/departamentos", response_model=List[CatalogoItem])
+def departamentos(db: Session = Depends(get_db)):
+    """Departamentos de Colombia para selects del perfil del usuario."""
+    return db.query(cat.Departamento).order_by(cat.Departamento.nombre.asc()).all()
+
+
+@router.get("/municipios", response_model=List[CatalogoItem])
+def municipios(db: Session = Depends(get_db), departamento_id: Optional[int] = None):
+    """Municipios de Colombia. Si se envía `departamento_id`, filtra solo los
+    de ese departamento."""
+    query = db.query(cat.Municipio)
+    if departamento_id:
+        query = query.filter(cat.Municipio.departamento_id == departamento_id)
+    return query.order_by(cat.Municipio.nombre.asc()).all()

@@ -29,8 +29,17 @@ export const crearProducto = (payload) =>
 export const actualizarProducto = (id, payload) =>
   apiFetch(`${base}/${id}`, { method: "PUT", body: payload });
 
-/** Elimina un producto. */
+/** Elimina un producto del refugio: pasa a Borradores (papelera de 30 días). */
 export const eliminarProducto = (id) => apiFetch(`${base}/${id}`, { method: "DELETE" });
+
+/** Productos del refugio en BORRADORES (papelera, restaurables < 30 días). */
+export const papeleraProductos = () => apiFetch(`${base}/papelera`);
+
+/** Restaura un producto del refugio desde Borradores. */
+export const restaurarProducto = (id) => apiFetch(`${base}/${id}/restaurar`, { method: "POST" });
+
+/** Elimina definitivamente un producto del refugio desde Borradores. */
+export const eliminarProductoDefinitivo = (id) => apiFetch(`${base}/${id}/definitivo`, { method: "DELETE" });
 
 // ===== Reseñas / valoraciones =====
 

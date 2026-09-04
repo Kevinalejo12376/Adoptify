@@ -53,6 +53,7 @@ export default function Animals() {
             .filter((m) => m.refugio_activo !== false)
             .map((m) => ({
             id: m.id,
+            uuid: m.uuid,
             name: m.nombre,
             type: m.tipo || "",
             breed: m.raza || "Sin raza",
@@ -426,7 +427,7 @@ export default function Animals() {
                 className="group bg-white dark:bg-dark-card rounded-2xl shadow-lg dark:shadow-dark-border/20 overflow-hidden hover:shadow-xl dark:hover:shadow-dark-border/40 transition-all duration-300 hover:-translate-y-1.5 border border-gray-100 dark:border-dark-border"
               >
                 {/* Animal Image */}
-                <Link to={`/animal/${animal.id}`}>
+                <Link to={`/animal/${animal.uuid || animal.id}`}>
                   <div className="relative h-48 overflow-hidden">
                     {/* Gradient Background */}
                     <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-60 dark:opacity-40`} />
@@ -496,7 +497,7 @@ export default function Animals() {
                 {/* Animal Info */}
                 <div className="p-5">
                   {/* Name */}
-                  <Link to={`/animal/${animal.id}`}>
+                  <Link to={`/animal/${animal.uuid || animal.id}`}>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-1.5 font-display line-clamp-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
                       {animal.name}
                     </h3>
@@ -531,7 +532,7 @@ export default function Animals() {
 
                   {/* Action Buttons */}
                   <Link
-                    to={`/animal/${animal.id}`}
+                    to={`/animal/${animal.uuid || animal.id}`}
                     className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 shadow-md shadow-rose-200/50 dark:shadow-rose-500/20 active:scale-[0.97] transition-all duration-300"
                   >
                     <PawPrint className="w-4 h-4" />

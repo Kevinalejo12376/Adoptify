@@ -145,8 +145,13 @@ def obtener_refugio_admin(
 
     data = _serializar_refugio_admin(refugio, db)
 
-    # Estadísticas adicionales (siempre desde la base de datos)
-    data["total_productos"] = db.query(Producto).filter(Producto.refugio_id == refugio.id).count()
+    # Estadísticas adicionales (siempre desde la base de datos). El conteo de
+    # productos no incluye los que están en la papelera (borradores).
+    data["total_productos"] = (
+        db.query(Producto)
+        .filter(Producto.refugio_id == refugio.id, Producto.eliminado_en.is_(None))
+        .count()
+    )
     data["total_adopciones"] = (
         db.query(SolicitudAdopcion)
         .join(Mascota, SolicitudAdopcion.mascota_id == Mascota.id)

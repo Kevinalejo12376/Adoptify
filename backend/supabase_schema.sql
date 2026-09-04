@@ -93,6 +93,23 @@ INSERT INTO roles (codigo, nombre) VALUES
     ('administrador', 'Administrador'),
     ('tienda_aliada', 'Tienda aliada');
 
+-- Catálogo de ubicación para selects del perfil del usuario.
+-- Los datos (departamentos y municipios de Colombia) se siembran en
+-- app/db/seed.py al arrancar (idempotente).
+CREATE TABLE departamentos (
+    id     BIGSERIAL PRIMARY KEY,
+    codigo VARCHAR(10) NOT NULL UNIQUE,
+    nombre VARCHAR(80) NOT NULL
+);
+
+CREATE TABLE municipios (
+    id              BIGSERIAL PRIMARY KEY,
+    departamento_id BIGINT REFERENCES departamentos(id),
+    codigo          VARCHAR(20) NOT NULL UNIQUE,
+    nombre          VARCHAR(80) NOT NULL
+);
+CREATE INDEX idx_municipios_departamento ON municipios(departamento_id);
+
 CREATE TABLE tipos_mascota (
     id     BIGSERIAL PRIMARY KEY,
     codigo VARCHAR(20) NOT NULL UNIQUE,
@@ -287,6 +304,9 @@ CREATE TABLE usuarios (
     rol_id             BIGINT NOT NULL REFERENCES roles(id),
     activo             BOOLEAN NOT NULL DEFAULT true,
     ubicacion          VARCHAR(150),
+    departamento       VARCHAR(150),
+    municipio          VARCHAR(150),
+    direccion          VARCHAR(200),
     bio                TEXT,
     website            VARCHAR(150),
     avatar_url         TEXT,
@@ -594,6 +614,11 @@ CREATE TABLE solicitudes_adopcion (
     email_contacto     VARCHAR(255),
     telefono_contacto  VARCHAR(30),
     ubicacion          VARCHAR(150),
+    departamento       VARCHAR(150),
+    municipio          VARCHAR(150),
+    direccion          VARCHAR(200),
+    tipo_documento     VARCHAR(30),
+    numero_documento   VARCHAR(30),
     mensaje            TEXT,
     notas              TEXT,
     tiene_familia      BOOLEAN NOT NULL DEFAULT false,

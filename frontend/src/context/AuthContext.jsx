@@ -13,6 +13,8 @@ import { obtenerCiudadActual } from "../utils/ubicacion";
 // Normaliza una mascota del backend a la forma que usan las vistas de favoritos.
 const mapMascotaFav = (m) => ({
   id: m.id,
+  // Identificador público único para el enlace /animal/<uuid>.
+  uuid: m.uuid,
   name: m.nombre,
   type: m.tipo,
   breed: m.raza,

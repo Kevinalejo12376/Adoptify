@@ -48,6 +48,8 @@ from app.schemas.usuario import (
     VerificarCodigoRequest,
     RegistrarConCodigoRequest,
     ResetPasswordRequest,
+    CheckRegistroRequest,
+    CheckRegistroResponse,
 )
 from app.schemas.token import Token
 from app.schemas.serializers import serialize_usuario
@@ -118,6 +120,10 @@ def _crear_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
         hashed_password=get_password_hash(payload.password),
         rol_id=rol_obj.id,
         ubicacion=payload.ubicacion,
+        # Ubicación detallada (opcional; se completa luego desde el perfil).
+        departamento=getattr(payload, "departamento", None),
+        municipio=getattr(payload, "municipio", None),
+        direccion=getattr(payload, "direccion", None),
     )
     db.add(user)
     db.flush()  # obtiene user.id sin cerrar la transaccion
@@ -295,6 +301,54 @@ def register_user(payload: UsuarioCreate, db: Session = Depends(get_db)):
     return serialize_usuario(user)
 
 
+# ─── Endpoint: Validar registro contra la BD (anti-duplicados) ───────────────
+
+@router.post("/check-registro", response_model=CheckRegistroResponse, status_code=status.HTTP_200_OK)
+def check_registro(payload: CheckRegistroRequest, db: Session = Depends(get_db)):
+    """Valida en la BD si el correo o el documento ya están registrados.
+
+    Se usa en el formulario de registro ANTES de enviar el código de
+    verificación para impedir duplicados con mensajes claros:
+    - "Correo ya registrado"
+    - "Documento ya registrado"
+
+    El documento se valida por la combinación (tipo_documento, numero_documento)
+    y el correo se normaliza (minúsculas / sin espacios) antes de comparar.
+    """
+    email = (payload.email or "").strip().lower()
+    numero_doc = (payload.numero_documento or "").strip()
+
+    email_registrado = False
+    if email:
+        email_registrado = (
+            db.query(Usuario)
+            .filter(func.lower(Usuario.email) == email)
+            .first()
+            is not None
+        )
+
+    documento_registrado = False
+    if numero_doc and payload.tipo_documento:
+        tipo_doc_id = id_por_codigo(db, TipoDocumento, payload.tipo_documento)
+        if tipo_doc_id is not None:
+            documento_registrado = (
+                db.query(Usuario)
+                .filter(
+                    Usuario.tipo_documento_id == tipo_doc_id,
+                    Usuario.numero_documento == numero_doc,
+                )
+                .first()
+                is not None
+            )
+
+    return CheckRegistroResponse(
+        email_registrado=email_registrado,
+        documento_registrado=documento_registrado,
+        correo=email if email_registrado else None,
+        documento=numero_doc if documento_registrado else None,
+    )
+
+
 # ─── Endpoint: Registrar con verificación de código ──────────────────────────
 
 @router.post("/verify-register", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
@@ -307,6 +361,26 @@ def verify_register(payload: RegistrarConCodigoRequest, db: Session = Depends(ge
     existing = db.query(Usuario).filter(Usuario.email == email).first()
     if existing:
         raise HTTPException(status_code=400, detail="El correo ya esta registrado")
+
+    # 1b. Validar que el documento no esté ya registrado (misma combinación
+    #     tipo_documento + numero_documento). Es una validación defensiva que
+    #     complementa el chequeo previo del frontend (/check-registro).
+    if payload.tipo_documento and payload.numero_documento:
+        tipo_doc_id = id_por_codigo(db, TipoDocumento, payload.tipo_documento)
+        if tipo_doc_id is not None:
+            doc_existente = (
+                db.query(Usuario)
+                .filter(
+                    Usuario.tipo_documento_id == tipo_doc_id,
+                    Usuario.numero_documento == payload.numero_documento,
+                )
+                .first()
+            )
+            if doc_existente:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El documento ya esta registrado",
+                )
 
     # 2. Validar el código de verificación
     now = datetime.now(timezone.utc)
@@ -593,6 +667,13 @@ def read_me(current_user: Usuario = Depends(get_current_user), db: Session = Dep
         "email": current_user.email,
         "phone": current_user.telefono,
         "location": current_user.ubicacion,
+        # Datos del documento (para reutilizarlos en solicitudes de adopción).
+        "tipo_documento": current_user.tipo_documento.codigo if current_user.tipo_documento else None,
+        "numero_documento": current_user.numero_documento,
+        # Ubicación detallada del perfil (departamento/municipio/dirección).
+        "departamento": current_user.departamento,
+        "municipio": current_user.municipio,
+        "direccion": current_user.direccion,
         "role": rol_codigo,
         "rol": rol_codigo,
         "estado": "activo" if current_user.activo else "inactivo",
@@ -720,6 +801,9 @@ def get_profile(current_user: Usuario = Depends(get_current_user), db: Session =
         tipo_documento=tipo_doc,
         numero_documento=current_user.numero_documento,
         ubicacion=current_user.ubicacion,
+        departamento=current_user.departamento,
+        municipio=current_user.municipio,
+        direccion=current_user.direccion,
         bio=current_user.bio,
         website=current_user.website,
         avatar_url=current_user.avatar_url,
@@ -742,6 +826,19 @@ def update_profile(
     se marca automaticamente como perfil_completo = True.
     """
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Ubicación detallada: si el usuario guardó departamento/municipio/dirección
+    # sin enviar `ubicacion`, se deriva automáticamente para que el campo
+    # legado `ubicacion` (usado en listados y en perfil_completo) se mantenga
+    # sincronizado con los nuevos campos.
+    if "ubicacion" not in update_data:
+        partes = [
+            update_data.get("municipio"),
+            update_data.get("departamento"),
+            update_data.get("direccion"),
+        ]
+        if any(partes):
+            update_data["ubicacion"] = ", ".join(p for p in partes if p)
 
     # Actualizar solo los campos enviados. `exclude_unset=True` ya garantiza
     # que únicamente se apliquen los campos que el cliente mandó. Se admite
@@ -766,6 +863,9 @@ def update_profile(
         tipo_documento=tipo_doc,
         numero_documento=current_user.numero_documento,
         ubicacion=current_user.ubicacion,
+        departamento=current_user.departamento,
+        municipio=current_user.municipio,
+        direccion=current_user.direccion,
         bio=current_user.bio,
         website=current_user.website,
         avatar_url=current_user.avatar_url,

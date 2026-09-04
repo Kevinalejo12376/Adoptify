@@ -117,11 +117,20 @@ export default function AnimalProfile() {
     if (!animal) return;
     setEnviando(true); setAdoptionError(null);
     try {
+      // Se reutilizan los datos guardados del perfil (fuente de verdad). El
+      // backend además los toma del usuario autenticado para garantizar que el
+      // refugio reciba la información completa y actualizada.
       await crearSolicitud({
         mascota_id: animal.id,
-        nombre_contacto: form.nombre || (user?.nombre || user?.name || ""),
+        nombre_contacto: user?.nombre || user?.name || "",
         email_contacto: user?.email || "",
-        telefono_contacto: form.telefono,
+        telefono_contacto: user?.phone || "",
+        ubicacion: user?.location || "",
+        departamento: user?.departamento || "",
+        municipio: user?.municipio || "",
+        direccion: user?.direccion || "",
+        tipo_documento: user?.tipo_documento || "",
+        numero_documento: user?.numero_documento || "",
         mensaje: form.mensaje,
       });
       setAdoptionStatus("pending");
@@ -537,28 +546,55 @@ export default function AnimalProfile() {
               <div className="mb-3 p-2.5 rounded-xl bg-red-50 text-red-700 text-sm">{adoptionError}</div>
             )}
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre completo *</label>
-                <input type="text" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  placeholder="Tu nombre" />
+              {/* Datos del perfil reutilizados — no se vuelven a solicitar */}
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  Estos son tus datos, el refugio podrá verlos
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Teléfono</label>
-                <input type="tel" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  placeholder="+57 300 123 4567" />
+
+              <div className="rounded-xl bg-gray-50 border border-gray-200 divide-y divide-gray-100">
+                {[
+                  { label: "Nombre completo", value: user?.nombre || user?.name || "" },
+                  { label: "Correo electrónico", value: user?.email || "" },
+                  { label: "Teléfono", value: user?.phone || "" },
+                  {
+                    label: "Documento",
+                    value: [user?.tipo_documento, user?.numero_documento].filter(Boolean).join(" "),
+                  },
+                  {
+                    label: "Ubicación",
+                    value:
+                      [user?.departamento, user?.municipio, user?.direccion]
+                        .filter(Boolean)
+                        .join(", ") || user?.location || "",
+                  },
+                ].map((row) => (
+                  <div key={row.label} className="flex justify-between gap-3 px-4 py-2.5">
+                    <span className="text-sm text-gray-500">{row.label}</span>
+                    <span className="text-sm font-semibold text-gray-900 text-right break-words">
+                      {row.value || "—"}
+                    </span>
+                  </div>
+                ))}
               </div>
+
+              <p className="text-xs text-gray-500 text-center">
+                Para actualizar tus datos, edítalos en tu perfil antes de enviar la solicitud.
+              </p>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Mensaje al refugio</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Mensaje al refugio (opcional)</label>
                 <textarea rows="3" value={form.mensaje} onChange={(e) => setForm({ ...form, mensaje: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none"
                   placeholder={`Cuéntanos por qué quieres adoptar a ${animal?.name}...`} />
               </div>
-              <button onClick={submitAdoptionRequest} disabled={enviando || !form.nombre.trim()}
+
+              <button onClick={submitAdoptionRequest} disabled={enviando}
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all disabled:opacity-60">
                 <Send className="w-4 h-4" />
-                {enviando ? "Enviando..." : "Enviar Solicitud"}
+                {enviando ? "Enviando..." : "Confirmar y Enviar Solicitud"}
               </button>
             </div>
           </div>
