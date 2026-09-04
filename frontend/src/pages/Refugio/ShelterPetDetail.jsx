@@ -184,10 +184,12 @@ export default function ShelterPetDetail() {
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all">
               <Edit3 className="w-4 h-4" /> Editar
             </button>
-            <button onClick={() => setShowDeleteModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all">
-              <Trash2 className="w-4 h-4" /> Eliminar
-            </button>
+            {pet.status !== "adoptado" && (
+              <button onClick={() => setShowDeleteModal(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all">
+                <Trash2 className="w-4 h-4" /> Eliminar
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -409,10 +411,10 @@ export default function ShelterPetDetail() {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDelete}
         title="¿Eliminar mascota?"
-        message={`Esta acción no se puede deshacer. ${pet.name} será eliminado permanentemente del sistema.`}
-        confirmText="Eliminar"
+        message={`${pet.name} pasará a Borradores y se eliminará definitivamente a los 30 días. Podrás restaurarlo mientras tanto. Las mascotas adoptadas se eliminan de inmediato.`}
+        confirmText="Mover a Borradores"
         cancelText="Cancelar"
-        type="danger"
+        type="warning"
       />
     </div>
   );

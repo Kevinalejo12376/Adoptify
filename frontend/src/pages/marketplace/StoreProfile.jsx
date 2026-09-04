@@ -1077,7 +1077,7 @@ export default function StoreProfile() {
                   }}
                 >
                   {/* Product Image */}
-                  <Link to={`/product/${product.id}`}>
+                  <Link to={`/product/${product.uuid || product.id}`}>
                     <div className="relative h-52 overflow-hidden">
                       <div
                         className={`absolute inset-0 bg-gradient-to-br ${product.color} opacity-60 dark:opacity-40 transition-transform duration-500 group-hover:scale-105`}
@@ -1160,7 +1160,7 @@ export default function StoreProfile() {
 
                   {/* Product Info */}
                   <div className="p-5">
-                    <Link to={`/product/${product.id}`}>
+                    <Link to={`/product/${product.uuid || product.id}`}>
                       <h3 className="text-base font-bold text-gray-900 dark:text-dark-text mb-1.5 font-display line-clamp-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
                         {product.name}
                       </h3>
@@ -1218,7 +1218,7 @@ export default function StoreProfile() {
                         )}
                       </button>
                       <Link
-                        to={`/product/${product.id}`}
+                        to={`/product/${product.uuid || product.id}`}
                         className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-xl bg-white dark:bg-dark-card text-gray-700 dark:text-dark-text-secondary border-2 border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-500/30 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-500/5 transition-all active:scale-[0.97]"
                       >
                         Ver más

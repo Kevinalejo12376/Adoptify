@@ -22,7 +22,12 @@ from app.models.catalogos import TipoMascota, TamanoMascota, GeneroMascota, Esta
 from app.schemas.mascota import MascotaCreate, MascotaUpdate, MascotaResponse
 from app.schemas.serializers import serialize_mascota
 from app.core.softdelete import soft_delete
-from app.core.softdelete import soft_delete
+from app.core.papelera import (
+    mover_a_papelera,
+    restaurar as restaurar_papelera,
+    eliminar_definitivo as eliminar_definitivo_papelera,
+    filtro_estado_papelera,
+)
 from app.core.disponibilidad import mascota_de_refugio_visible
 from app.api.routers.ia import crear_tarea_ia
 from app.services.gemini import clasificar_contenido
@@ -168,22 +173,72 @@ def listar_mascotas(
 
 @router.get("/mias", response_model=List[MascotaResponse])
 def mis_mascotas(current_user: Usuario = Depends(require_permiso_refugio("mascotas")), db: Session = Depends(get_db)):
+    """Mascotas vivas del refugio para el panel principal.
+
+    Excluye las que están en la papelera (borradores, ``eliminado_en``) y las
+    ADOPTADAS (``activo=False``), porque una mascota adoptada se elimina de
+    inmediato del panel: ya no está disponible para adopción.
+    """
     refugio = _get_refugio_de(current_user, db)
-    mascotas = db.query(Mascota).filter(Mascota.refugio_id == refugio.id).order_by(Mascota.creado_en.desc()).all()
+    mascotas = (
+        db.query(Mascota)
+        .filter(
+            Mascota.refugio_id == refugio.id,
+            Mascota.activo == True,  # noqa: E712
+            Mascota.eliminado_en.is_(None),
+        )
+        .order_by(Mascota.creado_en.desc())
+        .all()
+    )
+    return [serialize_mascota(m) for m in mascotas]
+
+
+def _mascota_del_refugio(mascota_id: int, refugio: Refugio, db: Session) -> Mascota:
+    """Devuelve la mascota solo si pertenece al refugio autenticado."""
+    mascota = db.query(Mascota).filter(Mascota.id == mascota_id).first()
+    if not mascota:
+        raise HTTPException(status_code=404, detail="Mascota no encontrada")
+    if mascota.refugio_id != refugio.id:
+        raise HTTPException(status_code=403, detail="No puedes gestionar mascotas de otro refugio")
+    return mascota
+
+
+@router.get("/papelera", response_model=List[MascotaResponse])
+def papelera_mascotas(
+    current_user: Usuario = Depends(require_permiso_refugio("mascotas")),
+    db: Session = Depends(get_db),
+):
+    """Mascotas en BORRADORES (papelera) del refugio autenticado.
+
+    Solo se listan las que siguen restaurables (eliminadas en los últimos 30
+    días). Las que superaron los 30 días ya se purgaron y no se devuelven.
+    """
+    refugio = _get_refugio_de(current_user, db)
+    mascotas = (
+        db.query(Mascota)
+        .filter(
+            Mascota.refugio_id == refugio.id,
+            filtro_estado_papelera(Mascota),
+        )
+        .order_by(Mascota.eliminado_en.desc())
+        .all()
+    )
     return [serialize_mascota(m) for m in mascotas]
 
 
 @router.get("/{mascota_id}", response_model=MascotaResponse)
-def obtener_mascota(mascota_id: int, db: Session = Depends(get_db)):
+def obtener_mascota(mascota_id: str, db: Session = Depends(get_db)):
+    """Detalle público de una mascota. Acepta su ``uuid`` (URL /animal/<uuid>) o,
+    por compatibilidad con los paneles internos, su id numérico."""
+    base = db.query(Mascota).filter(
+        Mascota.activo == True,  # noqa: E712
+        # Solo mascotas de refugios activos (borrados o suspendidos quedan ocultas).
+        mascota_de_refugio_visible(),
+    )
     mascota = (
-        db.query(Mascota)
-        .filter(
-            Mascota.id == mascota_id,
-            Mascota.activo == True,  # noqa: E712
-            # Solo mascotas de refugios activos (borrados o suspendidos quedan ocultas).
-            mascota_de_refugio_visible(),
-        )
-        .first()
+        base.filter(Mascota.id == int(mascota_id)).first()
+        if mascota_id.isdigit()
+        else base.filter(Mascota.uuid == mascota_id).first()
     )
     if not mascota:
         raise HTTPException(status_code=404, detail="Mascota no encontrada")
@@ -387,7 +442,19 @@ def actualizar_mascota(
     if "genero" in datos:
         mascota.genero_id = id_por_codigo(db, GeneroMascota, datos.pop("genero"))
     if "estado" in datos:
-        mascota.estado_id = id_por_codigo(db, EstadoMascota, datos.pop("estado"), requerido=True)
+        estado_codigo = datos.pop("estado")
+        nuevo_estado_id = id_por_codigo(db, EstadoMascota, estado_codigo, requerido=True)
+        mascota.estado_id = nuevo_estado_id
+        # Una mascota marcada como ADOPTADA se elimina de inmediato del panel y
+        # del público (activo=False) pero NO va a la papelera: conserva su
+        # historial con eliminado_en NULL. Si se saca del estado adoptado y no
+        # está en la papelera, se vuelve a publicar (activo=True).
+        adoptado_id = id_por_codigo(db, EstadoMascota, "adoptado")
+        if adoptado_id and nuevo_estado_id == adoptado_id:
+            mascota.activo = False
+            mascota.eliminado_en = None
+        elif not mascota.eliminado_en and not mascota.activo:
+            mascota.activo = True
     # Compone la edad estructurada (valor + unidad) en texto antes de asignar
     # el resto de campos, con el mismo formato que usa la creación.
     if "edad_valor" in datos or "edad_unidad" in datos:
@@ -409,12 +476,54 @@ def eliminar_mascota(
     current_user: Usuario = Depends(require_permiso_refugio("mascotas")),
     db: Session = Depends(get_db),
 ):
+    """Elimina una mascota NO adoptada: pasa a BORRADORES (papelera de 30 días).
+
+    Si la mascota ya está ADOPTADA no va a la papelera: queda eliminada de
+    inmediato (activo=False) porque ya no está disponible, conservando su
+    historial.
+    """
     refugio = _get_refugio_de(current_user, db)
-    mascota = db.query(Mascota).filter(Mascota.id == mascota_id).first()
-    if not mascota:
-        raise HTTPException(status_code=404, detail="Mascota no encontrada")
-    if mascota.refugio_id != refugio.id:
-        raise HTTPException(status_code=403, detail="No puedes eliminar mascotas de otro refugio")
-    # Soft delete: desactiva la mascota conservando su historial de adopción.
-    soft_delete(db, mascota)
+    mascota = _mascota_del_refugio(mascota_id, refugio, db)
+    adoptado_id = id_por_codigo(db, EstadoMascota, "adoptado")
+    if adoptado_id and mascota.estado_id == adoptado_id:
+        # Adoptada: no a la papelera. Solo aseguramos que quede oculta.
+        mascota.activo = False
+        mascota.eliminado_en = None
+        db.add(mascota)
+        db.commit()
+        return None
+    # No adoptada -> papelera (borrador restaurable durante 30 días).
+    mover_a_papelera(db, mascota)
+    return None
+
+
+@router.post("/{mascota_id}/restaurar", status_code=status.HTTP_200_OK)
+def restaurar_mascota_papelera(
+    mascota_id: int,
+    current_user: Usuario = Depends(require_permiso_refugio("mascotas")),
+    db: Session = Depends(get_db),
+):
+    """Restaura una mascota desde BORRADORES: vuelve a estar disponible y
+    visible en el panel principal."""
+    refugio = _get_refugio_de(current_user, db)
+    mascota = _mascota_del_refugio(mascota_id, refugio, db)
+    if not mascota.eliminado_en:
+        raise HTTPException(status_code=400, detail="Esta mascota no está en la papelera")
+    restaurar_papelera(db, mascota)
+    return serialize_mascota(mascota)
+
+
+@router.delete("/{mascota_id}/definitivo", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_mascota_definitiva(
+    mascota_id: int,
+    current_user: Usuario = Depends(require_permiso_refugio("mascotas")),
+    db: Session = Depends(get_db),
+):
+    """Elimina definitivamente una mascota desde BORRADORES (archivado
+    permanente, no restaurable)."""
+    refugio = _get_refugio_de(current_user, db)
+    mascota = _mascota_del_refugio(mascota_id, refugio, db)
+    if not mascota.eliminado_en:
+        raise HTTPException(status_code=400, detail="Esta mascota no está en la papelera")
+    eliminar_definitivo_papelera(db, mascota)
     return None

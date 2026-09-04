@@ -62,6 +62,21 @@ def _run_migrations():
     """
     if getattr(engine.dialect, "name", "") == "sqlite":
         print("[migracion] Base local SQLite: las tablas ya las crea Base.metadata.create_all. Se omiten migraciones SQL de Supabase.")
+        # En una BD SQLite ya existente (creada antes del cambio de modelos), la
+        # columna 'uuid' no la crea create_all: se agrega aquí para que las URLs
+        # públicas /animal/<uuid> y /product/<uuid> funcionen igual en local.
+        from app.db.database import SessionLocal
+        db_local = SessionLocal()
+        try:
+            _migrar_uuid_publico(db_local)
+        except Exception as e:  # noqa: BLE001
+            try:
+                db_local.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+            print(f"[migracion] AVISO: 'uuid público' no se aplicó en SQLite ({type(e).__name__}: {e}).")
+        finally:
+            db_local.close()
         return
 
     from app.db.database import SessionLocal
@@ -101,11 +116,31 @@ def _run_migrations():
             # Bloqueo por intentos fallidos de inicio de sesión (3 fallos = 15 min).
             _agregar_columna_si_no_existe(db, "usuarios", "intentos_fallidos", "INTEGER NOT NULL DEFAULT 0")
             _agregar_columna_si_no_existe(db, "usuarios", "bloqueado_hasta", "TIMESTAMPTZ")
+            # Ubicación detallada del perfil (autocompletada con "Usar mi ubicación actual").
+            _agregar_columna_si_no_existe(db, "usuarios", "departamento", "VARCHAR(150)")
+            _agregar_columna_si_no_existe(db, "usuarios", "municipio", "VARCHAR(150)")
+            _agregar_columna_si_no_existe(db, "usuarios", "direccion", "VARCHAR(200)")
             db.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_username ON usuarios(username)"
             ))
             db.commit()
-        _paso("usuarios (perfil_completo, username, avatar_public_id)", _migrar_usuarios)
+        _paso("usuarios (perfil_completo, username, avatar_public_id, ubicacion detallada)", _migrar_usuarios)
+
+        # --- Catálogo de ubicación: departamentos y municipios ---
+        _paso("departamentos y municipios", _crear_tabla_departamentos_municipios)
+
+        # --- Solicitudes de adopción (datos completos del solicitante) ---
+        def _migrar_solicitudes_adopcion(db):
+            for col, tipo in [
+                ("departamento", "VARCHAR(150)"),
+                ("municipio", "VARCHAR(150)"),
+                ("direccion", "VARCHAR(200)"),
+                ("tipo_documento", "VARCHAR(30)"),
+                ("numero_documento", "VARCHAR(30)"),
+            ]:
+                _agregar_columna_si_no_existe(db, "solicitudes_adopcion", col, tipo)
+            db.commit()
+        _paso("solicitudes_adopcion (datos del solicitante)", _migrar_solicitudes_adopcion)
 
         # --- Refugios (logo_url, tiktok, departamento, municipio) ---
         def _migrar_refugios(db):
@@ -138,6 +173,7 @@ def _run_migrations():
         _paso("movimientos_kardex", _crear_tabla_movimientos_kardex)
         _paso("razas_mascota (catálogo)", _crear_tabla_razas_mascota)
         _paso("mascota_imagenes", _crear_tabla_mascota_imagenes)
+        _paso("uuid público (mascotas y productos)", _migrar_uuid_publico)
         _paso("RBAC tienda", _crear_tablas_rbac_tienda)
         _paso("backfill super admin tiendas", _backfill_super_admin_tiendas)
         _paso("tablas nuevas de tienda", _crear_tablas_nuevas_tienda)
@@ -165,6 +201,28 @@ def _run_migrations():
         print(f"[migracion] Error general ejecutando migraciones: {e}")
     finally:
         db.close()
+
+
+def _crear_tabla_departamentos_municipios(db):
+    """Crea las tablas de catálogo de ubicación (departamentos y municipios)
+    si aún no existen. Se siembran luego en seed_catalogos()."""
+    from sqlalchemy import text
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS departamentos (
+            id BIGSERIAL PRIMARY KEY,
+            codigo VARCHAR(10) UNIQUE NOT NULL,
+            nombre VARCHAR(80) NOT NULL
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS municipios (
+            id BIGSERIAL PRIMARY KEY,
+            departamento_id BIGINT REFERENCES departamentos(id),
+            codigo VARCHAR(20) UNIQUE NOT NULL,
+            nombre VARCHAR(80) NOT NULL
+        )
+    """))
+    db.commit()
 
 
 def _agregar_columna_si_no_existe(db, tabla: str, columna: str, tipo: str):
@@ -210,6 +268,44 @@ def _eliminar_columna_si_existe(db, tabla: str, columna: str):
             db.commit()
         except Exception:  # noqa: BLE001
             db.rollback()
+
+
+def _migrar_uuid_publico(db):
+    """Agrega la columna ``uuid`` (VARCHAR 36) a ``mascotas`` y ``productos`` y
+    backfillea los registros existentes. Funciona en PostgreSQL/Supabase y en
+    SQLite local (idempotente).
+
+    El ``uuid`` es el identificador público de las URLs /animal/<uuid> y
+    /product/<uuid>; el id numérico se conserva como PK y FK interna.
+    """
+    import uuid as _uuid
+    from sqlalchemy import inspect, text
+
+    def _columna_uuid(tabla):
+        columnas = {c["name"] for c in inspect(db.bind).get_columns(tabla)}
+        if "uuid" not in columnas:
+            print(f"[migracion] Agregando columna 'uuid' a {tabla}...")
+            db.execute(text(f"ALTER TABLE {tabla} ADD COLUMN uuid VARCHAR(36)"))
+            db.commit()
+        # Backfill portable entre motores: asigna uuid4 a filas sin valor.
+        rows = db.execute(
+            text(f"SELECT id FROM {tabla} WHERE uuid IS NULL")
+        ).fetchall()
+        for (pk,) in rows:
+            db.execute(
+                text(f"UPDATE {tabla} SET uuid = :u WHERE id = :id"),
+                {"u": str(_uuid.uuid4()), "id": pk},
+            )
+        if rows:
+            db.commit()
+        # Índice único para resolver rápido por uuid (idempotente en ambos motores).
+        db.execute(text(
+            f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{tabla}_uuid ON {tabla}(uuid)"
+        ))
+        db.commit()
+
+    _columna_uuid("mascotas")
+    _columna_uuid("productos")
 
 
 def _soft_delete_migrations(db):

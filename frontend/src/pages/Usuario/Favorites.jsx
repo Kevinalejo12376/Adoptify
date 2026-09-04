@@ -293,7 +293,7 @@ export default function Favorites() {
                           </span>
                         </div>
                         <Link
-                          to={`/animal/${animal.id}`}
+                          to={`/animal/${animal.uuid || animal.id}`}
                           className="px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all shadow-md shadow-rose-200/50"
                         >
                           Ver más
@@ -555,7 +555,7 @@ export default function Favorites() {
                             )}
                           </button>
                           <Link
-                            to={`/product/${product.id}`}
+                            to={`/product/${product.uuid || product.id}`}
                             className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-semibold rounded-xl bg-white text-gray-700 border-2 border-gray-200 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
                           >
                             <Eye className="w-4 h-4" />

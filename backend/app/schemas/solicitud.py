@@ -10,6 +10,11 @@ class SolicitudCreate(BaseModel):
     email_contacto: Optional[str] = None
     telefono_contacto: Optional[str] = None
     ubicacion: Optional[str] = None
+    departamento: Optional[str] = None
+    municipio: Optional[str] = None
+    direccion: Optional[str] = None
+    tipo_documento: Optional[str] = None
+    numero_documento: Optional[str] = None
     mensaje: Optional[str] = None
     tiene_familia: bool = False
     tiene_experiencia: bool = False
@@ -30,6 +35,11 @@ class SolicitudResponse(BaseModel):
     email_contacto: Optional[str] = None
     telefono_contacto: Optional[str] = None
     ubicacion: Optional[str] = None
+    departamento: Optional[str] = None
+    municipio: Optional[str] = None
+    direccion: Optional[str] = None
+    tipo_documento: Optional[str] = None
+    numero_documento: Optional[str] = None
     mensaje: Optional[str] = None
     notas: Optional[str] = None
     tiene_familia: bool = False

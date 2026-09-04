@@ -393,7 +393,7 @@ export default function Home() {
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">{pet.nombre}</h3>
                   <p className="text-sm text-gray-600 mb-4">{pet.refugio_nombre || pet.raza || pet.tipo}</p>
-                  <Link to={user ? `/animal/${pet.id}` : "/login"} className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                  <Link to={user ? `/animal/${pet.uuid || pet.id}` : "/login"} className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                     Ver más
                   </Link>
                 </div>
@@ -623,7 +623,7 @@ export default function Home() {
                           {formatPrice(precioConDescuento(product.precio, product.descuento))}
                         </span>
                       </div>
-                      <Link to={user ? `/product/${product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                      <Link to={user ? `/product/${product.uuid || product.id}` : "/login"} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Ver
                       </Link>

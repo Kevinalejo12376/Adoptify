@@ -331,7 +331,7 @@ export default function Dashboard() {
                   <p className="text-xs text-gray-500 mb-4">
                     {[pet.edad, pet.refugio_nombre].filter(Boolean).join(" • ")}
                   </p>
-                  <Link to={`/animal/${pet.id}`} className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                  <Link to={`/animal/${pet.uuid || pet.id}`} className="inline-block px-6 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                     Ver más
                   </Link>
                 </div>
@@ -399,7 +399,7 @@ export default function Dashboard() {
                         {formatPrice(precioConDescuento(product.precio, product.descuento))}
                       </span>
                     </div>
-                    <Link to={`/product/${product.id}`} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
+                    <Link to={`/product/${product.uuid || product.id}`} className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-full hover:from-rose-600 hover:to-amber-600 transition-all">
                       <ShoppingCart className="w-4 h-4 mr-2" />
                       Ver
                     </Link>

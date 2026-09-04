@@ -21,6 +21,11 @@ from app.models.catalogos import CategoriaProducto
 from app.schemas.producto import ProductoCreate, ProductoUpdate, ProductoResponse, ResenaCreate
 from app.schemas.serializers import serialize_producto
 from app.core.softdelete import soft_delete
+from app.core.papelera import (
+    restaurar as restaurar_papelera,
+    eliminar_definitivo as eliminar_definitivo_papelera,
+    filtro_estado_papelera,
+)
 
 router = APIRouter()
 
@@ -130,6 +135,29 @@ def mis_productos(
     return [serialize_producto(p) for p in productos]
 
 
+@router.get("/papelera", response_model=List[ProductoResponse])
+def papelera_productos(
+    current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
+    db: Session = Depends(get_db),
+):
+    """Productos en BORRADORES (papelera) del refugio autenticado.
+
+    Solo se listan los que siguen restaurables (eliminados en los últimos 30
+    días). Los que superaron los 30 días ya se purgaron y no se devuelven.
+    """
+    refugio = _refugio_de(current_user, db)
+    productos = (
+        db.query(Producto)
+        .filter(
+            Producto.refugio_id == refugio.id,
+            filtro_estado_papelera(Producto),
+        )
+        .order_by(Producto.eliminado_en.desc())
+        .all()
+    )
+    return [serialize_producto(p) for p in productos]
+
+
 @router.get("/barcode/{barcode}")
 async def buscar_por_barcode(
     barcode: str,
@@ -153,10 +181,15 @@ async def buscar_por_barcode(
 
 
 @router.get("/{producto_id}", response_model=ProductoResponse)
-def obtener_producto(producto_id: int, db: Session = Depends(get_db)):
-    producto = db.query(Producto).filter(
-        Producto.id == producto_id, Producto.activo == True  # noqa: E712
-    ).first()
+def obtener_producto(producto_id: str, db: Session = Depends(get_db)):
+    """Detalle público de un producto. Acepta su ``uuid`` (URL /product/<uuid>) o,
+    por compatibilidad con los paneles internos, su id numérico."""
+    base = db.query(Producto).filter(Producto.activo == True)  # noqa: E712
+    producto = (
+        base.filter(Producto.id == int(producto_id)).first()
+        if producto_id.isdigit()
+        else base.filter(Producto.uuid == producto_id).first()
+    )
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return serialize_producto(producto)
@@ -250,9 +283,39 @@ def eliminar_producto(
     current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
     db: Session = Depends(get_db),
 ):
+    """Elimina un producto del refugio: pasa a BORRADORES (papelera de 30 días)."""
     producto = _producto_del_refugio(producto_id, current_user, db)
-    # Soft delete: desactiva el producto conservando reseñas, favoritos y kardex.
+    # Soft delete: oculta el producto conservando reseñas, favoritos y kardex.
     soft_delete(db, producto)
+    return None
+
+
+@router.post("/{producto_id}/restaurar", response_model=ProductoResponse)
+def restaurar_producto_papelera(
+    producto_id: int,
+    current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
+    db: Session = Depends(get_db),
+):
+    """Restaura un producto desde BORRADORES: vuelve a estar visible en la tienda."""
+    producto = _producto_del_refugio(producto_id, current_user, db)
+    if not producto.eliminado_en:
+        raise HTTPException(status_code=400, detail="Este producto no está en la papelera")
+    restaurar_papelera(db, producto)
+    return serialize_producto(producto)
+
+
+@router.delete("/{producto_id}/definitivo", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_producto_definitivo(
+    producto_id: int,
+    current_user: Usuario = Depends(require_permiso_refugio("marketplace")),
+    db: Session = Depends(get_db),
+):
+    """Elimina definitivamente un producto desde BORRADORES (archivado
+    permanente, no restaurable)."""
+    producto = _producto_del_refugio(producto_id, current_user, db)
+    if not producto.eliminado_en:
+        raise HTTPException(status_code=400, detail="Este producto no está en la papelera")
+    eliminar_definitivo_papelera(db, producto)
     return None
 
 

@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useTheme } from "../../../context/ThemeContext";
 import {
   Pin,
-  Star,
-  Sparkles,
   Shield,
   MapPin,
-  Users,
   ExternalLink,
-  Lightbulb,
   TrendingUp,
 } from "lucide-react";
 import { listarPosts } from "../../../api/foro";
@@ -96,35 +92,6 @@ export default function ForumRightPanel() {
 
   return (
     <aside className="space-y-5">
-      {/* ===== Recomendaciones IA (próximamente) ===== */}
-      <div
-        className={`${cardClass} border-2 border-dashed ${
-          isDark ? "border-violet-500/30" : "border-violet-300/50"
-        }`}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className={`w-4 h-4 ${isDark ? "text-violet-400" : "text-violet-500"}`} />
-          <h3
-            className={`text-sm font-semibold uppercase tracking-wider ${
-              isDark ? "text-violet-300" : "text-violet-700"
-            }`}
-          >
-            Recomendaciones IA
-          </h3>
-        </div>
-        <div className="flex items-center justify-center py-6">
-          <div className="text-center">
-            <Lightbulb className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-violet-400" : "text-violet-500"}`} />
-            <p className={`text-sm font-medium ${isDark ? "text-dark-text" : "text-gray-900"}`}>
-              Recomendaciones inteligentes
-            </p>
-            <p className={`text-xs mt-1 ${isDark ? "text-dark-text-secondary" : "text-gray-500"}`}>
-              Próximamente: Contenido personalizado para ti
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* ===== Destacados (publicaciones fijadas reales) ===== */}
       {featuredPosts.length > 0 && (
         <div className={cardClass}>

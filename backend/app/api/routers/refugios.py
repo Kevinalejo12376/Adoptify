@@ -62,7 +62,12 @@ def mis_estadisticas(current_user: Usuario = Depends(get_current_refugio), db: S
     if not refugio:
         raise HTTPException(status_code=404, detail="Refugio no encontrado")
 
-    total_mascotas = db.query(Mascota).filter(Mascota.refugio_id == refugio.id).count()
+    # No se cuentan las mascotas que están en la papelera (borradores).
+    total_mascotas = (
+        db.query(Mascota)
+        .filter(Mascota.refugio_id == refugio.id, Mascota.eliminado_en.is_(None))
+        .count()
+    )
 
     # Solicitudes
     total_sol = (

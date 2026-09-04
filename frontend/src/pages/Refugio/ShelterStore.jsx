@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Store, Plus, Search, Package, DollarSign, X, Edit3, Trash2,
+  Archive, Store, Plus, Search, Package, DollarSign, X, Edit3, Trash2,
   AlertCircle, CheckCircle, Star, ShoppingBag,
   TrendingUp, Eye, EyeOff, Image, Upload, ChevronDown,
   ArrowUp, ArrowDown, Shirt, Bone, Stethoscope, Droplets, Dog,
@@ -11,10 +11,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { categoryIcons, categoryColors } from "../../data/products";
-import { misProductos, crearProducto, actualizarProducto, eliminarProducto } from "../../api/productos";
+import {
+  misProductos, crearProducto, actualizarProducto, eliminarProducto,
+  papeleraProductos, restaurarProducto, eliminarProductoDefinitivo,
+} from "../../api/productos";
 import ConfirmModal from "../../components/ConfirmModal";
 import FieldError from "../../components/FieldError";
 import Toast from "../../components/Toast";
+import BorradoresModal from "../../components/BorradoresModal";
 import ProductSelectionModal from "../../components/ProductSelectionModal";
 import { useImageUpload } from "../../hooks/useImageUpload";
 import { claseInput, limpiarEspacios } from "../../utils/validaciones";
@@ -183,7 +187,7 @@ const CategorySpecificFields = ({ data, setData, category }) => {
   );
 };
 
-const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
+const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit, isSaving = false }) => {
   const category = data.category || "Alimentos";
   const [selectedCat, setSelectedCat] = useState(category);
   const [newProductImages] = useState(null);
@@ -320,14 +324,6 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descuento (%)</label>
-          <input type="number" min="0" max="100" value={data.discount ?? ""}
-            onChange={(e) => handleChange("discount", e.target.value)}
-            className={baseInputCls}
-            placeholder="0" />
-        </div>
-
-        <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock *</label>
           <input type="number" min="0" value={data.stock}
             onChange={(e) => handleChange("stock", e.target.value)}
@@ -343,14 +339,6 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
             placeholder="0" />
           <FieldError mensaje={errors.discount} />
         </div>
-        {Number(data.discount) > 0 && parsePrecio(data.price) > 0 && (
-          <p className="col-span-2 text-xs text-emerald-600 dark:text-emerald-400">
-            Precio con descuento:{" "}
-            <strong>{formatPrice(precioConDescuento(data.price, data.discount))}</strong>{" "}
-            <span className="text-gray-400 line-through">{formatPrice(data.price)}</span>
-          </p>
-        )}
-
         {/* Vista previa: precio final con el descuento aplicado */}
         {(() => {
           const precioBase = parsearPrecioInput(data.price);
@@ -459,10 +447,13 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit }) => {
       )}
 
       <div className="flex gap-3 pt-2">
-        <button type="submit"
-          className="flex-1 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-500/20 flex items-center justify-center gap-2">
-          {isEdit ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {title}
+        <button type="submit" disabled={isSaving}
+          className="flex-1 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all hover:shadow-lg hover:shadow-rose-200 dark:hover:shadow-rose-500/20 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+          {isSaving ? (
+            <><Loader2 className="w-4 h-4 animate-spin" />Guardando...</>
+          ) : (
+            <>{isEdit ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}{title}</>
+          )}
         </button>
         <button type="button" onClick={onCancel}
           className="px-6 py-2.5 text-gray-600 dark:text-gray-400 font-medium rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg transition-all">
@@ -506,6 +497,11 @@ export default function ShelterStore() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  // Borradores (papelera de 30 días).
+  const [borradoresOpen, setBorradoresOpen] = useState(false);
+  const [borradores, setBorradores] = useState([]);
+  const [borradoresLoading, setBorradoresLoading] = useState(false);
+  const [borradoresError, setBorradoresError] = useState("");
   // Subida de imágenes a Cloudinary al guardar el producto.
   const { upload, uploadDataUrl } = useImageUpload({ tipo: "producto" });
 
@@ -525,8 +521,32 @@ export default function ShelterStore() {
     }
   };
 
+  // Carga los productos en BORRADORES (papelera) del refugio.
+  const cargarBorradores = async () => {
+    setBorradoresLoading(true);
+    setBorradoresError("");
+    try {
+      const data = await papeleraProductos();
+      setBorradores((data || []).map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        subtitulo: p.categoria || "Producto",
+        imagen: p.imagen_url || (p.imagenes && p.imagenes[0]?.url) || null,
+        eliminado_en: p.eliminado_en,
+      })));
+    } catch (e) {
+      setBorradoresError(e?.message || "No se pudieron cargar los borradores");
+    } finally {
+      setBorradoresLoading(false);
+    }
+  };
+
   useEffect(() => {
     recargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    cargarBorradores();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -591,11 +611,39 @@ export default function ShelterStore() {
       try {
         await eliminarProducto(confirmDelete.productId);
         setProducts((prev) => prev.filter((p) => p.id !== confirmDelete.productId));
+        await cargarBorradores();
+        setToast({ message: "Producto movido a Borradores", type: "success" });
       } catch (err) {
         // noop
       }
     }
     setConfirmDelete({ isOpen: false, productId: null });
+  };
+
+  const abrirBorradores = () => {
+    cargarBorradores();
+    setBorradoresOpen(true);
+  };
+
+  const manejarRestaurarProducto = async (item) => {
+    try {
+      await restaurarProducto(item.id);
+      setToast({ message: "Producto restaurado correctamente", type: "success" });
+      await cargarBorradores();
+      await recargar();
+    } catch (err) {
+      setBorradoresError(err?.message || "No se pudo restaurar el producto");
+    }
+  };
+
+  const manejarEliminarDefinitivo = async (item) => {
+    try {
+      await eliminarProductoDefinitivo(item.id);
+      setToast({ message: "Producto eliminado definitivamente", type: "success" });
+      await cargarBorradores();
+    } catch (err) {
+      setBorradoresError(err?.message || "No se pudo eliminar definitivamente el producto");
+    }
   };
 
   const handleToggleActive = async () => {
@@ -654,10 +702,22 @@ export default function ShelterStore() {
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white font-display">Mi Tienda</h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-1">Administra los productos de tu refugio para la venta</p>
           </div>
-          <button onClick={() => setShowSelectionModal(true)}
-            className="inline-flex items-center px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl shadow-lg shadow-rose-200 dark:shadow-rose-500/20 hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-right">
-            <Plus className="w-5 h-5 mr-2" /> Agregar Producto
-          </button>
+          <div className="flex flex-wrap items-center gap-3 animate-fade-in-right">
+            <button onClick={abrirBorradores}
+              className="inline-flex items-center gap-2 px-5 py-3 border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 font-semibold rounded-xl hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all duration-300 hover:scale-105">
+              <Archive className="w-5 h-5" />
+              Borradores
+              {borradores.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-bold">
+                  {borradores.length}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setShowSelectionModal(true)}
+              className="inline-flex items-center px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl shadow-lg shadow-rose-200 dark:shadow-rose-500/20 hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <Plus className="w-5 h-5 mr-2" /> Agregar Producto
+            </button>
+          </div>
         </div>
       </section>
 
@@ -836,7 +896,7 @@ export default function ShelterStore() {
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
-            <ProductForm data={newProduct} setData={setNewProduct} onSubmit={handleAddProduct} onCancel={() => setShowAddModal(false)} title="Registrar Producto" isEdit={false} />
+            <ProductForm data={newProduct} setData={setNewProduct} onSubmit={handleAddProduct} onCancel={() => setShowAddModal(false)} title="Registrar Producto" isEdit={false} isSaving={saving} />
           </div>
         </div>
       )}
@@ -847,10 +907,10 @@ export default function ShelterStore() {
         onClose={() => setConfirmDelete({ isOpen: false, productId: null })}
         onConfirm={handleDeleteProduct}
         title="¿Eliminar producto?"
-        message="Esta acción no se puede deshacer. El producto será eliminado permanentemente de la tienda."
-        confirmText="Eliminar"
+        message="El producto pasará a Borradores y se eliminará definitivamente a los 30 días. Podrás restaurarlo mientras tanto."
+        confirmText="Mover a Borradores"
         cancelText="Cancelar"
-        type="danger"
+        type="warning"
       />
 
       {/* Toggle Active Confirmation Modal */}
@@ -865,6 +925,20 @@ export default function ShelterStore() {
         type={confirmToggle.newState ? "info" : "warning"}
       />
 
+      {/* Borradores (papelera de 30 días) */}
+      <BorradoresModal
+        isOpen={borradoresOpen}
+        onClose={() => setBorradoresOpen(false)}
+        titulo="Borradores de productos"
+        items={borradores}
+        loading={borradoresLoading}
+        error={borradoresError}
+        vacioTitulo="No hay productos en borradores"
+        vacioMensaje="Los productos que elimines aparecerán aquí por 30 días antes de eliminarse definitivamente."
+        onRestaurar={manejarRestaurarProducto}
+        onEliminar={manejarEliminarDefinitivo}
+      />
+
       {/* Toast independiente (duplicados y otros avisos) */}
       <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
 
@@ -876,6 +950,28 @@ export default function ShelterStore() {
         onSeleccionarIA={() => navigate("/tienda/productos/analizar")}
         onSeleccionarBarcode={() => navigate("/tienda/productos/escanear")}
       />
+
+      {/* Modal de carga al crear producto */}
+      {saving && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm animate-scale-in rounded-3xl border border-gray-100 bg-white p-6 shadow-2xl dark:border-dark-border dark:bg-dark-card sm:p-8">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 shadow-lg shadow-rose-500/25">
+                <Loader2 className="h-6 w-6 animate-spin text-white" />
+              </div>
+              <div>
+                <h3 className="font-display text-lg font-bold text-gray-900 dark:text-dark-text">Creando producto</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
+                  Subiendo imágenes y guardando el producto...
+                </p>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-dark-border">
+                <div className="h-full w-2/5 animate-progress rounded-full bg-gradient-to-r from-rose-500 to-amber-500" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

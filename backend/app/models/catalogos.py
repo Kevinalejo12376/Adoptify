@@ -112,3 +112,24 @@ class TipoReaccion(Base):
     id = Column(Integer, primary_key=True, index=True)
     codigo = Column(String(20), unique=True, nullable=False)
     nombre = Column(String(40), nullable=False)
+
+
+class Departamento(Base):
+    """Departamentos de Colombia (catálogo para selects del perfil del usuario)."""
+    __tablename__ = "departamentos"
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(10), unique=True, nullable=False)
+    nombre = Column(String(80), nullable=False)
+
+    municipios = relationship("Municipio", back_populates="departamento")
+
+
+class Municipio(Base):
+    """Municipios de Colombia asociados a un departamento."""
+    __tablename__ = "municipios"
+    id = Column(Integer, primary_key=True, index=True)
+    departamento_id = Column(Integer, ForeignKey("departamentos.id"))
+    codigo = Column(String(20), unique=True, nullable=False)
+    nombre = Column(String(80), nullable=False)
+
+    departamento = relationship("Departamento", back_populates="municipios")

@@ -9,6 +9,47 @@
 const NOMINATIM_REVERSE = "https://nominatim.openstreetmap.org/reverse";
 
 /**
+ * Obtiene la ubicación detallada actual del dispositivo (departamento, municipio
+ * y dirección aproximada) usando geolocalización + geocodificación inversa de
+ * Nominatim/OSM. Reutiliza la misma lógica que el registro de refugios
+ * ("Usar mi ubicación actual") para autocompletar los campos del perfil.
+ *
+ * @returns {Promise<{departamento:string, municipio:string, direccion:string}>}
+ * @throws {Error} Si el navegador no soporta geolocalización, el usuario niega
+ *                 el permiso o no se puede resolver la dirección.
+ */
+export function obtenerUbicacionDetallada() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      reject(new Error("Tu navegador no soporta geolocalización"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        try {
+          const res = await fetch(
+            `${NOMINATIM_REVERSE}?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=es`,
+            { headers: { "User-Agent": "AdoptifyApp/1.0" } }
+          );
+          if (!res.ok) throw new Error("geo");
+          const data = await res.json();
+          const a = data.address || {};
+          const departamento = a.state || a.region || "";
+          const municipio = a.city || a.town || a.village || a.municipality || a.county || "";
+          const direccion = [a.road, a.neighbourhood, a.suburb, a.hamlet].filter(Boolean).join(", ");
+          resolve({ departamento, municipio, direccion });
+        } catch {
+          reject(new Error("No se pudo determinar la dirección exacta"));
+        }
+      },
+      () => reject(new Error("No se pudo acceder a tu ubicación. Completa los campos manualmente.")),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+  });
+}
+
+/**
  * Devuelve la ciudad/municipio actual del dispositivo, o null si:
  * - El navegador no soporta geolocalización.
  * - El usuario aún no ha concedido el permiso de ubicación (no se fuerza el

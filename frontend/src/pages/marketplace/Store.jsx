@@ -679,7 +679,7 @@ export default function Store() {
                 className="group bg-white dark:bg-dark-card rounded-2xl shadow-lg dark:shadow-dark-border/20 overflow-hidden hover:shadow-xl dark:hover:shadow-dark-border/40 transition-all duration-300 hover:-translate-y-1.5 border border-gray-100 dark:border-dark-border"
               >
                 {/* Product Image */}
-                <Link to={`/product/${product.id}`}>
+                <Link to={`/product/${product.uuid || product.id}`}>
                   <div className="relative h-48 overflow-hidden">
                     {/* Gradient Background */}
                     <div
@@ -784,7 +784,7 @@ export default function Store() {
                 {/* Product Info */}
                 <div className="p-5">
                   {/* Name */}
-                  <Link to={`/product/${product.id}`}>
+                  <Link to={`/product/${product.uuid || product.id}`}>
                     <h3 className="text-base font-bold text-gray-900 dark:text-dark-text mb-1.5 font-display line-clamp-1 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
                       {product.name}
                     </h3>
@@ -854,7 +854,7 @@ export default function Store() {
                       )}
                     </button>
                     <Link
-                      to={`/product/${product.id}`}
+                      to={`/product/${product.uuid || product.id}`}
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-xl bg-white dark:bg-dark-card text-gray-700 dark:text-dark-text-secondary border-2 border-gray-200 dark:border-dark-border hover:border-rose-300 dark:hover:border-rose-700 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-900/10 transition-all active:scale-[0.97]"
                     >
                       Ver más

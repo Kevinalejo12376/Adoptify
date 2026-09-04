@@ -330,10 +330,10 @@ export default function StoreProductDetail() {
         isOpen={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         onConfirm={handleDelete}
-        type="danger"
+        type="warning"
         title="Eliminar producto"
-        message={`¿Seguro que deseas eliminar "${product.nombre}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
+        message={`¿Seguro que deseas eliminar "${product.nombre}"? Pasará a Borradores y se eliminará definitivamente a los 30 días. Podrás restaurarlo mientras tanto.`}
+        confirmText="Mover a Borradores"
       />
     </div>
   );

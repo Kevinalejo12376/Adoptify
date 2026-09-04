@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, PawPrint, Heart, User, Mail, Lock, ArrowRight,
   Eye, EyeOff, CheckCircle, XCircle, Phone, FileText,
-  Shield, KeyRound, Loader2, Send
+  Shield, KeyRound, Loader2, Send, AlertCircle
 } from "lucide-react";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import GoogleIcon from "../../components/GoogleIcon";
@@ -11,7 +11,7 @@ import { CAROUSEL_IMAGES } from "../../assets/images";
 import { ADOPTIFY_LOGO as logo } from "../../constants/assets";
 import { useAuth } from "../../context/AuthContext";
 import { getTiposDocumento } from "../../api/catalogos";
-import { sendVerificationCode, verifyCode, registerWithCodeRequest } from "../../api/auth";
+import { sendVerificationCode, verifyCode, registerWithCodeRequest, checkRegistro } from "../../api/auth";
 
 // Carrusel de fotos: imágenes servidas desde Cloudinary (carpeta
 // "frontend-assets/assets-extras"). Centralizadas en src/assets/images.js.
@@ -48,6 +48,8 @@ export default function Register() {
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
+  // Mensajes de error mostrados en el modal (mismo estilo que el de éxito).
+  const [modalErrors, setModalErrors] = useState([]);
 
   // Estados para verificación de email
   const [step, setStep] = useState("form"); // 'form' | 'code' | 'loading'
@@ -215,8 +217,51 @@ export default function Register() {
   const handleSendCode = async (e) => {
     e.preventDefault();
 
-    if (!validateAll()) {
+    // ── 1) Validación del formulario (reutiliza las funciones existentes) ──
+    const currentErrors = {
+      firstName: validateField("firstName", firstName),
+      lastName: validateField("lastName", lastName),
+      documentType: validateField("documentType", documentType),
+      documentNumber: validateField("documentNumber", documentNumber),
+      phone: validateField("phone", phone),
+      email: validateField("email", email),
+      password: validateField("password", password),
+      confirmPassword: validateField("confirmPassword", confirmPassword),
+      terms: validateField("terms", terms),
+    };
+    setErrors(currentErrors);
+
+    const modalMsgs = [];
+    if (email.trim() && !validateEmail(email)) {
+      modalMsgs.push("Correo con formato incorrecto");
+    }
+    if (Object.values(currentErrors).some((m) => m)) {
+      modalMsgs.push("Campos obligatorios faltantes");
+    }
+    if (modalMsgs.length > 0) {
+      setModalErrors(modalMsgs);
       return;
+    }
+
+    // ── 2) Validación contra la BD (tipo documento, documento y correo) ──
+    // Impide registrar usuarios duplicados mostrando mensajes claros en un modal.
+    try {
+      const result = await checkRegistro({
+        email,
+        tipo_documento: documentType,
+        numero_documento: documentNumber,
+      });
+      const conflictMsgs = [];
+      if (result?.email_registrado) conflictMsgs.push("Correo ya registrado");
+      if (result?.documento_registrado) conflictMsgs.push("Documento ya registrado");
+      if (conflictMsgs.length > 0) {
+        setModalErrors(conflictMsgs);
+        return;
+      }
+    } catch (err) {
+      // Si no se puede consultar la BD, se continúa: el backend vuelve a
+      // validar el correo al enviar el código de verificación.
+      console.warn("[Register] No se pudo validar duplicados:", err?.message || err);
     }
 
     setIsLoading(true);
@@ -462,6 +507,34 @@ export default function Register() {
             <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
               <div className="h-full bg-gradient-to-r from-[#FF4D7A] to-[#FFA726] rounded-full animate-loading-bar" />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal (mismo estilo que el modal de éxito) */}
+      {modalErrors.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-modal-overlay">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-modal-content">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+              <AlertCircle className="w-10 h-10 text-red-500" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2 font-display">
+              No se pudo completar el registro
+            </h3>
+            <div className="space-y-2 mb-6 text-left">
+              {modalErrors.map((msg, i) => (
+                <p key={i} className="flex items-center gap-2 text-sm text-red-600">
+                  <XCircle className="w-4 h-4 shrink-0" />
+                  {msg}
+                </p>
+              ))}
+            </div>
+            <button
+              onClick={() => setModalErrors([])}
+              className="w-full px-6 py-3 bg-gradient-to-r from-[#FF4D7A] to-[#FFA726] text-white font-semibold rounded-xl hover:from-[#e04060] hover:to-[#FF8C00] transition-all"
+            >
+              Entendido
+            </button>
           </div>
         </div>
       )}

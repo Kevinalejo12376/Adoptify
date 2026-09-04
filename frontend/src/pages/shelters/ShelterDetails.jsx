@@ -80,7 +80,7 @@ export default function ShelterDetails() {
           pets = todas
             .filter((m) => m.refugio_id === r.id)
             .slice(0, 8)
-            .map((m) => ({ id: m.id, name: m.nombre, age: m.edad || "", image: null }));
+            .map((m) => ({ id: m.id, uuid: m.uuid, name: m.nombre, age: m.edad || "", image: null }));
         } catch { /* ignore */ }
 
         if (!activo) return;
@@ -370,7 +370,7 @@ export default function ShelterDetails() {
                       <h3 className="font-bold text-gray-900 dark:text-white text-lg">{pet.name}</h3>
                     </div>
                     <Link
-                      to={`/animal/${pet.id}`}
+                      to={`/animal/${pet.uuid || pet.id}`}
                       className="block w-full px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-lg hover:from-rose-600 hover:to-amber-600 transition-all duration-300 hover:shadow-md hover:scale-[1.02] active:scale-95 text-center"
                     >
                       Ver perfil
@@ -421,7 +421,7 @@ export default function ShelterDetails() {
                     return (
                       <Link
                         key={product.id}
-                        to={`/product/${product.id}`}
+                        to={`/product/${product.uuid || product.id}`}
                         className="group bg-gradient-to-br from-gray-50 to-white dark:from-dark-bg dark:to-dark-card rounded-xl overflow-hidden border border-gray-100 dark:border-dark-border hover:shadow-lg transition-all duration-300 hover:-translate-y-1 flex"
                       >
                         {/* Product color bar */}
