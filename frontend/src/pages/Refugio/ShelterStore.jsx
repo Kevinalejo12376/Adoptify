@@ -324,14 +324,6 @@ const ProductForm = ({ data, setData, onSubmit, onCancel, title, isEdit, isSavin
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descuento (%)</label>
-          <input type="number" min="0" max="100" value={data.discount ?? ""}
-            onChange={(e) => handleChange("discount", e.target.value)}
-            className={baseInputCls}
-            placeholder="0" />
-        </div>
-
-        <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stock *</label>
           <input type="number" min="0" value={data.stock}
             onChange={(e) => handleChange("stock", e.target.value)}

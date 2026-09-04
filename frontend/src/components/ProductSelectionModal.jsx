@@ -96,27 +96,27 @@ export default function ProductSelectionModal({
       />
 
       {/* Contenedor centrado con scroll vertical en pantallas pequeñas */}
-      <div className="relative flex min-h-full items-center justify-center p-3 sm:p-6">
+      <div className="relative flex min-h-full items-start justify-center p-3 sm:items-center sm:p-6">
         {/* Modal */}
-        <div className="relative w-full max-w-xl my-auto bg-white dark:bg-dark-card rounded-3xl shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in overflow-hidden">
+        <div className="relative my-auto flex w-full max-w-2xl max-h-[92vh] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white dark:bg-dark-card shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in">
           {/* Header */}
-          <div className="relative p-5 sm:p-6 border-b border-gray-100 dark:border-dark-border bg-gradient-to-r from-rose-50/70 via-orange-50/40 to-amber-50/70 dark:from-rose-500/5 dark:via-transparent dark:to-amber-500/5">
+          <div className="relative flex-shrink-0 border-b border-gray-100 dark:border-dark-border bg-gradient-to-r from-rose-50/70 via-orange-50/40 to-amber-50/70 dark:from-rose-500/5 dark:via-transparent dark:to-amber-500/5 p-4 sm:p-6">
             <button
               onClick={onClose}
               aria-label="Cerrar"
-              className="absolute right-3 top-3 sm:right-4 sm:top-4 p-2 rounded-xl bg-white dark:bg-dark-card text-gray-400 hover:text-gray-600 dark:hover:text-dark-text shadow-sm border border-gray-100 dark:border-dark-border transition-colors"
+              className="absolute right-3 top-3 sm:right-4 sm:top-4 z-10 p-2 rounded-xl bg-white dark:bg-dark-card text-gray-400 hover:text-gray-600 dark:hover:text-dark-text shadow-sm border border-gray-100 dark:border-dark-border transition-colors"
             >
               <X size={18} />
             </button>
-            <div className="flex items-center gap-3 sm:gap-4 pr-10">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-500/25">
-                <Plus size={22} className="text-white" />
+            <div className="flex items-center gap-3 sm:gap-4 pr-10 sm:pr-12">
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 shadow-lg shadow-rose-500/25">
+                <Plus size={20} className="text-white sm:h-[22px] sm:w-[22px]" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-dark-text font-display">
+                <h2 className="font-display text-base sm:text-xl font-bold text-gray-900 dark:text-dark-text">
                   Agregar nuevo producto
                 </h2>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-text-secondary mt-0.5">
+                <p className="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-dark-text-secondary">
                   Elige cómo quieres registrar tu producto en la tienda.
                 </p>
               </div>
@@ -124,7 +124,7 @@ export default function ProductSelectionModal({
           </div>
 
           {/* Body */}
-          <div className="p-4 sm:p-5 space-y-3">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:p-5">
             {opciones.map((opcion) => {
               const {
                 Icon, gradiente, sombra, hover, ctaColor, recomendada,
@@ -134,35 +134,35 @@ export default function ProductSelectionModal({
               return (
                 <button
                   key={opcion.key}
-                  onClick={() => { onClick(); onClose(); }}
-                  className={`w-full text-left group relative overflow-hidden bg-white dark:bg-dark-card border-2 rounded-2xl p-4 sm:p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${hover} ${
+                  onClick={onClick}
+                  className={`relative w-full overflow-hidden rounded-2xl border-2 bg-white p-3.5 text-left transition-all duration-200 group hover:-translate-y-0.5 hover:shadow-lg dark:bg-dark-card sm:p-5 ${hover} ${
                     recomendada
-                      ? "border-rose-200 dark:border-rose-500/30 bg-gradient-to-br from-rose-50/70 to-amber-50/50 dark:from-rose-500/10 dark:to-amber-500/5"
+                      ? "border-rose-200 bg-gradient-to-br from-rose-50/70 to-amber-50/50 dark:border-rose-500/30 dark:from-rose-500/10 dark:to-amber-500/5"
                       : "border-gray-200 dark:border-dark-border"
                   }`}
                 >
                   {/* Badge recomendada */}
                   {recomendada && (
-                    <div className="absolute top-3 right-3">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-[10px] font-bold rounded-full shadow-sm">
+                    <div className="absolute right-2.5 top-2.5 sm:right-3 sm:top-3">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-2 py-1 text-[9px] font-bold text-white shadow-sm sm:px-2.5 sm:text-[10px]">
                         <Zap size={10} />
                         RECOMENDADO
                       </span>
                     </div>
                   )}
 
-                  <div className="flex items-start gap-3 sm:gap-4 pr-12">
+                  <div className="flex items-start gap-3 pr-8 sm:gap-4 sm:pr-12">
                     {/* Ícono */}
-                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br ${gradiente} flex items-center justify-center flex-shrink-0 shadow-lg ${sombra} group-hover:scale-105 group-hover:rotate-3 transition-transform duration-200`}>
-                      <Icon size={26} className="text-white" />
+                    <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg transition-transform duration-200 group-hover:rotate-3 group-hover:scale-105 sm:h-14 sm:w-14 ${gradiente} ${sombra}`}>
+                      <Icon size={24} className="text-white sm:h-[26px] sm:w-[26px]" />
                     </div>
 
                     {/* Contenido */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-dark-text">
                         {titulo}
                       </h3>
-                      <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-0.5">
+                      <p className="mt-0.5 text-xs sm:text-sm text-gray-600 dark:text-dark-text-secondary">
                         {descripcion}
                       </p>
 
@@ -172,7 +172,7 @@ export default function ProductSelectionModal({
                           {beneficios.map((beneficio, i) => (
                             <span
                               key={i}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-dark-bg text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary"
+                              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-500 dark:bg-dark-bg dark:text-dark-text-secondary"
                             >
                               <Check size={10} className="text-emerald-500" />
                               {beneficio}
