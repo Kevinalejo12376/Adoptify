@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+from datetime import datetime
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field, field_validator
 # pyrefly: ignore [missing-import]
 from typing import Optional, List
@@ -120,6 +122,9 @@ class ImagenProductoResponse(BaseModel):
 
 class ProductoResponse(BaseModel):
     id: int
+    # Identificador público único (URL amigable /product/<uuid>).
+    # Optional: si la migración de uuid aún no corre en algún entorno, no rompe.
+    uuid: Optional[str] = None
     nombre: str
     precio: float = 0
     descuento: int = 0
@@ -132,6 +137,8 @@ class ProductoResponse(BaseModel):
     tallas: Optional[str] = None
     colores: Optional[str] = None
     activo: bool = True
+    # Fecha en que se movió a la papelera (borradores). NULL = no eliminado.
+    eliminado_en: Optional[datetime] = None
     ventas: int = 0
     resenas_count: int = 0
     rating: float = 0

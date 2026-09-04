@@ -21,6 +21,12 @@ class Usuario(Base):
     rol_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     activo = Column(Boolean, nullable=False, default=True)
     ubicacion = Column(String(150))
+    # Ubicación detallada del usuario (autocompletada con "Usar mi ubicación
+    # actual" y utilizada por las solicitudes de adopción para que el refugio
+    # reciba la información completa y actualizada del solicitante).
+    departamento = Column(String(150))
+    municipio = Column(String(150))
+    direccion = Column(String(200))
     bio = Column(Text)
     website = Column(String(150))
     avatar_url = Column(Text)

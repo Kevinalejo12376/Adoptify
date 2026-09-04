@@ -24,6 +24,9 @@ def serialize_usuario(u):
         "telefono": u.telefono,
         "numero_documento": u.numero_documento,
         "ubicacion": u.ubicacion,
+        "departamento": u.departamento,
+        "municipio": u.municipio,
+        "direccion": u.direccion,
         "rol": u.rol.codigo if u.rol else None,
         "tipo_documento": u.tipo_documento.codigo if u.tipo_documento else None,
         "perfil_completo": u.perfil_completo if hasattr(u, "perfil_completo") else False,
@@ -68,6 +71,8 @@ def _a_lista(valor):
 def serialize_mascota(m):
     return {
         "id": m.id,
+        # Identificador público único (URL amigable /animal/<uuid>).
+        "uuid": getattr(m, "uuid", None),
         "refugio_id": m.refugio_id,
         "nombre": m.nombre,
         "raza": m.raza,
@@ -99,6 +104,8 @@ def serialize_mascota(m):
         "genero": m.genero.nombre if m.genero else None,
         "estado": m.estado.codigo if m.estado else None,
         "activo": m.activo,
+        # Fecha en que se movió a la papelera (borradores). NULL = no eliminada.
+        "eliminado_en": m.eliminado_en.isoformat() if m.eliminado_en else None,
         "tipo_id": m.tipo_id,
         "tamano_id": m.tamano_id,
         "genero_id": m.genero_id,
@@ -122,6 +129,11 @@ def serialize_solicitud(s):
         "email_contacto": s.email_contacto,
         "telefono_contacto": s.telefono_contacto,
         "ubicacion": s.ubicacion,
+        "departamento": s.departamento,
+        "municipio": s.municipio,
+        "direccion": s.direccion,
+        "tipo_documento": s.tipo_documento,
+        "numero_documento": s.numero_documento,
         "mensaje": s.mensaje,
         "notas": s.notas,
         "tiene_familia": s.tiene_familia,
@@ -342,6 +354,8 @@ def serialize_producto(p):
     precio_original = float(p.precio) if p.precio is not None else 0
     return {
         "id": p.id,
+        # Identificador público único (URL amigable /product/<uuid>).
+        "uuid": getattr(p, "uuid", None),
         "nombre": p.nombre,
         "precio": float(p.precio) if p.precio is not None else 0,
         "descuento": p.descuento or 0,
@@ -354,6 +368,8 @@ def serialize_producto(p):
         "tallas": p.tallas,
         "colores": p.colores,
         "activo": p.activo,
+        # Fecha en que se movió a la papelera (borradores). NULL = no eliminado.
+        "eliminado_en": p.eliminado_en.isoformat() if p.eliminado_en else None,
         "ventas": p.ventas,
         "resenas_count": len(p.resenas) if p.resenas is not None else 0,
         "rating": float(p.rating) if p.rating is not None else 0,

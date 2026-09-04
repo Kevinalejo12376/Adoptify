@@ -35,6 +35,7 @@ export default function ShelterAnimals() {
           .filter((m) => (m.refugio_id === Number(id) || (r && m.refugio_id === r.id)) && m.refugio_activo !== false)
           .map((m) => ({
             id: m.id,
+            uuid: m.uuid,
             name: m.nombre,
             type: m.tipo || "",
             breed: m.raza || "",
@@ -272,7 +273,7 @@ export default function ShelterAnimals() {
                       {pet.gender && <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs">{pet.gender}</span>}
                     </div>
                     <Link
-                      to={`/animal/${pet.id}`}
+                      to={`/animal/${pet.uuid || pet.id}`}
                       className="block w-full px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-lg hover:from-rose-600 hover:to-amber-600 transition-all duration-300 text-center hover:shadow-md active:scale-95"
                     >
                       Ver perfil

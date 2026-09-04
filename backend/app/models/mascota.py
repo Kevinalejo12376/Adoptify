@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+import uuid
+# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Text, Boolean, Date, DateTime, ForeignKey, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -11,6 +13,12 @@ class Mascota(Base):
     __tablename__ = "mascotas"
 
     id = Column(Integer, primary_key=True, index=True)
+    # Identificador público único (URL amigable /animal/<uuid>). El id numérico
+    # sigue siendo la PK y la FK interna; el uuid solo se expone en URLs públicas.
+    uuid = Column(
+        String(36), unique=True, index=True, nullable=False,
+        default=lambda: str(uuid.uuid4()),
+    )
     refugio_id = Column(Integer, ForeignKey("refugios.id", ondelete="CASCADE"))
     nombre = Column(String(100), nullable=False)
     tipo_id = Column(Integer, ForeignKey("tipos_mascota.id"), nullable=False)

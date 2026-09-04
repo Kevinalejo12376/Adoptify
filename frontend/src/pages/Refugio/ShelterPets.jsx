@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  PawPrint, Plus, Search, Dog, Cat, Calendar, Heart, Edit3, Trash2,
+  Archive, PawPrint, Plus, Search, Dog, Cat, Calendar, Heart, Edit3, Trash2,
   ChevronDown, X, AlertCircle, CheckCircle, Clock, Ruler, Syringe,
   Image, Upload, Info, Tag, Weight, Scissors,
   Sparkles, Camera, Eye, MapPin, Phone, Star,
@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 import ConfirmModal from "../../components/ConfirmModal";
 import { Loader2 } from "lucide-react";
-import { misMascotas, crearMascota, eliminarMascota } from "../../api/mascotas";
+import {
+  misMascotas, crearMascota, eliminarMascota,
+  papeleraMascotas, restaurarMascota, eliminarMascotaDefinitiva,
+} from "../../api/mascotas";
 import { getRazasMascota } from "../../api/catalogos";
 import { subirImagen } from "../../api/upload";
 import { readAndValidateImage } from "../../utils/imageUtils";
@@ -18,6 +21,7 @@ import { claseInput, limpiarEspacios } from "../../utils/validaciones";
 import BreedSelector from "../../components/BreedSelector";
 import PersonalitySelector from "../../components/PersonalitySelector";
 import Toast from "../../components/Toast";
+import BorradoresModal from "../../components/BorradoresModal";
 
 // Mapea las etiquetas del formulario a los codigos de catalogo del backend.
 const TIPO_MAP = { Perro: "perro", Gato: "gato" };
@@ -498,6 +502,11 @@ export default function ShelterPets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
+  // Borradores (papelera de 30 días).
+  const [borradoresOpen, setBorradoresOpen] = useState(false);
+  const [borradores, setBorradores] = useState([]);
+  const [borradoresLoading, setBorradoresLoading] = useState(false);
+  const [borradoresError, setBorradoresError] = useState("");
 
   // Carga las mascotas del refugio desde la base de datos.
   const cargarPets = React.useCallback(async () => {
@@ -539,7 +548,28 @@ export default function ShelterPets() {
     }
   }, []);
 
+  // Carga las mascotas en BORRADORES (papelera) del refugio.
+  const cargarBorradores = React.useCallback(async () => {
+    setBorradoresLoading(true);
+    setBorradoresError("");
+    try {
+      const data = await papeleraMascotas();
+      setBorradores((data || []).map((m) => ({
+        id: m.id,
+        nombre: m.nombre,
+        subtitulo: [m.raza, m.tipo].filter(Boolean).join(" · ") || "Mascota",
+        imagen: (m.imagenes && m.imagenes[0]?.url) || null,
+        eliminado_en: m.eliminado_en,
+      })));
+    } catch (e) {
+      setBorradoresError(e?.message || "No se pudieron cargar los borradores");
+    } finally {
+      setBorradoresLoading(false);
+    }
+  }, []);
+
   useEffect(() => { cargarPets(); }, [cargarPets]);
+  useEffect(() => { cargarBorradores(); }, [cargarBorradores]);
 
   const emptyPet = {
     name: "", type: "Perro", breed: "", breedEsOtro: false, breedOtro: "",
@@ -644,8 +674,36 @@ export default function ShelterPets() {
     try {
       await eliminarMascota(id);
       await cargarPets();
+      await cargarBorradores();
+      setToast({ message: "Mascota movida a Borradores", type: "success" });
     } catch (err) {
       setError(err?.message || "No se pudo eliminar la mascota");
+    }
+  };
+
+  const abrirBorradores = () => {
+    cargarBorradores();
+    setBorradoresOpen(true);
+  };
+
+  const manejarRestaurarMascota = async (item) => {
+    try {
+      await restaurarMascota(item.id);
+      setToast({ message: "Mascota restaurada correctamente", type: "success" });
+      await cargarBorradores();
+      await cargarPets();
+    } catch (err) {
+      setBorradoresError(err?.message || "No se pudo restaurar la mascota");
+    }
+  };
+
+  const manejarEliminarDefinitiva = async (item) => {
+    try {
+      await eliminarMascotaDefinitiva(item.id);
+      setToast({ message: "Mascota eliminada definitivamente", type: "success" });
+      await cargarBorradores();
+    } catch (err) {
+      setBorradoresError(err?.message || "No se pudo eliminar definitivamente la mascota");
     }
   };
 
@@ -684,11 +742,23 @@ export default function ShelterPets() {
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white font-display">Mis Mascotas</h1>
             <p className="text-gray-600 dark:text-dark-text-secondary mt-1">Registra y administra las mascotas de tu refugio</p>
           </div>
-          <button onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl shadow-lg shadow-rose-200 dark:shadow-rose-500/20 hover:shadow-xl transition-all duration-300 hover:scale-105 animate-fade-in-right">
-            <Plus className="w-5 h-5 mr-2" />
-            Agregar Mascota
-          </button>
+          <div className="flex flex-wrap items-center gap-3 animate-fade-in-right">
+            <button onClick={abrirBorradores}
+              className="inline-flex items-center gap-2 px-5 py-3 border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 font-semibold rounded-xl hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all duration-300 hover:scale-105">
+              <Archive className="w-5 h-5" />
+              Borradores
+              {borradores.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-bold">
+                  {borradores.length}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl shadow-lg shadow-rose-200 dark:shadow-rose-500/20 hover:shadow-xl transition-all duration-300 hover:scale-105">
+              <Plus className="w-5 h-5 mr-2" />
+              Agregar Mascota
+            </button>
+          </div>
         </div>
       </section>
 
@@ -830,10 +900,24 @@ export default function ShelterPets() {
         onClose={() => setConfirmDelete({ isOpen: false, petId: null })}
         onConfirm={handleDeletePet}
         title="¿Eliminar mascota?"
-        message="Esta acción no se puede deshacer. La mascota será eliminada permanentemente del sistema."
-        confirmText="Eliminar"
+        message="La mascota pasará a Borradores y se eliminará definitivamente a los 30 días. Podrás restaurarla mientras tanto. Las mascotas adoptadas se eliminan de inmediato."
+        confirmText="Mover a Borradores"
         cancelText="Cancelar"
-        type="danger"
+        type="warning"
+      />
+
+      {/* Borradores (papelera de 30 días) */}
+      <BorradoresModal
+        isOpen={borradoresOpen}
+        onClose={() => setBorradoresOpen(false)}
+        titulo="Borradores de mascotas"
+        items={borradores}
+        loading={borradoresLoading}
+        error={borradoresError}
+        vacioTitulo="No hay mascotas en borradores"
+        vacioMensaje="Las mascotas que elimines aparecerán aquí por 30 días. Las adoptadas se eliminan de inmediato."
+        onRestaurar={manejarRestaurarMascota}
+        onEliminar={manejarEliminarDefinitiva}
       />
 
       {/* Toast independiente (no usa la campana de notificaciones) */}

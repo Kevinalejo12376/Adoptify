@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+from datetime import datetime
+# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, field_validator
 # pyrefly: ignore [missing-import]
 from typing import List, Optional, Union
@@ -223,6 +225,9 @@ class MascotaUpdate(BaseModel):
 
 class MascotaResponse(BaseModel):
     id: int
+    # Identificador público único (URL amigable /animal/<uuid>).
+    # Optional: si la migración de uuid aún no corre en algún entorno, no rompe.
+    uuid: Optional[str] = None
     refugio_id: Optional[int] = None
     refugio_nombre: Optional[str] = None
     refugio_telefono: Optional[str] = None
@@ -251,5 +256,7 @@ class MascotaResponse(BaseModel):
     tamano_id: Optional[int] = None
     genero_id: Optional[int] = None
     estado_id: Optional[int] = None
+    # Fecha en que se movió a la papelera (borradores). NULL = no eliminada.
+    eliminado_en: Optional[datetime] = None
     # Imágenes de Cloudinary (secure_url) almacenadas en mascota_imagenes.
     imagenes: Optional[List[dict]] = None

@@ -733,7 +733,7 @@ export default function StoreEditProduct() {
           </div>
         )}
 
-        {/* ===== Precio y Stock ===== */}
+        {/* Precio y Stock (unicos campos que debe llenar el vendedor si viene de IA) */}
         <div className={`bg-white dark:bg-dark-card rounded-2xl border ${fromIA && isNew ? "border-rose-200 dark:border-rose-500/20 ring-2 ring-rose-500/10" : "border-gray-100 dark:border-dark-border"} p-5 sm:p-6`}>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center">
@@ -756,11 +756,6 @@ export default function StoreEditProduct() {
                   className={`${inputCls} pl-7 ${errors.precio ? "border-red-300" : ""}`} placeholder="0" />
               </div>
               {errors.precio && <p className="text-xs text-red-500 mt-1">{errors.precio}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Descuento (%)</label>
-              <input type="number" min="0" max="100" value={form.descuento} onChange={(e) => handleChange("descuento", e.target.value)}
-                className={inputCls} placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-dark-text-secondary mb-1.5">Stock *</label>
@@ -804,13 +799,6 @@ export default function StoreEditProduct() {
               </div>
             );
           })()}
-          {Number(form.descuento) > 0 && parsePrecio(form.precio) > 0 && (
-            <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">
-              Precio con descuento:{" "}
-              <strong>{formatPrice(precioConDescuento(form.precio, form.descuento))}</strong>{" "}
-              <span className="text-gray-400 line-through">{formatPrice(form.precio)}</span>
-            </p>
-          )}
         </div>
 
         {/* ===== Información adicional (detectada por IA / completa) ===== */}

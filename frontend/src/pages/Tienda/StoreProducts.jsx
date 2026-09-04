@@ -2,9 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Package, PlusCircle, Search, Star, Grid3X3, List, Loader2,
-  ChevronRight, TrendingUp, Eye, EyeOff,
+  ChevronRight, TrendingUp, Eye, EyeOff, Archive, CheckCircle,
 } from "lucide-react";
-import { misProductosTienda } from "../../api/tienda";
+import {
+  misProductosTienda,
+  papeleraProductosTienda,
+  restaurarMiProducto,
+  eliminarMiProductoDefinitivo,
+} from "../../api/tienda";
+import BorradoresModal from "../../components/BorradoresModal";
 import { getCategoriasProducto } from "../../api/catalogos";
 import { useStore } from "../../context/StoreContext";
 import ProductSelectionModal from "../../components/ProductSelectionModal";
@@ -51,6 +57,12 @@ export default function StoreProducts() {
   const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  // Borradores (papelera de 30 días).
+  const [borradoresOpen, setBorradoresOpen] = useState(false);
+  const [borradores, setBorradores] = useState([]);
+  const [borradoresLoading, setBorradoresLoading] = useState(false);
+  const [borradoresError, setBorradoresError] = useState("");
+  const [feedback, setFeedback] = useState(null);
 
   // Carga el catálogo desde la BD. Al volver del detalle o del formulario de
   // edición, este componente se remonta y vuelve a cargar (UI siempre fresca).
@@ -72,9 +84,61 @@ export default function StoreProducts() {
 
   useEffect(() => {
     cargar();
+    cargarBorradores();
     getCategoriasProducto().then(setCategorias).catch(() => setCategorias([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Carga los productos en BORRADORES (papelera) de la tienda.
+  const cargarBorradores = async () => {
+    setBorradoresLoading(true);
+    setBorradoresError("");
+    try {
+      const data = await papeleraProductosTienda();
+      setBorradores((data || []).map((p) => ({
+        id: p.id,
+        nombre: p.nombre,
+        subtitulo: p.categoria || "Producto",
+        imagen: p.imagen_url || (p.imagenes && p.imagenes[0]?.url) || null,
+        eliminado_en: p.eliminado_en,
+      })));
+    } catch (e) {
+      setBorradoresError(e?.message || "No se pudieron cargar los borradores");
+    } finally {
+      setBorradoresLoading(false);
+    }
+  };
+
+  const abrirBorradores = () => {
+    cargarBorradores();
+    setBorradoresOpen(true);
+  };
+
+  const notificar = (mensaje) => {
+    setFeedback(mensaje);
+    setTimeout(() => setFeedback(null), 3500);
+  };
+
+  const manejarRestaurarProducto = async (item) => {
+    try {
+      await restaurarMiProducto(item.id);
+      notificar(`"${item.nombre}" se restauró y volvió a la tienda.`);
+      await cargarBorradores();
+      await cargar();
+    } catch (e) {
+      setBorradoresError(e?.message || "No se pudo restaurar el producto");
+    }
+  };
+
+  const manejarEliminarDefinitivo = async (item) => {
+    try {
+      await eliminarMiProductoDefinitivo(item.id);
+      notificar(`"${item.nombre}" se eliminó definitivamente.`);
+      await cargarBorradores();
+    } catch (e) {
+      setBorradoresError(e?.message || "No se pudo eliminar definitivamente el producto");
+    }
+  };
 
   const filteredProducts = productos.filter((p) => {
     if (busqueda && !p.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
@@ -96,15 +160,29 @@ export default function StoreProducts() {
             Haz clic en un producto para ver su detalle, editar su información, ajustar el stock o gestionar su disponibilidad.
           </p>
         </div>
-        {puedeCrear && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all"
+            onClick={abrirBorradores}
+            className="inline-flex items-center gap-2 px-4 py-2.5 border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 text-sm font-semibold rounded-xl hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all"
           >
-            <PlusCircle size={16} />
-            Nuevo Producto
+            <Archive size={16} />
+            Borradores
+            {borradores.length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                {borradores.length}
+              </span>
+            )}
           </button>
-        )}
+          {puedeCrear && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-rose-500/25 transition-all"
+            >
+              <PlusCircle size={16} />
+              Nuevo Producto
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -279,6 +357,32 @@ export default function StoreProducts() {
           <p className="text-sm text-gray-500 mt-1">{puedeCrear ? "Crea tu primer producto para empezar a vender." : "Aún no hay productos en tu tienda."}</p>
         </div>
       )}
+
+      {/* Feedback (restaurar / eliminar definitivamente) */}
+      {feedback && (
+        <div className="fixed top-6 right-6 z-[70] animate-fade-in-up">
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-lg">
+            <CheckCircle size={16} />
+            {feedback}
+          </div>
+        </div>
+      )}
+
+      {/* Borradores (papelera de 30 días) */}
+      <BorradoresModal
+        isOpen={borradoresOpen}
+        onClose={() => setBorradoresOpen(false)}
+        titulo="Borradores de productos"
+        items={borradores}
+        loading={borradoresLoading}
+        error={borradoresError}
+        vacioTitulo="No hay productos en borradores"
+        vacioMensaje="Los productos que elimines aparecerán aquí por 30 días antes de eliminarse definitivamente."
+        onRestaurar={manejarRestaurarProducto}
+        onEliminar={manejarEliminarDefinitivo}
+        canRestaurar={tienePermiso("productos.activar")}
+        canEliminar={tienePermiso("productos.eliminar")}
+      />
 
       {/* Modal de selección */}
       <ProductSelectionModal

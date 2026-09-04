@@ -41,6 +41,22 @@ export async function registerWithCodeRequest(payload) {
   });
 }
 
+/**
+ * Valida en la BD si el correo o el documento ya están registrados.
+ * Se usa en el formulario de registro ANTES de enviar el código de verificación
+ * para impedir duplicados con mensajes claros ("Correo ya registrado" /
+ * "Documento ya registrado").
+ * @param {{email?:string, tipo_documento?:string, numero_documento?:string}} payload
+ * @returns {Promise<{email_registrado:boolean, documento_registrado:boolean}>}
+ */
+export async function checkRegistro(payload) {
+  return apiFetch("/api/auth/check-registro", {
+    method: "POST",
+    body: payload,
+    auth: false,
+  });
+}
+
 /** Solicita un código para restablecer la contraseña (alias de sendCode con tipo='reset_password'). */
 export async function forgotPasswordRequest(email) {
   return apiFetch("/api/auth/forgot-password", {

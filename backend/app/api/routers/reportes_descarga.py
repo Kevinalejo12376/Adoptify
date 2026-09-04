@@ -6,18 +6,6 @@ servidor, y se devuelven como respuesta de descarga directa (StreamingResponse)
 con las cabeceras correctas (Content-Type, Content-Disposition) para forzar la
 descarga en el navegador. No se almacena ninguna copia en el servidor; los
 recursos se liberan automaticamente al finalizar la respuesta.
-Descarga de reportes descargables (PDF / Excel) para administradores.
-
-Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
-servidor, y se devuelven como respuesta de descarga directa via
-``StreamingResponse`` con las cabeceras correctas (``Content-Type``,
-``Content-Disposition``) para forzar la descarga en el navegador. No se
-almacena ninguna copia en el servidor; los recursos se liberan
-automaticamente al finalizar la respuesta.
-Descarga de reportes descargables (PDF / Excel) para administradores.
-
-Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
-servidor, y se devuelven como respuesta de descarga directa.
 """
 # pyrefly: ignore [missing-import]
 from datetime import datetime, timezone

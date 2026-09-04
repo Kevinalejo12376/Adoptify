@@ -16,6 +16,14 @@ class SolicitudAdopcion(Base):
     email_contacto = Column(String(255))
     telefono_contacto = Column(String(30))
     ubicacion = Column(String(150))
+    # Datos completos y actualizados del solicitante (se toman del perfil del
+    # usuario en el momento de crear la solicitud) para que el refugio pueda
+    # contactar y conocer al adoptante sin depender del formulario del modal.
+    departamento = Column(String(150))
+    municipio = Column(String(150))
+    direccion = Column(String(200))
+    tipo_documento = Column(String(30))
+    numero_documento = Column(String(30))
     mensaje = Column(Text)
     notas = Column(Text)
     tiene_familia = Column(Boolean, nullable=False, default=False)
