@@ -1,4 +1,32 @@
-# Diagnóstico: conexión a Supabase (pooler) — "could not translate host name"
+# Conexión a Supabase (pooler)
+
+## ⚠️ Recomendación principal: usa el pooler TRANSACCIONAL (puerto 6543)
+
+El `DATABASE_URL` de [`backend/.env`](.env) debe apuntar al pooler **transaccional**
+(puerto **6543**), no al de **modo sesión** (puerto 5432):
+
+```
+postgresql://postgres.<ref>:<password>@aws-1-us-west-2.pooler.supabase.com:6543/postgres?sslmode=require
+```
+
+En modo sesión (5432), **cada conexión inactiva del pool de SQLAlchemy ocupa de
+forma permanente uno de los 15 slots** del pooler. Al sumarse los servicios
+internos de Supabase (PostgREST, pg_cron, pg_net, etc.) o varias instancias del
+backend (local + Vercel al mismo tiempo), el cupo se agota y aparece:
+
+```
+psycopg2.OperationalError) FATAL: (EMAXCONNSESSION) max clients reached in
+session mode - max clients are limited to pool_size: 15
+INFO: ... "GET /api/refugios/ HTTP/1.1" 503 Service Unavailable
+```
+
+En modo transaccional (6543) las conexiones se liberan al terminar cada
+transacción, por lo que el pool inactivo **ya no consume slots** y el error
+desaparece. Detalles del pool en [`app/db/database.py`](app/db/database.py).
+
+---
+
+## Diagnóstico: conexión a Supabase (pooler) — "could not translate host name"
 
 ## Síntoma
 
