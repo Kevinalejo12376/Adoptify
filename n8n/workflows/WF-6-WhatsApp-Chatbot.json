@@ -59,32 +59,40 @@
     },
     {
       "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.prompt }}",
-        "options": {}
+        "method": "POST",
+        "url": "={{ $env.IA_BASE_URL }}/chat/completions",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.IA_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $env.IA_MODEL, messages: [{ role: 'user', content: $json.prompt }], temperature: 0.4, max_tokens: 2048 }) }}",
+        "options": {
+          "timeout": 60000
+        }
       },
       "id": "5f3f8a1e-0000-4000-8000-000000000064",
       "name": "AI Agent",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.5,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [880, 0]
     },
     {
       "parameters": {
-        "model": "gemini-2.5-flash",
-        "options": {}
+        "jsCode": "// Extrae el texto generado de la respuesta chat/completions (OpenAI-compatible).\nconst r = $input.all()[0].json;\nconst m = (r.choices && r.choices[0] && r.choices[0].message) ? r.choices[0].message.content : '';\nlet output = (typeof m === 'string') ? m : '';\nif (!output && r.error) output = 'Error del modelo: ' + JSON.stringify(r.error);\nreturn [{ json: { output } }];"
       },
       "id": "5f3f8a1e-0000-4000-8000-000000000065",
-      "name": "Google Gemini",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "typeVersion": 1.1,
-      "position": [880, -180],
-      "credentials": {
-        "googlePalmApi": {
-          "id": "bTrjJ2WRiO4TRjnt",
-          "name": "Google Gemini(PaLM) Api account"
-        }
-      }
+      "name": "Extraer output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, -180]
     },
     {
       "parameters": {
@@ -213,13 +221,15 @@
       ]]
     },
     "AI Agent": {
-      "ai_languageModel": [[
+      "main": [[
         {
-          "node": "Google Gemini",
-          "type": "ai_languageModel",
+          "node": "Extraer output",
+          "type": "main",
           "index": 0
         }
-      ]],
+      ]]
+    },
+    "Extraer output": {
       "main": [[
         {
           "node": "Mapear respuesta",

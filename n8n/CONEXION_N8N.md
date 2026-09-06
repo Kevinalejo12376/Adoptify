@@ -9,7 +9,7 @@ todo se controla con variables de entorno, no hay código duplicado.
 ## 1. Resumen de la arquitectura
 
 ```
-Frontend React  ──>  Backend FastAPI  ──(webhook/cola)──>  n8n ──> Gemini
+Frontend React  ──>  Backend FastAPI  ──(webhook/cola)──>  n8n ──> IA (Qwen)
    (chatbot)            |                                    |
                         |  (correos, moderación, sugerencias, SLA)
                         v
@@ -18,9 +18,10 @@ Frontend React  ──>  Backend FastAPI  ──(webhook/cola)──>  n8n ─�
 
 - El **backend es la fuente de verdad** y el **dueño de la seguridad**.
 - **n8n orquesta Y llama a la IA directamente**: consume tareas de la cola
-  (`tareas_ia`), construye el prompt, llama a **Gemini** (nodo HTTP con tu
-  `GEMINI_API_KEY`), valida el JSON con nodos Code, entrega resultados y envía
-  correos. Nunca ejecuta SQL directo contra la base de datos.
+  (`tareas_ia`), construye el prompt, llama al **modelo de IA** (endpoint
+  OpenAI-compatible con `IA_API_KEY` / `IA_BASE_URL` / `IA_MODEL`), valida el
+  JSON con nodos Code, entrega resultados y envía correos. Nunca ejecuta SQL
+  directo contra la base de datos.
 - Las **notificaciones in-app** siguen en el backend; n8n solo hace la **entrega
   externa** (correo / WhatsApp / avisos a admins).
 
@@ -78,7 +79,8 @@ Supabase (SQL Editor) o en tu Postgres. Crea:
 - Si `N8N_ENABLED=true`, se disparan los webhooks de n8n (correos, moderación,
   clasificación, sugerencias, chatbot) y se crean tareas de IA.
 - **Chatbot:** si n8n no responde (o el workflow WF-3 falla), el backend tiene un
-  **fallback local**: llama a Gemini directamente para no dejar al usuario sin respuesta.
+  **fallback local**: llama al modelo de IA (`IA_API_KEY`) directamente para no
+  dejar al usuario sin respuesta.
 
 ---
 
@@ -95,7 +97,9 @@ TZ=America/Bogota
 
 N8N_WEBHOOK_SECRET=cambia_este_token_secreto   # MISMO que en backend/.env
 BACKEND_PUBLIC_URL=http://127.0.0.1:8000
-GEMINI_API_KEY=TU_CLAVE_GEMINI                  # la misma de backend/.env
+IA_API_KEY=TU_CLAVE_MODEL_STUDIO                 # la misma de backend/.env
+IA_BASE_URL=https://TU-WORKSPACE.maas.aliyuncs.com/compatible-mode/v1
+IA_MODEL=qwen-max
 SMTP_FROM=tu_correo@gmail.com
 ADMIN_EMAIL=admin@adoptify.com
 ```
@@ -126,9 +130,11 @@ En la interfaz de n8n (`http://localhost:5678`):
    Nómbrala `SMTP`. Asígnala a los nodos "Enviar correo SMTP" de WF-1 y WF-5
    (el JSON ya apunta a una credencial llamada `SMTP`; si la llamas distinto,
    remapea en el nodo).
-2. **Google Gemini**: NO necesitas credencial OAuth. Los workflows WF-2, WF-3 y
-   WF-4 llaman a Gemini **directamente** usando `GEMINI_API_KEY` desde `n8n/.env`
-   (la misma que usas en `backend/.env`). Solo reinicia n8n tras añadirla.
+2. **IA (Alibaba Cloud Model Studio)**: NO necesitas credencial en la UI de n8n.
+   Los workflows WF-2, WF-3, WF-4 y WF-6 llaman al modelo **directamente** por
+   HTTP a `/chat/completions` usando `IA_API_KEY`, `IA_BASE_URL` e `IA_MODEL`
+   desde `n8n/.env` (las mismas que en `backend/.env`). Solo reinicia n8n tras
+   añadirlas.
 
 ### 3.4 Verificar los webhooks (importante en local)
 
@@ -151,9 +157,9 @@ Para que el backend dispare a n8n, la URL de los webhooks debe ser alcanzable:
 | Workflow | Trigger | Qué hace |
 |---|---|---|
 | **WF-1 Notificaciones** | Webhook `enviar_correo` | Recibe el correo (to/asunto/html) del backend y lo envía por SMTP con n8n. Aquí puedes añadir luego WhatsApp (nodo Twilio/Meta) |
-| **WF-2 Moderación** | Schedule (cada 1 min) | Consume tareas `moderar_*` y `clasificar_*`, construye el prompt y llama a **Gemini directamente** en n8n; valida el JSON y entrega el resultado. Si un post es inapropiado, el backend lo oculta + notifica/emails al autor |
-| **WF-3 Chatbot** | Webhook `chatbot` | Recibe el mensaje, obtiene su contexto seguro (pedidos), construye el prompt y **Gemini genera la respuesta en n8n**; devuelve `{respuesta, accion}` al frontend |
-| **WF-4 Sugerencias IA** | Schedule (cada 2 min) | Consume tareas `sugerir_*` y `matching`, llama a **Gemini directamente** para descripciones/hashtags/recomendaciones y guarda el resultado |
+| **WF-2 Moderación** | Schedule (cada 1 min) | Consume tareas `moderar_*` y `clasificar_*`, construye el prompt y llama al **modelo de IA** en n8n; valida el JSON y entrega el resultado. Si un post es inapropiado, el backend lo oculta + notifica/emails al autor |
+| **WF-3 Chatbot** | Webhook `chatbot` | Recibe el mensaje, obtiene su contexto seguro (pedidos), construye el prompt y el **modelo de IA genera la respuesta en n8n**; devuelve `{respuesta, accion}` al frontend |
+| **WF-4 Sugerencias IA** | Schedule (cada 2 min) | Consume tareas `sugerir_*` y `matching`, llama al **modelo de IA** directamente para descripciones/hashtags/recomendaciones y guarda el resultado |
 | **WF-5 Operaciones** | Schedule (diario 08:00) | Consulta solicitudes de refugio pendientes >72h (SLA) y avisa a admins por correo |
 
 ---
@@ -177,7 +183,7 @@ Para que el backend dispare a n8n, la URL de los webhooks debe ser alcanzable:
 
 - **La IA sugiere/clasifica, no decide**: ocultar contenido solo cuando
   `decision=ocultar` (n8n pasa el resultado; el backend aplica la acción).
-- **Salida validada**: cada workflow valida el JSON que devuelve Gemini con un
+- **Salida validada**: cada workflow valida el JSON que devuelve el modelo con un
   nodo Code (extrae el texto, limpia markdown y hace `JSON.parse`) antes de
   entregar el resultado o responder al webhook.
 - **Cola en BD como fuente de verdad**: si n8n se cae, las tareas quedan

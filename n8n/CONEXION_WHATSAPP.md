@@ -25,7 +25,7 @@ son "dispara y olvida".
 ```
 Persona (WhatsApp) ──> [Proveedor: Twilio/Meta] ──webhook entrante──> WF-6 (n8n)
                                                                         │  identidad (backend /api/ia/whatsapp/contexto)
-                                                                        │  responde con Gemini
+                                                                        │  responde con IA (Qwen)
                                                                         ▼
                                                             Proveedor ──> WhatsApp (respuesta)
 
@@ -83,7 +83,7 @@ TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 META_WHATSAPP_TOKEN=
 META_WHATSAPP_PHONE_ID=
 META_WHATSAPP_VERSION=v20.0
-# (además de las ya existentes: N8N_WEBHOOK_SECRET, BACKEND_PUBLIC_URL, GEMINI_API_KEY...)
+# (además de las ya existentes: N8N_WEBHOOK_SECRET, BACKEND_PUBLIC_URL, IA_API_KEY, IA_BASE_URL, IA_MODEL...)
 ```
 
 ### En el backend (`backend/.env` o Vercel)
@@ -101,7 +101,8 @@ En n8n (local o Cloud): **Workflows → Import from File** y **activa**:
 - [`WF-7-WhatsApp-Notificaciones.json`](workflows/WF-7-WhatsApp-Notificaciones.json) → webhook `enviar_whatsapp`
 
 Ajusta en la UI si hace falta:
-- **WF-6** usa el **AI Agent + Google Gemini** (crea/asigna la credencial de Gemini como en WF-3).
+- **WF-6** llama al **modelo de IA** por HTTP a `/chat/completions` usando las variables
+  `IA_API_KEY` / `IA_BASE_URL` / `IA_MODEL` (no necesita credencial en la UI de n8n).
 - Los nodos HTTP a Twilio/Meta leen las variables de entorno del paso 6.
 
 ---

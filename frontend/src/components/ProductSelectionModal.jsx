@@ -172,7 +172,11 @@ export default function ProductSelectionModal({
                           {beneficios.map((beneficio, i) => (
                             <span
                               key={i}
+<<<<<<< Updated upstream
                               className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-500 dark:bg-dark-bg dark:text-dark-text-secondary"
+=======
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-dark-bg text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary"
+>>>>>>> Stashed changes
                             >
                               <Check size={10} className="text-emerald-500" />
                               {beneficio}
@@ -182,7 +186,11 @@ export default function ProductSelectionModal({
                       )}
 
                       {/* CTA */}
+<<<<<<< Updated upstream
                       <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold transition-all group-hover:gap-2 ${ctaColor}`}>
+=======
+                      <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all ${ctaColor}`}>
+>>>>>>> Stashed changes
                         {cta}
                         <ArrowRight size={14} />
                       </div>
