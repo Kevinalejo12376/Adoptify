@@ -106,9 +106,18 @@ def _autor_info(u: Usuario):
     - REFUGIO   -> el nombre visible es el NOMBRE DEL REFUGIO (no el representante).
     - TIENDA    -> el nombre visible es el NOMBRE DE LA TIENDA.
     - USUARIO/ADMIN -> se muestra el nombre personal del usuario.
+
+    Además de los datos visibles se expone el identificador del perfil público
+    al que debe navegar el botón "Ver perfil" según el tipo de autor
+    (``refugio_id`` para refugios, ``tienda_id`` para tiendas y ``tipo_autor``
+    con 'usuario' | 'refugio' | 'tienda').
     """
     if not u:
-        return {"autor": "Anonimo", "autor_rol": None, "autor_iniciales": "?", "autor_avatar": None}
+        return {
+            "autor": "Anonimo", "autor_rol": None, "autor_iniciales": "?",
+            "autor_avatar": None, "tipo_autor": "usuario",
+            "refugio_id": None, "tienda_id": None,
+        }
     rol = u.rol_codigo if u.rol else None
 
     # REFUGIO: usar el refugio asociado al usuario (relacion existente).
@@ -121,6 +130,9 @@ def _autor_info(u: Usuario):
                 "autor_rol": rol,
                 "autor_iniciales": "".join([p[0] for p in nombre.split()[:2]]).upper() or "?",
                 "autor_avatar": ref.logo_url,
+                "tipo_autor": "refugio",
+                "refugio_id": ref.id,
+                "tienda_id": None,
             }
 
     # TIENDA ALIADA: usar la tienda asociada al usuario (relacion existente).
@@ -133,6 +145,9 @@ def _autor_info(u: Usuario):
                 "autor_rol": rol,
                 "autor_iniciales": "".join([p[0] for p in nombre.split()[:2]]).upper() or "?",
                 "autor_avatar": tienda.logo_url,
+                "tipo_autor": "tienda",
+                "refugio_id": None,
+                "tienda_id": tienda.id,
             }
 
     # USUARIO NORMAL / ADMINISTRADOR: nombre personal del usuario.
@@ -142,6 +157,9 @@ def _autor_info(u: Usuario):
         "autor_rol": rol,
         "autor_iniciales": "".join([p[0] for p in nombre.split()[:2]]).upper() or "?",
         "autor_avatar": u.avatar_url,
+        "tipo_autor": "usuario",
+        "refugio_id": None,
+        "tienda_id": None,
     }
 
 
@@ -547,7 +565,15 @@ def dar_like_comentario(comentario_id: int, current_user: Usuario = Depends(get_
 
 @router.delete("/posts/{post_id}", status_code=status.HTTP_200_OK)
 def eliminar_post(post_id: int, current_user: Usuario = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Elimina una publicacion del foro (solo su autor o un administrador)."""
+    """Elimina UNA publicacion del foro de forma PERMANENTE (solo su autor o un
+    administrador).
+
+    Borra la fila de ``foro_posts`` de la base de datos. Sus datos relacionados
+    (imágenes, comentarios, likes de comentarios, reacciones y guardados) se
+    eliminan en cascada por las FK ``ON DELETE CASCADE`` del esquema, por lo que
+    la publicación NO vuelve a aparecer al recargar la página (ni en el feed de
+    la comunidad ni en "mis publicaciones").
+    """
     post = db.query(ForoPost).filter(ForoPost.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Publicacion no encontrada")
@@ -555,19 +581,8 @@ def eliminar_post(post_id: int, current_user: Usuario = Depends(get_current_user
     es_admin = rol in ("administrador", "administrador_principal")
     if post.autor_id != current_user.id and not es_admin:
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar esta publicacion")
-    # Soft delete: oculta la publicación y sus comentarios conservando
-    # reacciones, likes, guardados e imágenes (permite restaurar después).
-    ids_comentarios = [
-        r[0]
-        for r in db.query(ForoComentario.id).filter(ForoComentario.post_id == post_id).all()
-    ]
-    if ids_comentarios:
-        db.query(ForoComentario).filter(
-            ForoComentario.id.in_(ids_comentarios)
-        ).update({ForoComentario.activo: False}, synchronize_session=False)
 
-    post.activo = False
-    db.add(post)
+    db.delete(post)
     db.commit()
     return {"ok": True}
 

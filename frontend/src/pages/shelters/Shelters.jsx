@@ -151,7 +151,7 @@ export default function Shelters() {
           address: r.direccion || "",
           phone: r.telefono || "",
           email: r.email || "",
-          rating: 0,
+          rating: Number(r.rating) || 0,
           logo: r.logo_url || null,
           description: r.descripcion || "Refugio comprometido con el bienestar animal.",
         })));

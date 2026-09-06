@@ -88,7 +88,7 @@ export default function UserOrderDetail() {
   if (loading) {
     return (
       <div className="min-h-screen pt-24 pb-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className={`w-12 h-12 animate-spin mb-4 ${
               isDark ? "text-rose-400" : "text-rose-500"
@@ -107,7 +107,7 @@ export default function UserOrderDetail() {
   if (error) {
     return (
       <div className="min-h-screen pt-24 pb-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
           <div className="flex flex-col items-center justify-center py-20">
             <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${
               isDark ? "bg-red-500/10" : "bg-red-50"
@@ -162,7 +162,7 @@ export default function UserOrderDetail() {
 
   return (
     <div className="min-h-screen pt-24 pb-16">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         {/* Header */}
         <div className="mb-8">
           <BackButton

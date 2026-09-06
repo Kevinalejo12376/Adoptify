@@ -50,7 +50,8 @@ from app.models.pedido import Pedido, PedidoItem
 from app.models.pago import Pago
 from app.models.foro import ForoPost
 from app.models.interaccion import (
-    Configuracion, FavoritoMascota, FavoritoProducto, FavoritoRefugio, ForoComentario, ForoReaccion, Resena,
+    Configuracion, FavoritoMascota, FavoritoProducto, FavoritoRefugio, ForoComentario, ForoReaccion,
+    Resena, ResenaRefugio, ResenaTienda,
 )
 from app.models.verificacion import CodigoVerificacion
 from app.models.ia import TareaIA, ChatSesion, ChatMensaje
@@ -71,4 +72,5 @@ __all__ = [
     "SolicitudTienda", "SolicitudTiendaDocumento", "SolicitudTiendaHistorial",
     "EnlaceCreacionPassword",
     "TareaIA", "ChatSesion", "ChatMensaje",
+    "Resena", "ResenaRefugio", "ResenaTienda",
 ]

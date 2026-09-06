@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -112,4 +112,44 @@ class Resena(Base):
     creada_en = Column(DateTime(timezone=True), server_default=func.now())
     editada_en = Column(DateTime(timezone=True))
 
+    usuario = relationship("Usuario", lazy="joined")
+
+
+class ResenaRefugio(Base):
+    """Reseña/valoración de un REFUGIO hecha por un usuario (una por usuario)."""
+    __tablename__ = "resenas_refugios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    refugio_id = Column(Integer, ForeignKey("refugios.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"))
+    calificacion = Column(Integer, nullable=False)
+    comentario = Column(Text)
+    creada_en = Column(DateTime(timezone=True), server_default=func.now())
+    editada_en = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("refugio_id", "usuario_id", name="uq_resena_refugio_usuario"),
+    )
+
+    refugio = relationship("Refugio", lazy="joined")
+    usuario = relationship("Usuario", lazy="joined")
+
+
+class ResenaTienda(Base):
+    """Reseña/valoración de una TIENDA ALIADA hecha por un usuario (una por usuario)."""
+    __tablename__ = "resenas_tiendas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tienda_id = Column(Integer, ForeignKey("tiendas.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"))
+    calificacion = Column(Integer, nullable=False)
+    comentario = Column(Text)
+    creada_en = Column(DateTime(timezone=True), server_default=func.now())
+    editada_en = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("tienda_id", "usuario_id", name="uq_resena_tienda_usuario"),
+    )
+
+    tienda = relationship("Tienda", lazy="joined")
     usuario = relationship("Usuario", lazy="joined")

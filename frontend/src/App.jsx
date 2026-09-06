@@ -9,6 +9,7 @@ import AdminRoute from "./components/AdminRoute";
 import StoreRoute from "./components/StoreRoute";
 import StorePermisoRuta from "./components/StorePermisoRuta";
 import ShelterPermisoRuta from "./components/ShelterPermisoRuta";
+import CommunityRoute from "./components/CommunityRoute";
 import CompleteProfileModal from "./components/CompleteProfileModal";
 import ChatBot from "./components/ChatBot";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -265,7 +266,7 @@ function AppContent() {
           <Route path="/product/:id" element={<ProductProfile />} />
           <Route path="/cart" element={<UserRoute><Cart /></UserRoute>} />
           <Route path="/pago-resultado" element={<UserRoute><PagoResultado /></UserRoute>} />
-          <Route path="/forum" element={<UserRoute><Forum /></UserRoute>} />
+          <Route path="/forum" element={<CommunityRoute><Forum /></CommunityRoute>} />
           <Route path="/donar/:refugioId" element={<DonacionPago />} />
 
           {/* Fallback route */}

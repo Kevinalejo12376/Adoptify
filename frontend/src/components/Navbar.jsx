@@ -292,20 +292,11 @@ export default function Navbar() {
                     )}
                     {tienePermisoRefugio("foro") && (
                       <Link
-                        to="/refugio/foro"
-                        className={`nav-link text-sm font-medium transition-all flex items-center gap-1.5 px-3 py-2 rounded-xl ${getLinkClasses(isActive("/refugio/foro"))}`}
+                        to="/forum"
+                        className={`nav-link text-sm font-medium transition-all flex items-center gap-1.5 px-3 py-2 rounded-xl ${getLinkClasses(isActive("/forum"))}`}
                       >
                         <MessageSquare className="w-4 h-4" />
                         Foro
-                      </Link>
-                    )}
-                    {tienePermisoRefugio("donaciones") && (
-                      <Link
-                        to="/refugio/donaciones"
-                        className={`nav-link text-sm font-medium transition-all flex items-center gap-1.5 px-3 py-2 rounded-xl ${getLinkClasses(isActive("/refugio/donaciones"))}`}
-                      >
-                        <HandHeart className="w-4 h-4" />
-                        Donaciones
                       </Link>
                     )}
                   </>
@@ -536,6 +527,24 @@ export default function Navbar() {
                             >
                               <Heart className="w-4 h-4" />
                               <span>Historial de Solicitudes</span>
+                            </Link>
+                          )}
+                          {tienePermisoRefugio("donaciones") && (
+                            <Link
+                              to="/refugio/donaciones"
+                              onClick={() => setShowUserMenu(false)}
+                              className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                                isDark
+                                  ? (isActive("/refugio/donaciones")
+                                    ? "text-rose-400 font-semibold bg-gradient-to-r from-rose-300/15 via-amber-300/15 to-rose-300/15"
+                                    : "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-rose-300/15 hover:via-amber-300/15 hover:to-rose-300/15")
+                                  : (isActive("/refugio/donaciones")
+                                    ? "text-rose-600 font-semibold bg-rose-50"
+                                    : "text-gray-700 hover:bg-rose-50")
+                              }`}
+                            >
+                              <HandHeart className="w-4 h-4" />
+                              <span>Donaciones</span>
                             </Link>
                           )}
                           {tienePermisoRefugio("configuracion") && (
@@ -864,17 +873,10 @@ export default function Navbar() {
                     </Link>
                   )}
                   {tienePermisoRefugio("foro") && (
-                    <Link to="/refugio/foro" onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/refugio/foro"))}`}>
+                    <Link to="/forum" onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/forum"))}`}>
                       <MessageSquare className="w-4 h-4" />
                       Foro
-                    </Link>
-                  )}
-                  {tienePermisoRefugio("donaciones") && (
-                    <Link to="/refugio/donaciones" onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/refugio/donaciones"))}`}>
-                      <HandHeart className="w-4 h-4" />
-                      Donaciones
                     </Link>
                   )}
                   <div className={`pt-4 pb-2 border-t flex flex-col gap-2 ${isDark ? "border-white/5" : "border-gray-100"}`}>
@@ -888,6 +890,13 @@ export default function Navbar() {
                         className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/refugio/historial"))}`}>
                         <Heart className="w-4 h-4" />
                         Historial de Solicitudes
+                      </Link>
+                    )}
+                    {tienePermisoRefugio("donaciones") && (
+                      <Link to="/refugio/donaciones" onClick={() => setIsOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/refugio/donaciones"))}`}>
+                        <HandHeart className="w-4 h-4" />
+                        Donaciones
                       </Link>
                     )}
                     {tienePermisoRefugio("administrar_empleados") && (

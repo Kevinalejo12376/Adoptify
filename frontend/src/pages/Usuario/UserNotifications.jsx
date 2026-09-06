@@ -6,6 +6,7 @@ import {
   listarNotificaciones, contarNoLeidas,
   marcarLeida, marcarTodasLeidas, eliminarNotificacion
 } from "../../api/notificaciones";
+import { destinoNotificacion } from "../../utils/notificacionDestino";
 import {
   Bell, Heart, MessageSquare, PawPrint, ShoppingBag, AlertCircle,
   CheckCircle2, Clock, X, Info, Store, User, Shield,
@@ -147,9 +148,9 @@ export default function UserNotifications() {
     if (!notif.leida) {
       await handleMarkAsRead(notif.id);
     }
-    if (notif.enlace) {
-      navigate(notif.enlace);
-    }
+    // Redirige al apartado relacionado (rol Usuario).
+    const destino = destinoNotificacion(notif, { role: "usuario" });
+    if (destino) navigate(destino);
   };
 
   // Filtrar notificaciones
@@ -177,7 +178,7 @@ export default function UserNotifications() {
   if (loading) {
     return (
       <div className="min-h-screen pt-24 pb-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className={`w-12 h-12 animate-spin mb-4 ${
               isDark ? "text-rose-400" : "text-rose-500"
@@ -196,7 +197,7 @@ export default function UserNotifications() {
   if (error) {
     return (
       <div className="min-h-screen pt-24 pb-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
           <div className="flex flex-col items-center justify-center py-20">
             <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mb-6 ${
               isDark ? "bg-red-500/10" : "bg-red-50"
@@ -230,7 +231,7 @@ export default function UserNotifications() {
 
   return (
     <div className="min-h-screen pt-24 pb-16">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         <BackButton fallback="/dashboard" label="Volver" className="mb-4" />
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">

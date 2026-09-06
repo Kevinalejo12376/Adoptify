@@ -37,6 +37,7 @@ import { categoryIcons, categoryColors, categories } from "../../data/products";
 import { useCart } from "../../context/CartContext";
 import { useFavorites } from "../../context/FavoritesContext";
 import { obtenerTiendaPublica } from "../../api/productos";
+import ReviewsTienda from "../../components/ReviewsTienda";
 
 const SG = "from-rose-500 to-amber-500";
 
@@ -68,7 +69,7 @@ const mapTiendaPublica = (data) => ({
   slug: data.slug || "",
   description: data.descripcion || "",
   rating: Number(data.rating) || 0,
-  reviews: 0,
+  reviews: Number(data.resenas_count) || 0,
   logo: data.logo_url || null,
   color: "from-violet-500 to-purple-500",
   phone: data.telefono || "",
@@ -789,6 +790,19 @@ export default function StoreProfile() {
           </AnimatedSection>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════
+           REVIEWS SECTION (reseñas reales de la tienda)
+           ═══════════════════════════════════════════════ */}
+      <ReviewsTienda
+        tiendaId={store.id}
+        tiendaNombre={store.name}
+        onCambio={(d) =>
+          setStore((prev) =>
+            prev ? { ...prev, rating: d.rating, reviews: d.total } : prev
+          )
+        }
+      />
 
       {/* ═══════════════════════════════════════════════
            PRODUCT CATALOG

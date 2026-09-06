@@ -1,6 +1,6 @@
 # pyrefly: ignore [missing-import]
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, DateTime, ForeignKey, func, UniqueConstraint,
+    Column, Integer, String, Text, Numeric, Boolean, DateTime, ForeignKey, func, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from app.db.database import Base
@@ -26,6 +26,9 @@ class Refugio(Base):
     tiktok = Column(String(120))
     website = Column(String(150))
     anio_fundacion = Column(Integer)
+    # Calificación promedio del refugio según las reseñas de los usuarios
+    # (tabla resenas_refugios). Se recalcula al crear/editar/eliminar reseñas.
+    rating = Column(Numeric(2, 1), nullable=False, default=0)
     total_rescatados = Column(Integer, nullable=False, default=0)
     total_voluntarios = Column(Integer, nullable=False, default=0)
     verificado = Column(Boolean, nullable=False, default=False)

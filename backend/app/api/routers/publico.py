@@ -12,6 +12,7 @@ from app.models.refugio import Refugio
 from app.models.tienda import Tienda
 from app.models.producto import Producto
 from app.models.usuario import Usuario
+from app.models.interaccion import ResenaTienda
 from app.models.solicitud import SolicitudAdopcion
 from app.models.catalogos import EstadoMascota, EstadoSolicitud
 from app.schemas.serializers import serialize_producto
@@ -89,6 +90,9 @@ def tienda_publica(tienda_id: int, db: Session = Depends(get_db)):
         "horario_semana": tienda.horario_semana,
         "horario_fin_semana": tienda.horario_fin_semana,
         "rating": float(tienda.rating) if tienda.rating is not None else 0,
+        "resenas_count": (
+            db.query(ResenaTienda).filter(ResenaTienda.tienda_id == tienda.id).count()
+        ),
         "imagenes": [
             {
                 "id": img.id,

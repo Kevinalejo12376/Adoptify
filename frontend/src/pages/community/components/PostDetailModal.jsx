@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTheme } from "../../../context/ThemeContext";
 import { useAuth } from "../../../context/AuthContext";
 import {
@@ -8,6 +9,7 @@ import {
   Clock,
   User,
   Shield,
+  Store,
   MessageCircle,
   Share2,
   Edit3,
@@ -19,7 +21,7 @@ import ReactionsModal from "./ReactionsModal";
 import ShareMenu from "./ShareMenu";
 import ConfirmModal from "../../../components/ConfirmModal";
 import { obtenerReacciones } from "../../../api/foro";
-import { mapComentario, REACTION_TYPES, getTotalReactions } from "../forumData";
+import { mapComentario, enlacePerfilAutor, REACTION_TYPES, getTotalReactions } from "../forumData";
 
 const getInitials = (name) => {
   if (!name) return "?";
@@ -96,8 +98,11 @@ export default function PostDetailModal({
   if (!isOpen || !post) return null;
 
   const isShelter = post.accountType === "shelter";
+  const isStore = post.accountType === "store";
   const isOwnPost = post.autorId != null && user != null && post.autorId === user?.id;
   const shareUrl = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
+  // Botón de perfil según el tipo de autor: usuario (solo el propio), refugio o tienda.
+  const profileLink = enlacePerfilAutor(post, currentUserIdResolved);
 
   const openReactions = async () => {
     setShowReactions(true);
@@ -178,16 +183,22 @@ export default function PostDetailModal({
                 <img src={post.avatar} alt={post.author} className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${isShelter ? "from-orange-500 to-rose-500" : "from-amber-400 to-orange-500"} flex items-center justify-center text-white text-base font-bold shrink-0`}>
+              <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${isShelter ? "from-orange-500 to-rose-500" : isStore ? "from-violet-500 to-purple-600" : "from-amber-400 to-orange-500"} flex items-center justify-center text-white text-base font-bold shrink-0`}>
                 {getInitials(post.author)}
               </div>
             )}
             <div>
               <div className="flex items-center gap-2">
                 <h3 className={`font-semibold ${isDark ? "text-dark-text" : "text-gray-900"}`}>{post.author}</h3>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isShelter ? "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300" : "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"}`}>
-                  {isShelter ? <Shield className="w-3 h-3" /> : <User className="w-3 h-3" />}
-                  {isShelter ? "Refugio" : "Usuario"}
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                  isShelter
+                    ? "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300"
+                    : isStore
+                      ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
+                      : "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
+                }`}>
+                  {isShelter ? <Shield className="w-3 h-3" /> : isStore ? <Store className="w-3 h-3" /> : <User className="w-3 h-3" />}
+                  {isShelter ? "Refugio" : isStore ? "Tienda" : "Usuario"}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
@@ -197,6 +208,16 @@ export default function PostDetailModal({
                 </span>
                 <span className={`w-1 h-1 rounded-full ${isDark ? "bg-dark-border" : "bg-gray-300"}`}></span>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? "bg-rose-500/10 text-rose-300" : "bg-rose-50 text-rose-700"}`}>{post.category}</span>
+                {profileLink && (
+                  <Link
+                    to={profileLink.to}
+                    className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${isDark ? "bg-rose-500/10 text-rose-300 hover:bg-rose-500/20" : "bg-rose-50 text-rose-600 hover:bg-rose-100"}`}
+                    title={profileLink.label}
+                  >
+                    {isShelter ? <Shield className="w-3 h-3" /> : isStore ? <Store className="w-3 h-3" /> : <User className="w-3 h-3" />}
+                    {profileLink.label}
+                  </Link>
+                )}
               </div>
             </div>
           </div>

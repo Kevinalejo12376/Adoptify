@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import { useTheme } from "../../../context/ThemeContext";
 import { useAuth } from "../../../context/AuthContext";
 import ConfirmModal from "../../../components/ConfirmModal";
@@ -12,6 +13,7 @@ import {
   Clock,
   User,
   Shield,
+  Store,
   Pin,
   Trash2,
   Edit3,
@@ -22,11 +24,12 @@ import CommentsSection from "./CommentsSection";
 import ReactionsModal from "./ReactionsModal";
 import ShareMenu from "./ShareMenu";
 import { listarComentarios, obtenerPost, obtenerReacciones } from "../../../api/foro";
-import { mapComentario, REACTION_TYPES, getTotalReactions } from "../forumData";
+import { mapComentario, enlacePerfilAutor, REACTION_TYPES, getTotalReactions } from "../forumData";
 
 const accountTypes = {
   user: { label: "Usuario", icon: User, bg: "bg-blue-100 dark:bg-blue-500/15", text: "text-blue-700 dark:text-blue-300" },
   shelter: { label: "Refugio", icon: Shield, bg: "bg-orange-100 dark:bg-orange-500/15", text: "text-orange-700 dark:text-orange-300" },
+  store: { label: "Tienda", icon: Store, bg: "bg-violet-100 dark:bg-violet-500/15", text: "text-violet-700 dark:text-violet-300" },
 };
 
 const getInitials = (name) => {
@@ -125,9 +128,11 @@ export default function ForumPostCard({
   const [showShare, setShowShare] = useState(false);
 
   const isOwnPost = post.autorId != null && user != null && post.autorId === user?.id;
-  const isShelter = post.accountType === "shelter";
-  const accountInfo = isShelter ? accountTypes.shelter : accountTypes.user;
+  const accountInfo = accountTypes[post.accountType] || accountTypes.user;
   const AccountIcon = accountInfo.icon;
+  // Botón de perfil según el tipo de autor: usuario (solo el propio, vía /profile),
+  // refugio (Ver refugio) o tienda (Ver perfil de la tienda).
+  const profileLink = enlacePerfilAutor(post, currentUserId ?? user?.id);
 
   const shareUrl = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
 
@@ -306,10 +311,10 @@ export default function ForumPostCard({
                 >
                   {post.author}
                 </button>
-                {post.badges?.includes("verified") && (
-                  <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${isDark ? "bg-orange-500/15 text-orange-300" : "bg-orange-100 text-orange-700"}`}>
-                    <Shield className="w-3 h-3" />
-                    Refugio
+                {(post.accountType === "shelter" || post.accountType === "store") && (
+                  <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${accountInfo.bg} ${accountInfo.text}`}>
+                    <AccountIcon className="w-3 h-3" />
+                    {accountInfo.label}
                   </span>
                 )}
               </div>
@@ -327,6 +332,16 @@ export default function ForumPostCard({
                     <Share2 className="w-3 h-3" />
                     {post.compartidos}
                   </span>
+                )}
+                {profileLink && (
+                  <Link
+                    to={profileLink.to}
+                    className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${isDark ? "bg-rose-500/10 text-rose-300 hover:bg-rose-500/20" : "bg-rose-50 text-rose-600 hover:bg-rose-100"}`}
+                    title={profileLink.label}
+                  >
+                    <AccountIcon className="w-3 h-3" />
+                    {profileLink.label}
+                  </Link>
                 )}
               </div>
             </div>
