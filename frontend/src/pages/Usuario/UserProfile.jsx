@@ -1180,7 +1180,7 @@ export default function UserProfile() {
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-full shadow-2xl hover:shadow-rose-200 dark:hover:shadow-rose-900/30 transition-all duration-300 hover:scale-110 active:scale-95 z-50 flex items-center justify-center animate-bounce-subtle"
+          className="back-to-top fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-full shadow-2xl hover:shadow-rose-200 dark:hover:shadow-rose-900/30 transition-all duration-300 hover:scale-110 active:scale-95 z-50 flex items-center justify-center animate-bounce-subtle"
           aria-label="Volver arriba"
         >
           <ArrowUp className="w-6 h-6" />

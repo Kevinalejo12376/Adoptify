@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Heart, Menu, X, Sparkles, User, ChevronDown, LogOut, PawPrint, ShoppingBag, MessageSquare, Home as HomeIcon, Settings, Bell, ShoppingCart, Sun, Moon, Building2, ClipboardList, Store, LayoutDashboard, PackageSearch, Users, HandHeart } from "lucide-react";
+import { Heart, Menu, X, Sparkles, User, ChevronDown, LogIn, LogOut, PawPrint, ShoppingBag, MessageSquare, Home as HomeIcon, Settings, Bell, ShoppingCart, Sun, Moon, Building2, ClipboardList, Store, LayoutDashboard, PackageSearch, Users, HandHeart } from "lucide-react";
 import { ADOPTIFY_LOGO as logo } from "../constants/assets";
 import { useAuth } from "../context/AuthContext";
 import { useI18n } from "../context/I18nContext";
@@ -19,6 +19,7 @@ export default function Navbar() {
   const { theme, setTheme } = useTheme();
   const { cartCount } = useCart();
   const dropdownRef = useRef(null);
+  const navRef = useRef(null);
 
   const isDark = theme === "dark";
 
@@ -122,6 +123,18 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Cierra el menú móvil (usuario/refugio) al hacer clic fuera del navbar
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleClickOutside = (event) => {
+      if (navRef.current && !navRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
   // ─── Navegación dinámica por secciones (SOLO vista pública sin sesión) ───
   // Cuando el usuario NO está autenticado y está en la portada ("/"), se detecta
   // qué sección de la página es visible durante el scroll y se marca
@@ -223,20 +236,102 @@ export default function Navbar() {
     return isActivePath ? activeMobileClass : inactiveMobileClass;
   };
 
+  // ─── Barra de navegación inferior (móvil, rol Usuario / visitante) ───
+  const esUsuarioOPublico = !esShelter;
+
+  // Items principales (Inicio, Mascotas, Refugios, Marketplace, Foro)
+  const bottomNavItems = isAuthenticated
+    ? [
+        { id: "inicio", label: t("nav.inicio"), Icon: HomeIcon, to: "/dashboard", active: isInicioActive() },
+        { id: "animals", label: t("nav.animales"), Icon: PawPrint, to: "/animals", active: isActive("/animals") },
+        { id: "shelters", label: t("nav.refugios"), Icon: Building2, to: "/shelters", active: isActive("/shelters") },
+        { id: "store", label: t("nav.tienda"), Icon: ShoppingBag, to: "/store", active: isActive("/store") },
+        { id: "forum", label: t("nav.foro"), Icon: MessageSquare, to: "/forum", active: isActive("/forum") },
+      ]
+    : [
+        { id: "inicio", label: t("nav.inicio"), Icon: HomeIcon, scroll: scrollToTop, active: activeNavSection === "inicio" },
+        { id: "animals", label: t("nav.animales"), Icon: PawPrint, scroll: () => scrollToSection("animals"), active: activeNavSection === "animals" },
+        { id: "shelters", label: t("nav.refugios"), Icon: Building2, scroll: () => scrollToSection("shelters"), active: activeNavSection === "shelters" },
+        { id: "store", label: t("nav.tienda"), Icon: ShoppingBag, scroll: () => scrollToSection("store"), active: activeNavSection === "store" },
+        { id: "forum", label: t("nav.foro"), Icon: MessageSquare, scroll: () => scrollToSection("forum"), active: activeNavSection === "forum" },
+      ];
+
+  // Renderiza cada ítem de la barra inferior (estilo WhatsApp)
+  const renderBottomNavItem = ({ id, label, Icon, to, scroll, active }) => {
+    const inner = (
+      <>
+        <span
+          className={`flex items-center justify-center h-6 min-w-[44px] rounded-full px-1 transition-colors duration-200 ${
+            active
+              ? isDark
+                ? "bg-orange-500/15"
+                : "bg-orange-100"
+              : ""
+          }`}
+        >
+          <Icon
+            className={`h-[22px] w-[22px] ${active ? (isDark ? "text-orange-400" : "text-orange-600") : isDark ? "text-gray-400" : "text-gray-500"}`}
+            strokeWidth={active ? 2.2 : 1.9}
+          />
+        </span>
+        <span
+          className={`text-[10px] font-semibold leading-none transition-colors duration-200 ${
+            active
+              ? isDark
+                ? "text-orange-400"
+                : "text-orange-600"
+              : isDark
+                ? "text-gray-400"
+                : "text-gray-500"
+          }`}
+        >
+          {label}
+        </span>
+      </>
+    );
+
+    if (to) {
+      return (
+        <Link
+          key={id}
+          to={to}
+          onClick={() => setIsOpen(false)}
+          className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1 py-1.5"
+        >
+          {inner}
+        </Link>
+      );
+    }
+    return (
+      <button
+        key={id}
+        type="button"
+        onClick={() => {
+          setIsOpen(false);
+          scroll?.();
+        }}
+        className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1 py-1.5 cursor-pointer"
+      >
+        {inner}
+      </button>
+    );
+  };
+
   return (
-    <nav className={`main-nav fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+    <>
+    <nav ref={navRef} className={`main-nav fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
       isDark
         ? "bg-[#16181D] border-b border-white/5 shadow-lg shadow-black/20"
         : "bg-white/70 backdrop-blur-md border-b border-gray-100 shadow-sm"
     }`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
           <Link to="/" className="flex items-center group">
             <img
               src={logo}
               alt="Adoptify Logo"
-              className="h-16 w-auto transition-transform group-hover:scale-120"
+              className="h-8 w-auto transition-transform group-hover:scale-120 sm:h-11 md:h-16"
             />
           </Link>
 
@@ -785,18 +880,93 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className={`inline-flex items-center justify-center p-2 rounded-lg transition-colors ${
-                isDark
-                  ? "text-gray-300 hover:text-blue-400 hover:bg-white/5 focus:ring-2 focus:ring-inset focus:ring-blue-500"
-                  : "text-gray-400 hover:text-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-              }`}
-            >
-              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
+          {/* Mobile actions (reemplaza el menú de tres rayas) */}
+          <div className="md:hidden flex items-center gap-0.5 sm:gap-1">
+            {esShelter ? (
+              /* Refugio: conserva su menú de tres rayas */
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                aria-label={isOpen ? "Cerrar menú" : "Abrir menú"}
+                className={`inline-flex items-center justify-center p-2 rounded-lg transition-colors ${
+                  isDark
+                    ? "text-gray-300 hover:text-blue-400 hover:bg-white/5"
+                    : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                }`}
+              >
+                {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+            ) : isAuthenticated ? (
+              /* Usuario: notificaciones + carrito + avatar (foto de perfil) */
+              <>
+                <div className="relative" onClick={() => setIsOpen(false)}>
+                  <NotificationPanel />
+                </div>
+                <Link
+                  to="/cart"
+                  aria-label="Carrito de compras"
+                  onClick={() => setIsOpen(false)}
+                  className={`relative p-1.5 rounded-xl transition-colors ${
+                    isDark
+                      ? "text-gray-300 hover:text-orange-400 hover:bg-white/5"
+                      : "text-gray-600 hover:text-orange-600 hover:bg-orange-50"
+                  }`}
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-lg shadow-rose-500/30">
+                      {cartCount > 99 ? "99+" : cartCount}
+                    </span>
+                  )}
+                </Link>
+                <button
+                  onClick={() => setIsOpen(!isOpen)}
+                  aria-label={t("nav.mi_cuenta")}
+                  aria-expanded={isOpen}
+                  className={`relative ml-0.5 w-9 h-9 rounded-full ring-2 transition-all overflow-hidden shrink-0 cursor-pointer ${
+                    isOpen
+                      ? isDark
+                        ? "ring-orange-400"
+                        : "ring-orange-500"
+                      : isDark
+                        ? "ring-white/10 hover:ring-orange-400"
+                        : "ring-orange-100 hover:ring-orange-300"
+                  }`}
+                >
+                  <span className={`block w-full h-full rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white text-xs font-bold`}>
+                    {getUserAvatar() ? (
+                      <img src={getUserAvatar()} alt={user?.name || "avatar"} className="w-full h-full object-cover" />
+                    ) : (
+                      getUserInitials()
+                    )}
+                  </span>
+                </button>
+              </>
+            ) : (
+              /* Visitante: acceso visible (Iniciar sesión / Registrarse) */
+              <div className="flex items-center gap-1.5">
+                <Link
+                  to="/login"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    isDark
+                      ? "text-gray-100 bg-white/10 hover:bg-white/15 border border-white/10"
+                      : "text-gray-700 bg-white hover:text-orange-600 border border-gray-200 shadow-sm"
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  {t("nav.iniciar_sesion")}
+                </Link>
+                <Link
+                  to="/register"
+                  className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap text-white transition-all cursor-pointer bg-gradient-to-r ${
+                    isDark
+                      ? "from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-md shadow-orange-500/20"
+                      : "from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 shadow-md shadow-rose-200/60"
+                  }`}
+                >
+                  {t("nav.registrarse")}
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -818,8 +988,12 @@ export default function Navbar() {
               <div className={`flex items-center gap-3 px-3 py-3 mb-2 border-b ${
                 isDark ? "border-white/5" : "border-gray-100"
               }`}>
-                <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
-                  {getUserInitials()}
+                <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden`}>
+                  {getUserAvatar() ? (
+                    <img src={getUserAvatar()} alt={user?.name || "avatar"} className="w-full h-full object-cover" />
+                  ) : (
+                    getUserInitials()
+                  )}
                 </div>
                 <div className="min-w-0">
                   <p className={`font-semibold text-sm truncate ${isDark ? "text-white" : "text-gray-900"}`}>{user?.name || "Usuario"}</p>
@@ -924,46 +1098,9 @@ export default function Navbar() {
                   </div>
                 </>
               ) : (
-                /* === MOBILE NAV PARA USUARIO NORMAL === */
+                /* === MOBILE MENÚ DE CUENTA PARA USUARIO (disparado por el avatar) === */
                 <>
-                  <Link to="/dashboard" onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isInicioActive())}`}>
-                    <HomeIcon className="w-4 h-4" />
-                    {t("nav.inicio")}
-                  </Link>
-                  <Link to="/animals" onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/animals"))}`}>
-                    <PawPrint className="w-4 h-4" />
-                    {t("nav.animales")}
-                  </Link>
-                  <Link to="/shelters" onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/shelters"))}`}>
-                    <HomeIcon className="w-4 h-4" />
-                    {t("nav.refugios")}
-                  </Link>
-                  <Link to="/store" onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/store"))}`}>
-                    <ShoppingBag className="w-4 h-4" />
-                    {t("nav.tienda")}
-                  </Link>
-                  <Link to="/forum" onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${getMobileClasses(isActive("/forum"))}`}>
-                    <MessageSquare className="w-4 h-4" />
-                    {t("nav.foro")}
-                  </Link>
                   <div className={`pt-4 pb-2 border-t flex flex-col gap-2 ${isDark ? "border-white/5" : "border-gray-100"}`}>
-                    <div className="flex items-center gap-3 px-3 py-2">
-                      <button className={`relative p-2 rounded-xl transition-colors ${isDark ? "text-gray-300 hover:text-orange-400 hover:bg-white/5" : "text-gray-600 hover:text-orange-600 hover:bg-orange-50"}`}>
-                        <Bell className="w-5 h-5" />
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
-                      </button>
-                      <Link to="/cart" onClick={() => setIsOpen(false)} className={`relative p-2 rounded-xl transition-colors ${isDark ? "text-gray-300 hover:text-orange-400 hover:bg-white/5" : "text-gray-600 hover:text-orange-600 hover:bg-orange-50"}`}>
-                        <ShoppingCart className="w-5 h-5" />
-                        {cartCount > 0 && (
-                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-xs rounded-full flex items-center justify-center">{cartCount > 99 ? "99+" : cartCount}</span>
-                        )}
-                      </Link>
-                    </div>
                     <Link to="/profile" onClick={() => setIsOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 text-base font-medium rounded-lg ${getMobileClasses(isActive("/profile"))}`}>
                       <User className="w-4 h-4" />
@@ -1069,5 +1206,19 @@ export default function Navbar() {
         </div>
       </div>
     </nav>
+
+    {/* ─── Barra de navegación inferior fija en móvil (estilo WhatsApp) ─── */}
+    {esUsuarioOPublico && (
+      <div className="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-40">
+        <div className={`flex items-stretch justify-around border-t px-1 pt-1.5 pb-1.5 ${
+          isDark
+            ? "bg-[#16181D] border-white/10 shadow-[0_-4px_20px_rgba(0,0,0,0.35)]"
+            : "bg-white/95 backdrop-blur-xl border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
+        }`}>
+          {bottomNavItems.map((item) => renderBottomNavItem(item))}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

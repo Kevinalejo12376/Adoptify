@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, ArrowUp, MessageSquare, ThumbsUp, Share2, User, Check, Loader2, AlertCircle } from "lucide-react";
-import ScrollToTop from "../../components/ScrollToTop";
+import { Heart, PawPrint, Users, Search, ShoppingBag, MessageCircle, Home as HomeIcon, HandHeart, ArrowRight, ChevronRight, ShoppingCart, Star, MessageSquare, ThumbsUp, Share2, User, Check, Loader2, AlertCircle } from "lucide-react";
 import AnimatedSection from "../../components/AnimatedSection";
 import AutoFadingImage from "../../components/AutoFadingImage";
 import { useAuth } from "../../context/AuthContext";
@@ -720,59 +719,85 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6 font-display">Temas Recientes</h3>
-            {topicsLoading ? (
-              <div className="flex flex-col items-center justify-center py-10">
-                <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
-                <p className="text-gray-500">Cargando temas recientes…</p>
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            {/* Encabezado */}
+            <div className="flex items-center gap-3 px-5 sm:px-6 pt-6 pb-4 border-b border-gray-100">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-100 to-amber-100 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-5 h-5 text-rose-500" />
               </div>
-            ) : topicsError ? (
-              <div className="text-center py-10">
-                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-                <p className="text-gray-500">{topicsError}</p>
+              <div className="min-w-0">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 font-display leading-tight">Temas Recientes</h3>
+                <p className="text-[13px] text-gray-500 mt-0.5">Las conversaciones más recientes de la comunidad</p>
               </div>
-            ) : topics.length === 0 ? (
-              <div className="text-center py-10">
-                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No hay temas recientes</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {topics.map((topic) => (
-                  <Link key={topic.id} to={user ? "/forum" : "/login"} className="block p-4 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 hover:from-rose-100 hover:to-amber-100 transition-all duration-300 cursor-pointer">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900 mb-1">{topic.titulo}</h4>
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <span className="flex items-center gap-1">
-                            <User className="w-4 h-4" />
-                            {topic.autor}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MessageSquare className="w-4 h-4" />
-                            {topic.comentarios_count} respuestas
-                          </span>
-                          <span>{tiempoRelativo(topic.creado_en)}</span>
+            </div>
+
+            <div className="px-3 sm:px-4 py-2">
+              {topicsLoading ? (
+                <div className="flex flex-col items-center justify-center py-10">
+                  <Loader2 className="w-8 h-8 animate-spin text-rose-500 mb-3" />
+                  <p className="text-sm text-gray-500">Cargando temas recientes…</p>
+                </div>
+              ) : topicsError ? (
+                <div className="text-center py-10">
+                  <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">{topicsError}</p>
+                </div>
+              ) : topics.length === 0 ? (
+                <div className="text-center py-10">
+                  <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">No hay temas recientes</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-dark-border">
+                  {topics.map((topic) => (
+                    <li key={topic.id}>
+                      <Link
+                        to={user ? "/forum" : "/login"}
+                        className="group flex items-start justify-between gap-4 rounded-xl px-2 sm:px-3 py-4 transition-colors hover:bg-rose-50 cursor-pointer"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-[15px] font-semibold text-gray-900 leading-snug group-hover:text-rose-600 transition-colors line-clamp-2">
+                            {topic.titulo}
+                          </h4>
+                          <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-gray-500">
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
+                              <span className="w-6 h-6 rounded-full bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center shrink-0">
+                                <User className="w-3.5 h-3.5 text-rose-500" />
+                              </span>
+                              <span className="font-medium text-gray-700 truncate">{topic.autor}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              {topic.comentarios_count} {topic.comentarios_count === 1 ? "respuesta" : "respuestas"}
+                            </span>
+                            <span className="text-gray-400 whitespace-nowrap">{tiempoRelativo(topic.creado_en)}</span>
+                          </div>
                         </div>
-                      </div>
-                      <ArrowRight className="w-5 h-5 text-rose-500 mt-2" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-            <Link to="/login" className="mt-6 inline-flex items-center px-6 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all">
-              Ver todos los temas
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Link>
+                        <span className="mt-0.5 shrink-0 w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 transition-colors group-hover:border-rose-300 group-hover:text-rose-500">
+                          <ArrowRight className="w-4 h-4" />
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Pie con acción */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 sm:px-6 py-4 border-t border-gray-100 bg-gray-50/60">
+              <p className="text-[13px] text-gray-500">¿Quieres participar en la conversación?</p>
+              <Link
+                to="/login"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 shadow-md shadow-rose-200/60"
+              >
+                Ver todos los temas
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
       </AnimatedSection>
-
-      {/* Scroll to Top Button */}
-      <ScrollToTop />
 
       {/* Modal "¿Cómo deseas ayudar?" (donaciones) */}
       <DonarModal isOpen={showDonarModal} onClose={() => setShowDonarModal(false)} />

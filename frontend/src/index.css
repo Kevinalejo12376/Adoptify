@@ -15,6 +15,14 @@
   --color-dark-text-secondary: #9a9ab0;
 }
 
+/* Evita desbordes y el "agrandado" automático del texto en navegadores
+   móviles (iOS/Android inflan el texto o ajustan el zoom al cargar). */
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-sans);
   overflow-x: hidden;
@@ -255,6 +263,65 @@ body {
 }
 .dark .main-nav .nav-link.text-orange-400 .lucide {
   color: #fb923c !important; /* orange-400 */
+}
+
+/* ================================================================
+   BARRA DE NAVEGACIÓN INFERIOR MÓVIL (rol Usuario / visitante)
+   ----------------------------------------------------------------
+   - Fija en la parte inferior, visible solo en móvil (< md).
+   - Respeta el área segura (iPhone) mediante env(safe-area-inset-bottom).
+   - Mientras existe (.mobile-bottom-nav) se reserva espacio al final
+     del <body> para que el contenido (footer incluido) no quede oculto
+     tras la barra fija.
+   ================================================================ */
+.mobile-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Colores de la barra inferior en modo oscuro (los .dark del .main-nav
+   NO aplican porque la barra vive fuera del <nav>) */
+.dark .mobile-bottom-nav > div {
+  background-color: #16181D !important;
+  border-top-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+@media (max-width: 767px) {
+  /* Fuerza que el ancho del sitio sea exactamente el de la pantalla en
+     móvil y que ningún elemento genere desborde horizontal (esto evita que
+     el navegador abra la página “agrandada” y haya que alejar el zoom). */
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  /* Deja espacio al final de la página para el contenido que scrollea
+     por debajo de la barra inferior fija */
+  body:has(.mobile-bottom-nav) {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  /* Botón flotante del chatbot: se eleva para no tapar la barra inferior */
+  body:has(.mobile-bottom-nav) .chat-fab {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Panel del chatbot: se eleva para quedar por encima del botón flotante */
+  body:has(.mobile-bottom-nav) .chat-panel {
+    bottom: calc(10.5rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Botón "Volver arriba": queda por encima del chatbot y nunca oculto */
+  body:has(.mobile-bottom-nav) .back-to-top {
+    bottom: calc(11.5rem + env(safe-area-inset-bottom)) !important;
+    z-index: 70 !important;
+  }
 }
 
 /* Footer dark mode overrides */
