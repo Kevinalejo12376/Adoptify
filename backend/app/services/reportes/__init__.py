@@ -21,8 +21,6 @@ from app.services.reportes.generadores import (
     ReporteUsuarios,
 )
 
-# Codigo -> clase generadora
-REGISTRO_REPORTES = {
 __all__ = [
     "Columna",
     "GeneradorReporte",
@@ -56,7 +54,6 @@ REGISTRO_REPORTES: Dict[str, Type[GeneradorReporte]] = {
 
 
 def obtener_generador(codigo: str) -> Optional[GeneradorReporte]:
-<<<<<<< HEAD
     """Instancia el generador de reporte correspondiente al codigo (o None)."""
     clase = REGISTRO_REPORTES.get(codigo)
     if clase is None:
@@ -74,9 +71,6 @@ def listar_reportes():
         }
         for g in REGISTRO_REPORTES.values()
     ]
-=======
-    """Instancia el generador de reporte correspondiente al codigo.
->>>>>>> 28d0014 (solucion de errores vercel)
 
 
 
@@ -84,23 +78,11 @@ def listar_reportes() -> list:
     """Devuelve los tipos de reporte disponibles (para el selector de la UI)."""
     return [
         {
-            "codigo": g.codigo,
-            "titulo": g.titulo,
-            "descripcion": g.descripcion,
+            "codigo": cls.codigo,
+            "titulo": cls.titulo,
+            "descripcion": cls.descripcion,
         }
-        for g in REGISTRO_REPORTES.values()
-    ]
-
-
-def listar_reportes():
-    """Devuelve la lista de reportes disponibles (para el selector de la UI)."""
-    return [
-        {
-            "codigo": g.codigo,
-            "titulo": g.titulo,
-            "descripcion": g.descripcion,
-        }
-        for g in REGISTRO_REPORTES.values()
+        for cls in REGISTRO_REPORTES.values()
     ]
 
 

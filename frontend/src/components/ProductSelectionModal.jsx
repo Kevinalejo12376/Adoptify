@@ -172,128 +172,6 @@ export default function ProductSelectionModal({
                           {beneficios.map((beneficio, i) => (
                             <span
                               key={i}
-<<<<<<< Updated upstream
-                              className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-500 dark:bg-dark-bg dark:text-dark-text-secondary"
-=======
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-dark-bg text-[10px] font-medium text-gray-500 dark:text-dark-text-secondary"
->>>>>>> Stashed changes
-                            >
-                              <Check size={10} className="text-emerald-500" />
-                              {beneficio}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-500/20">
-                <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-      {/* Contenedor centrado con scroll vertical en pantallas pequeñas */}
-      <div className="relative flex min-h-full items-start justify-center p-3 sm:items-center sm:p-6">
-        {/* Modal */}
-        <div className="relative my-auto flex w-full max-w-2xl max-h-[92vh] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white dark:bg-dark-card shadow-2xl border border-gray-100 dark:border-dark-border animate-scale-in">
-          {/* Header */}
-          <div className="relative flex-shrink-0 border-b border-gray-100 dark:border-dark-border bg-gradient-to-r from-rose-50/70 via-orange-50/40 to-amber-50/70 dark:from-rose-500/5 dark:via-transparent dark:to-amber-500/5 p-4 sm:p-6">
-            <button
-              onClick={onClose}
-              aria-label="Cerrar"
-              className="absolute right-3 top-3 sm:right-4 sm:top-4 z-10 p-2 rounded-xl bg-white dark:bg-dark-card text-gray-400 hover:text-gray-600 dark:hover:text-dark-text shadow-sm border border-gray-100 dark:border-dark-border transition-colors"
-            >
-              <X size={18} />
-            </button>
-            <div className="flex items-center gap-3 sm:gap-4 pr-10 sm:pr-12">
-              <div className="flex h-10 w-10 sm:h-12 sm:w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 shadow-lg shadow-rose-500/25">
-                <Plus size={20} className="text-white sm:h-[22px] sm:w-[22px]" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="font-display text-base sm:text-xl font-bold text-gray-900 dark:text-dark-text">
-                  Agregar nuevo producto
-                </h2>
-                <p className="mt-0.5 text-xs sm:text-sm text-gray-500 dark:text-dark-text-secondary">
-                  Elige cómo quieres registrar tu producto en la tienda.
-                </p>
-              </div>
-            </div>
-          </div>
-
-                <div className="flex items-start gap-3 sm:gap-4 pr-12">
-                  {/* Ícono */}
-                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br ${gradiente} flex items-center justify-center flex-shrink-0 shadow-lg ${sombra} group-hover:scale-105 group-hover:rotate-3 transition-transform duration-200`}>
-                    <Icon size={26} className="text-white" />
-                  </div>
-
-          {/* Opción 3: Agregar manualmente */}
-          <button
-            onClick={handleManualAdd}
-            className="w-full text-left group bg-white dark:bg-dark-card border-2 border-gray-200 dark:border-dark-border rounded-2xl p-4 sm:p-5 hover:border-rose-300 dark:hover:border-rose-500/30 hover:shadow-lg transition-all"
-          >
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center flex-shrink-0 shadow-lg">
-                <Edit3 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-bold text-gray-900 dark:text-dark-text">
-                  Agregar manualmente
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-dark-text-secondary mt-1">
-                  Completa tú mismo todos los datos del producto en el formulario de creación.
-                </p>
-                <div className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-rose-600 dark:text-rose-400 group-hover:gap-2 transition-all">
-                  Ir al formulario
-                  <ArrowRight size={14} />
-                </div>
-              </div>
-            </div>
-          </button>
-          {/* Body */}
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:p-5">
-            {opciones.map((opcion) => {
-              const {
-                Icon, gradiente, sombra, hover, ctaColor, recomendada,
-                beneficios, cta, onClick, titulo, descripcion,
-              } = opcion;
-
-              return (
-                <button
-                  key={opcion.key}
-                  onClick={onClick}
-                  className={`relative w-full overflow-hidden rounded-2xl border-2 bg-white p-3.5 text-left transition-all duration-200 group hover:-translate-y-0.5 hover:shadow-lg dark:bg-dark-card sm:p-5 ${hover} ${
-                    recomendada
-                      ? "border-rose-200 bg-gradient-to-br from-rose-50/70 to-amber-50/50 dark:border-rose-500/30 dark:from-rose-500/10 dark:to-amber-500/5"
-                      : "border-gray-200 dark:border-dark-border"
-                  }`}
-                >
-                  {/* Badge recomendada */}
-                  {recomendada && (
-                    <div className="absolute right-2.5 top-2.5 sm:right-3 sm:top-3">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-2 py-1 text-[9px] font-bold text-white shadow-sm sm:px-2.5 sm:text-[10px]">
-                        <Zap size={10} />
-                        RECOMENDADO
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-start gap-3 pr-8 sm:gap-4 sm:pr-12">
-                    {/* Ícono */}
-                    <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg transition-transform duration-200 group-hover:rotate-3 group-hover:scale-105 sm:h-14 sm:w-14 ${gradiente} ${sombra}`}>
-                      <Icon size={24} className="text-white sm:h-[26px] sm:w-[26px]" />
-                    </div>
-
-                    {/* Contenido */}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-dark-text">
-                        {titulo}
-                      </h3>
-                      <p className="mt-0.5 text-xs sm:text-sm text-gray-600 dark:text-dark-text-secondary">
-                        {descripcion}
-                      </p>
-
-                      {/* Beneficios */}
-                      {beneficios.length > 0 && (
-                        <div className="mt-2.5 flex flex-wrap gap-1.5">
-                          {beneficios.map((beneficio, i) => (
-                            <span
-                              key={i}
                               className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-500 dark:bg-dark-bg dark:text-dark-text-secondary"
                             >
                               <Check size={10} className="text-emerald-500" />
@@ -304,11 +182,7 @@ export default function ProductSelectionModal({
                       )}
 
                       {/* CTA */}
-<<<<<<< Updated upstream
                       <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold transition-all group-hover:gap-2 ${ctaColor}`}>
-=======
-                      <div className={`mt-3 inline-flex items-center gap-1 text-sm font-semibold group-hover:gap-2 transition-all ${ctaColor}`}>
->>>>>>> Stashed changes
                         {cta}
                         <ArrowRight size={14} />
                       </div>
