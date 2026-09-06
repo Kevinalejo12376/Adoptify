@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft, Save, X, Plus, Loader2, CheckCircle2, AlertCircle,
@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { obtenerMiProducto, crearMiProducto, crearMiProductoConImagenes, actualizarMiProducto } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
-import { formatPrice, normalizarPrecioInput, parsePrecio, parsearPrecioInput, precioConDescuento } from "../../utils/price";
+import { normalizarPrecioInput, parsearPrecioInput } from "../../utils/price";
 import { readAndValidateImage, fileToBase64, MAX_IMAGE_SIZE_MB } from "../../utils/imageUtils";
 import ImageEditorModal from "../../components/ImageEditorModal";
 
@@ -406,6 +406,7 @@ export default function StoreEditProduct() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [nuevoColor, setNuevoColor] = useState("");
+  const [nuevaTalla, setNuevaTalla] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   // Imágenes del producto (base64 para crear / URLs para editar).
@@ -431,7 +432,7 @@ export default function StoreEditProduct() {
         const parsed = JSON.parse(sessionData);
         datosIA = parsed.resultadoIA?.datos || parsed.resultadoIA;
         fotosIA = parsed.fotos || [];
-      } catch (e) { /* ignorar */ }
+      } catch { /* ignorar */ }
     }
 
     if (datosIA) {
@@ -512,7 +513,7 @@ export default function StoreEditProduct() {
         if (p.imagenes && p.imagenes.length > 0) {
           setImagenes(p.imagenes.map((img) => img.url));
         }
-      } catch (e) { /* producto no encontrado */ }
+      } catch { /* producto no encontrado */ }
       finally { setLoading(false); }
     })();
   }, [id, isNew]);
