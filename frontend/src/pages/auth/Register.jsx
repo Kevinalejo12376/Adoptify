@@ -949,13 +949,19 @@ export default function Register() {
                       </label>
                       <label htmlFor="terms" className="ml-2.5 text-sm text-gray-500 leading-relaxed cursor-pointer select-none">
                         Acepto los{" "}
-                        <a href="#" className="font-semibold text-[#FF4D7A] hover:text-[#e04060] hover:underline underline-offset-2 transition-colors">
+                        <Link
+                          to="/terminos-y-condiciones"
+                          className="font-semibold text-[#FF4D7A] hover:text-[#e04060] hover:underline underline-offset-2 transition-colors"
+                        >
                           Términos y Condiciones
-                        </a>{" "}
+                        </Link>{" "}
                         y la{" "}
-                        <a href="#" className="font-semibold text-[#FF4D7A] hover:text-[#e04060] hover:underline underline-offset-2 transition-colors">
+                        <Link
+                          to="/politica-privacidad"
+                          className="font-semibold text-[#FF4D7A] hover:text-[#e04060] hover:underline underline-offset-2 transition-colors"
+                        >
                           Política de Privacidad
-                        </a>
+                        </Link>
                       </label>
                     </div>
                     {errors.terms && (

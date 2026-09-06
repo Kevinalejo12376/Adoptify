@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search, Bell, Sun, Moon, ChevronDown, Settings, Store, Users, User, ShieldCheck,
-  MessageSquare,
+  MessageSquare, Shield, FileText,
 } from "lucide-react";
 import { useTheme } from "../../../context/ThemeContext";
 import { useStore } from "../../../context/StoreContext";
@@ -94,6 +94,18 @@ export default function StoreHeader({
   if (tienePermiso && tienePermiso("configuracion.acceder")) {
     opcionesPerfil.push({ label: "Configuración", icon: Settings, path: "/tienda/configuracion" });
   }
+  // Páginas legales globales accesibles para el rol Tienda (independientes del
+  // layout del panel; se muestran sin sidebar/navbar).
+  opcionesPerfil.push({
+    label: "Política de Privacidad",
+    icon: Shield,
+    path: "/politica-privacidad",
+  });
+  opcionesPerfil.push({
+    label: "Términos y Condiciones",
+    icon: FileText,
+    path: "/terminos-y-condiciones",
+  });
 
   // Nombre del usuario autenticado (no el del dueño de la tienda) y su rol,
   // ambos resueltos dinámicamente desde el contexto que alimenta la base de datos.
