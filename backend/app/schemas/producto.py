@@ -56,25 +56,6 @@ class ProductoCreate(BaseModel):
             raise ValueError("Debes seleccionar una categoría")
         return v
 
-    @field_validator("nombre")
-    @classmethod
-    def _validar_nombre(cls, v):
-        return validar_nombre_comercial(v, "nombre")
-
-    @field_validator("precio")
-    @classmethod
-    def _validar_precio(cls, v):
-        if v is None or v <= 0:
-            raise ValueError("El precio debe ser mayor a 0")
-        return v
-
-    @field_validator("categoria")
-    @classmethod
-    def _validar_categoria(cls, v):
-        if v is None or str(v).strip() == "":
-            raise ValueError("Debes seleccionar una categoría")
-        return v
-
 
 class AnalisisRequest(BaseModel):
     """Schema para solicitar análisis de producto con IA. Solo necesita imágenes."""
@@ -112,31 +93,6 @@ class ProductoUpdate(BaseModel):
     # Lista COMPLETA de URLs de imágenes (Cloudinary). Si se envía, reemplaza
     # las imágenes del producto (agrega nuevas y elimina las que no estén).
     imagenes: Optional[List[str]] = None
-
-    @field_validator("nombre")
-    @classmethod
-    def _validar_nombre(cls, v):
-        return validar_nombre_comercial(v, "nombre")
-
-    @field_validator("precio")
-    @classmethod
-    def _validar_precio(cls, v):
-        if v is not None and v <= 0:
-            raise ValueError("El precio debe ser mayor a 0")
-        return v
-
-
-class ProductoStockUpdate(BaseModel):
-    """Actualiza únicamente el stock de un producto. No admite valores negativos."""
-    stock: int = Field(..., ge=0)
-
-
-class ImagenProductoResponse(BaseModel):
-    """Imagen de un producto (secure_url de Cloudinary)."""
-    id: int
-    url: str
-    etiqueta: Optional[str] = None
-    orden: int = 0
 
     @field_validator("nombre")
     @classmethod
