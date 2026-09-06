@@ -1,10 +1,6 @@
 // "Donaciones recibidas" — sección del rol Refugio.
 // Muestra las donaciones (monetarias y físicas) dirigidas al refugio y permite
-// ver su detalle. El refugio confirma la recepción:
-//   ✅ Confirmar recepción  -> estado "recibida"
-//   ❌ No recibí esta donación -> estado "no_recibida" (exige un motivo)
-// Antes de cambiar el estado se muestra una confirmación. Al confirmar, la BD
-// se actualiza de inmediato y la vista se refleja sin recargar la página.
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import BackButton from "../../components/BackButton";
 import { useTheme } from "../../context/ThemeContext";

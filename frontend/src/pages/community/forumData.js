@@ -68,8 +68,33 @@ export function mapComentario(c, currentUserId) {
   };
 }
 
+// Devuelve el enlace al perfil del autor de una publicación según su tipo.
+// - Refugio → /shelter/:refugioId   ("Ver refugio")
+// - Tienda  → /store-profile/:tiendaId ("Ver perfil de la tienda")
+// - Usuario → /profile SOLO si es el autor actual (no existe perfil público
+//   de otro usuario); en cualquier otro caso devuelve null (se oculta).
+export function enlacePerfilAutor(post, currentUserId) {
+  if (!post) return null;
+  if (post.accountType === "shelter" && post.refugioId != null) {
+    return { to: `/shelter/${post.refugioId}`, label: "Ver refugio", type: "shelter" };
+  }
+  if (post.accountType === "store" && post.tiendaId != null) {
+    return { to: `/store-profile/${post.tiendaId}`, label: "Ver perfil de la tienda", type: "store" };
+  }
+  if (post.accountType === "user") {
+    const esPropio = post.autorId != null && currentUserId != null && post.autorId === currentUserId;
+    if (esPropio) return { to: "/profile", label: "Ir al perfil", type: "user" };
+  }
+  return null;
+}
+
 // Normaliza una publicacion del backend a la forma que consumen los componentes.
 export function mapPost(p) {
+  // Tipo de cuenta del autor: 'user' | 'shelter' | 'store'.
+  // El backend expone `tipo_autor` ('usuario' | 'refugio' | 'tienda') y los ids
+  // de perfil público (refugio_id / tienda_id) para el botón "Ver perfil".
+  const tipoAutor =
+    p.tipo_autor === "refugio" ? "shelter" : p.tipo_autor === "tienda" ? "store" : "user";
   return {
     id: p.id,
     autorId: p.autor_id,
@@ -77,8 +102,10 @@ export function mapPost(p) {
     title: p.titulo,
     author: p.autor,
     avatar: p.autor_avatar || "",
-    accountType: p.autor_rol === "refugio" ? "shelter" : "user",
-    badges: p.autor_rol === "refugio" ? ["verified"] : [],
+    accountType: tipoAutor,
+    badges: p.tipo_autor === "refugio" || p.tipo_autor === "tienda" ? ["verified"] : [],
+    refugioId: p.refugio_id ?? null,
+    tiendaId: p.tienda_id ?? null,
     time: tiempoRelativo(p.creado_en),
     category: p.categoria || "General",
     content: p.contenido || "",

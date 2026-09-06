@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, CheckCheck, Loader2 } from "lucide-react";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../../api/notificaciones";
+import { destinoNotificacion } from "../../utils/notificacionDestino";
 
 export default function StoreNotifications() {
   const navigate = useNavigate();
@@ -36,7 +37,9 @@ export default function StoreNotifications() {
       setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, leida: true } : n)));
       try { await marcarLeida(notif.id); } catch (e) { /* noop */ }
     }
-    if (notif.enlace) navigate(notif.enlace);
+    // Redirige al apartado correcto del panel de la Tienda.
+    const destino = destinoNotificacion(notif, { role: "tienda_aliada" });
+    if (destino) navigate(destino);
   };
 
   return (
