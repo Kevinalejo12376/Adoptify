@@ -30,8 +30,8 @@ export default function ShelterProfile() {
   const [errors, setErrors] = useState({});
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const [profile, setProfile] = useState({
     name: user?.name || "",
@@ -95,57 +95,58 @@ export default function ShelterProfile() {
   }, []);
 
   // ─── Image handlers ───────────────────────────────────────────────
-  // Sube cada imagen seleccionada a Cloudinary (tipo 'refugio_galeria') y la
-  // agrega a la galería en edición. Solo la secure_url se guarda en la BD.
-  // La imagen se comprime en el cliente ANTES de subirla para evitar que el
-  // request base64 supere los límites del servidor (causa típica del error
-  // "No se pudo conectar con el servidor").
+  // Las fotos seleccionadas se agregan como PENDIENTES con preview local
+  // (blob). Todavía NO se suben a Cloudinary: el flujo completo (subir a
+  // Cloudinary -> guardar secure_url en la BD -> refrescar la galería) se
+  // ejecuta al pulsar "Guardar fotos" (handleSaveGallery). Esto evita crear
+  // imágenes huérfanas en Cloudinary si el usuario cancela sin guardar.
+  // Cada imagen se comprime en el cliente para que el request base64 no
+  // supere los límites del servidor.
   const handleImageUpload = async (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
     const remaining = MAX_SHELTER_IMAGES - (editForm.images?.length || 0);
     const toAdd = files.slice(0, remaining);
-    if (toAdd.length === 0) return;
-    setUploading(true);
-    setSubmitError("");
-    let subidas = 0;
-    let ultimoError = "";
-    try {
-      for (const file of toAdd) {
-        try {
-          const { base64 } = await comprimirImagen(file);
-          const subida = await subirImagen("refugio_galeria", base64, `refugio_${Date.now()}`);
-          setEditForm((prev) => ({
-            ...prev,
-            images: [
-              ...(prev.images || []),
-              {
-                id: null, // aún no está en la BD
-                key: `nuevo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-                url: subida.url,
-              },
-            ],
-          }));
-          subidas++;
-        } catch (err) {
-          // Se guarda el último error para informarlo al usuario en vez de
-          // fallar en silencio (así se entiende por qué no se subió).
-          ultimoError = err?.message || "No se pudo subir la imagen. Intenta con otra foto.";
-        }
-      }
-      if (subidas === 0 && ultimoError) {
-        setSubmitError(ultimoError);
-      }
-    } finally {
-      setUploading(false);
+    if (toAdd.length === 0) {
       if (e.target) e.target.value = "";
+      return;
     }
+    setSubmitError("");
+    setSuccessMsg("");
+    let ultimoError = "";
+    for (const file of toAdd) {
+      try {
+        const { base64 } = await comprimirImagen(file);
+        const preview = URL.createObjectURL(file);
+        setEditForm((prev) => ({
+          ...prev,
+          images: [
+            ...(prev.images || []),
+            {
+              id: null, // aún no está en la BD
+              key: `nuevo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              url: preview,
+              base64, // se usa al pulsar "Guardar fotos" para subir a Cloudinary
+              pendiente: true,
+            },
+          ],
+        }));
+      } catch (err) {
+        ultimoError = err?.message || "No se pudo procesar la imagen. Intenta con otra foto.";
+      }
+    }
+    if (ultimoError) setSubmitError(ultimoError);
+    if (e.target) e.target.value = "";
   };
 
   const removeImage = (imgKey) => {
-    setEditForm((prev) => ({
-      ...prev,
-      images: (prev.images || []).filter((img) => img.key !== imgKey),
-    }));
+    setEditForm((prev) => {
+      const img = (prev.images || []).find((i) => i.key === imgKey);
+      if (img?.url && img.url.startsWith("blob:")) URL.revokeObjectURL(img.url);
+      return {
+        ...prev,
+        images: (prev.images || []).filter((img) => img.key !== imgKey),
+      };
+    });
   };
 
   const moveImage = (index, direction) => {
@@ -349,8 +350,29 @@ export default function ShelterProfile() {
     }
   };
 
-  // ─── Save handler ─────────────────────────────────────────────────
-  const handleSave = async () => {
+  // ─── Mapea la respuesta del backend a la forma que usa la vista ─────
+  const perfilDesdeRespuesta = (perfil) => ({
+    name: perfil.nombre || "",
+    email: perfil.email || "",
+    phone: perfil.telefono || "",
+    location: perfil.ubicacion || "",
+    departamento: perfil.departamento || "",
+    address: perfil.direccion || "",
+    description: perfil.descripcion || "",
+    facebook: perfil.facebook || "",
+    instagram: perfil.instagram || "",
+    founded: perfil.anio_fundacion ? String(perfil.anio_fundacion) : "",
+    website: "",
+    images: (perfil.imagenes || []).map((img) => ({
+      id: img.id,
+      key: `db_${img.id}`,
+      url: img.url,
+    })),
+    logo: perfil.logo_url || null,
+  });
+
+  // ─── Guardar SÓLO la información (pestaña Información) ─────────────
+  const handleSaveInfo = async () => {
     const nuevosErrores = {
       email: validarEmail(editForm.email, { obligatorio: false }),
       phone: validarTelefono10(editForm.phone),
@@ -366,7 +388,10 @@ export default function ShelterProfile() {
     }
     setSaving(true);
     setSubmitError("");
+    setSuccessMsg("");
     try {
+      // Solo envía los campos de información: NO toca la galería (eso se hace
+      // con "Guardar fotos" en la pestaña Galería).
       await actualizarPerfil({
         nombre: limpiarEspacios(editForm.name),
         telefono: editForm.phone ? editForm.phone.trim() : null,
@@ -377,13 +402,21 @@ export default function ShelterProfile() {
         facebook: editForm.facebook,
         instagram: editForm.instagram,
         email: normalizarEmail(editForm.email) || undefined,
-        // Galería completa en orden: {id} para ya guardadas, {url} para nuevas.
-        imagenes: (editForm.images || []).map((img) => ({
-          id: img.id ?? null,
-          url: img.url,
-        })),
       });
-      setProfile({ ...editForm });
+      // Actualiza la vista con la información guardada (sin tocar las fotos,
+      // por si aún hay fotos pendientes de guardar en la galería).
+      setProfile((prev) => ({
+        ...prev,
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone,
+        location: editForm.location,
+        departamento: editForm.departamento,
+        address: editForm.address,
+        description: editForm.description,
+        facebook: editForm.facebook,
+        instagram: editForm.instagram,
+      }));
       login({
         ...user,
         name: editForm.name,
@@ -391,12 +424,61 @@ export default function ShelterProfile() {
         address: editForm.address,
         description: editForm.description,
       });
-      setIsEditing(false);
-      setSubmitError("");
+      setSuccessMsg("Información guardada correctamente.");
     } catch (e) {
-      // Muestra el motivo real (validación del backend, permisos, red) para que
-      // el usuario sepa por qué no se guardó en lugar de fallar en silencio.
-      setSubmitError(e?.message || "No se pudieron guardar los cambios. Intenta de nuevo.");
+      setSubmitError(e?.message || "No se pudo guardar la información. Intenta de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ─── Guardar SÓLO las fotos (pestaña Galería) ─────────────────────
+  // Realiza todo el flujo: 1) sube a Cloudinary las fotos pendientes,
+  // 2) guarda las secure_url en la base de datos y 3) refresca la galería
+  // (la del refugio y la de "Ver perfil" del público) con los ids reales.
+  const handleSaveGallery = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSubmitError("");
+    setSuccessMsg("");
+    try {
+      // 1) Subir a Cloudinary solo las pendientes; las ya guardadas conservan
+      // su url persistida en la BD.
+      const imagenes = [];
+      for (const img of editForm.images || []) {
+        if (img.id != null) {
+          imagenes.push({ id: img.id, url: img.url });
+          continue;
+        }
+        if (!img.base64) {
+          throw new Error("Una de las fotos no se pudo procesar. Vuelve a seleccionarla.");
+        }
+        const subida = await subirImagen("refugio_galeria", img.base64, `refugio_${Date.now()}`);
+        if (img.url && img.url.startsWith("blob:")) URL.revokeObjectURL(img.url);
+        imagenes.push({ id: null, url: subida.url });
+      }
+      // 2) Guardar las URLs en la base de datos.
+      await actualizarPerfil({ imagenes });
+      // 3) Refrescar desde el servidor para obtener los ids reales y mostrar
+      // la galería actualizada.
+      const perfil = await miPerfil();
+      if (perfil) {
+        const p = perfilDesdeRespuesta(perfil);
+        setProfile(p);
+        setEditForm((prev) => ({ ...prev, ...p, images: p.images }));
+      } else {
+        setProfile((prev) => ({
+          ...prev,
+          images: imagenes.map((im, i) => ({
+            id: im.id,
+            key: im.id ? `db_${im.id}` : `tmp_${i}`,
+            url: im.url,
+          })),
+        }));
+      }
+      setSuccessMsg("Fotos guardadas correctamente.");
+    } catch (e) {
+      setSubmitError(e?.message || "No se pudieron guardar las fotos. Intenta de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -517,6 +599,7 @@ export default function ShelterProfile() {
                       // Cancelar: solo sale del modo edición.
                       setIsEditing(false);
                       setSubmitError("");
+                      setSuccessMsg("");
                     } else {
                       // Editar Perfil: acceso directo a la sección Información
                       // + activación del modo edición (campos editables).
@@ -524,6 +607,7 @@ export default function ShelterProfile() {
                       setActiveTab("informacion");
                       setIsEditing(true);
                       setSubmitError("");
+                      setSuccessMsg("");
                     }
                   }}
                   className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 shadow-lg ${
@@ -782,11 +866,11 @@ export default function ShelterProfile() {
                 {isEditing && (
                   <button
                     onClick={() => galleryInputRef.current?.click()}
-                    disabled={uploading}
+                    disabled={saving}
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:scale-105 transition-all duration-300 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    {uploading ? "Subiendo..." : "Agregar Fotos"}
+                    <Upload className="w-4 h-4" />
+                    Agregar Fotos
                   </button>
                 )}
                 <input
@@ -857,7 +941,7 @@ export default function ShelterProfile() {
                       <button
                         type="button"
                         onClick={() => galleryInputRef.current?.click()}
-                        disabled={uploading}
+                        disabled={saving}
                         className="aspect-square rounded-xl border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-rose-400 dark:hover:border-rose-500 flex flex-col items-center justify-center gap-2 transition-all hover:bg-rose-50/50 dark:hover:bg-rose-500/5 group"
                       >
                         <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-dark-border flex items-center justify-center group-hover:bg-rose-100 dark:group-hover:bg-rose-500/20 transition-colors">
@@ -918,8 +1002,11 @@ export default function ShelterProfile() {
                       </p>
                       <button
                         onClick={() => {
+                          setEditForm({ ...profile });
                           setIsEditing(true);
                           setActiveTab("galeria");
+                          setSubmitError("");
+                          setSuccessMsg("");
                         }}
                         className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-semibold rounded-xl hover:shadow-lg transition-all duration-300"
                       >
@@ -1215,8 +1302,10 @@ export default function ShelterProfile() {
           </div>
         )}
 
-        {/* ─── SAVE BUTTON (visible when editing on any tab) ──────── */}
-        {isEditing && (
+        {/* ─── BOTONES DE GUARDADO SEPARADOS POR PESTAÑA ─────────────
+            - Información → "Guardar información" (handleSaveInfo)
+            - Galería     → "Guardar fotos" (handleSaveGallery)        */}
+        {isEditing && (activeTab === "informacion" || activeTab === "galeria") && (
           <div className="mt-8 flex flex-col items-center gap-4 animate-fade-in-up">
             {submitError && (
               <div className="max-w-lg w-full px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm font-medium flex items-start gap-2">
@@ -1224,17 +1313,27 @@ export default function ShelterProfile() {
                 <span>{submitError}</span>
               </div>
             )}
+            {successMsg && (
+              <div className="max-w-lg w-full px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-sm font-medium flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{successMsg}</span>
+              </div>
+            )}
             <button
-              onClick={handleSave}
+              onClick={activeTab === "galeria" ? handleSaveGallery : handleSaveInfo}
               disabled={saving}
               className="px-10 py-4 bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold rounded-2xl shadow-xl shadow-rose-200/50 dark:shadow-rose-500/20 hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center gap-3 text-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
+              ) : activeTab === "galeria" ? (
+                <Image className="w-6 h-6" />
               ) : (
                 <CheckCircle className="w-6 h-6" />
               )}
-              {saving ? "Guardando..." : "Guardar Cambios"}
+              {saving
+                ? activeTab === "galeria" ? "Guardando fotos..." : "Guardando información..."
+                : activeTab === "galeria" ? "Guardar fotos" : "Guardar información"}
             </button>
           </div>
         )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import BackButton from "../../components/BackButton";
+import { useAuth } from "../../context/AuthContext";
 import {
   ArrowLeft, MapPin, Phone, Mail, Star, Heart, Clock, PawPrint,
   CheckCircle, Store, Eye, X, ShoppingBag, ChevronRight, ChevronLeft,
@@ -10,6 +11,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useFavorites } from "../../context/FavoritesContext";
 import { obtenerRefugio } from "../../api/refugios";
+import { listarResenasRefugio, crearResenaRefugio } from "../../api/resenas";
 import DonarModal from "../../components/DonarModal";
 import { listarMascotas } from "../../api/mascotas";
 import { formatPrice } from "../../utils/price";
@@ -33,6 +35,7 @@ const categoryColors = {
 export default function ShelterDetails() {
   const { id } = useParams();
   const { isShelterFavorite, toggleShelterFavorite } = useFavorites();
+  const { user } = useAuth();
   const [isFavorite, setIsFavorite] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -40,6 +43,13 @@ export default function ShelterDetails() {
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
+
+  // Reseñas reales del refugio (GET /api/refugios/{id}/resenas)
+  const [reviews, setReviews] = useState([]);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewSuccess, setReviewSuccess] = useState("");
 
   // Datos reales del refugio
   const [shelter, setShelter] = useState(null);
@@ -52,8 +62,6 @@ export default function ShelterDetails() {
   const [showDonarModal, setShowDonarModal] = useState(false);
   const [refugioDatos, setRefugioDatos] = useState(null);
 
-  // Las resenas aun no tienen endpoint publico -> lista vacia por ahora
-  const reviews = [];
   const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 3);
 
   // Get initials for review avatars
@@ -63,6 +71,68 @@ export default function ShelterDetails() {
       return (names[0][0] + names[1][0]).toUpperCase();
     }
     return names[0][0].toUpperCase();
+  };
+
+  // ─── Reseñas del refugio ─────────────────────────────────────────
+  const cargarResenas = async (refugioId) => {
+    try {
+      const data = await listarResenasRefugio(refugioId);
+      return Array.isArray(data)
+        ? data.map((r) => ({
+            id: r.id,
+            user: r.usuario_nombre || "Usuario",
+            rating: r.calificacion,
+            comment: r.comentario || "",
+            date: r.creada_en
+              ? new Date(r.creada_en).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })
+              : "",
+          }))
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Carga las reseñas y actualiza el rating/cantidad mostrados.
+  const cargarYActualizarResenas = async () => {
+    const lista = await cargarResenas(id);
+    setReviews(lista);
+    setShelter((prev) => {
+      if (!prev) return prev;
+      const prom = lista.length
+        ? (lista.reduce((a, b) => a + Number(b.rating || 0), 0) / lista.length).toFixed(1)
+        : 0;
+      return { ...prev, rating: Number(prom) || 0, totalRatings: lista.length };
+    });
+  };
+
+  // Envía la calificación + reseña del usuario (upsert en el backend).
+  const handleSubmitResena = async () => {
+    setReviewError("");
+    setReviewSuccess("");
+    if (!user) {
+      setReviewError("Inicia sesión para dejar tu calificación y reseña.");
+      return;
+    }
+    if (!userRating || userRating < 1) {
+      setReviewError("Selecciona entre 1 y 5 estrellas.");
+      return;
+    }
+    setReviewSubmitting(true);
+    try {
+      await crearResenaRefugio(id, {
+        calificacion: userRating,
+        comentario: reviewComment.trim() || null,
+      });
+      setReviewComment("");
+      setUserRating(0);
+      setReviewSuccess("¡Gracias por calificar este refugio!");
+      await cargarYActualizarResenas();
+    } catch (e) {
+      setReviewError(e?.message || "No se pudo enviar la reseña. Intenta de nuevo.");
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -92,7 +162,7 @@ export default function ShelterDetails() {
           // Estado real de la tienda del refugio desde la BD (tiendas.estado
           // / refugios.tienda_habilitada). Controla el botón "Ver Tienda".
           tiendaHabilitada: Boolean(r.tienda_habilitada),
-          rating: 0,
+          rating: Number(r.rating) || 0,
           totalRatings: 0,
           logo: r.logo_url || null,
           description: r.descripcion || "Refugio comprometido con el bienestar animal.",
@@ -107,6 +177,8 @@ export default function ShelterDetails() {
           gallery: (r.imagenes || []).map((img) => ({ id: img.id, image: img.url })),
           pets,
         });
+        // Carga las reseñas reales del refugio (y actualiza rating/cantidad).
+        cargarYActualizarResenas().catch(() => {});
       } catch (e) {
         if (activo) setNotFound(true);
       } finally {
@@ -306,30 +378,71 @@ export default function ShelterDetails() {
                   </div>
                   Califica este refugio
                 </h3>
+
+                {!user && (
+                  <p className="text-sm text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mb-3">
+                    <Link to="/login" className="font-semibold underline">Inicia sesión</Link> para dejar tu calificación y reseña.
+                  </p>
+                )}
+
                 <div className="flex items-center gap-1 mb-3">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
+                      type="button"
                       onClick={() => setUserRating(star)}
                       onMouseEnter={() => setHoverRating(star)}
                       onMouseLeave={() => setHoverRating(0)}
                       className="transition-all duration-200 hover:scale-125 active:scale-90"
+                      disabled={!user}
                     >
                       <Star
                         className={`w-7 h-7 ${
                           (hoverRating || userRating) >= star
                             ? "text-amber-500 fill-amber-500 drop-shadow-sm"
                             : "text-gray-300 hover:text-amber-300"
-                        } transition-all duration-200`}
+                        } transition-all duration-200 ${!user ? "opacity-50" : ""}`}
                       />
                     </button>
                   ))}
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 mb-3">
                   {userRating > 0
                     ? `Tu calificación: ${userRating} estrella${userRating !== 1 ? "s" : ""}`
                     : "Haz clic en las estrellas para calificar"}
                 </p>
+
+                {user && (
+                  <>
+                    <textarea
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      rows={3}
+                      maxLength={1000}
+                      placeholder="Cuéntale a otros cómo fue tu experiencia con este refugio (opcional)..."
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none bg-white text-gray-900 mb-3"
+                    />
+                    {reviewError && (
+                      <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">{reviewError}</p>
+                    )}
+                    {reviewSuccess && (
+                      <p className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2 mb-3">{reviewSuccess}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSubmitResena}
+                      disabled={!userRating || reviewSubmitting}
+                      className="w-full px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 text-white text-sm font-bold rounded-xl hover:from-rose-600 hover:to-amber-600 transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                    >
+                      {reviewSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Star className="w-4 h-4 fill-white" />
+                      )}
+                      {reviewSubmitting ? "Enviando..." : "Publicar reseña"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -630,41 +743,51 @@ export default function ShelterDetails() {
                 </span>
               </h3>
 
-              <div className="space-y-3">
-                {displayedReviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="bg-gradient-to-br from-gray-50 to-white dark:from-dark-bg dark:to-dark-card rounded-xl p-3.5 border border-gray-100 dark:border-dark-border hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
-                  >
-                    <div className="flex items-start gap-3">
-                      {/* Avatar */}
-                      <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-rose-400 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {getReviewInitials(review.user)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{review.user}</p>
-                          <span className="text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{review.date}</span>
+              {reviews.length === 0 ? (
+                <div className="text-center py-8">
+                  <Star className="w-8 h-8 text-gray-200 dark:text-dark-border mx-auto mb-2" />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Aún no hay reseñas para este refugio.</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Sé el primero en dejar tu calificación.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {displayedReviews.map((review) => (
+                    <div
+                      key={review.id}
+                      className="bg-gradient-to-br from-gray-50 to-white dark:from-dark-bg dark:to-dark-card rounded-xl p-3.5 border border-gray-100 dark:border-dark-border hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Avatar */}
+                        <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-rose-400 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {getReviewInitials(review.user)}
                         </div>
-                        {/* Stars */}
-                        <div className="flex items-center gap-0.5 mt-0.5 mb-1.5">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`w-3 h-3 ${
-                                star <= review.rating
-                                  ? "text-amber-500 fill-amber-500"
-                                  : "text-gray-300 dark:text-gray-600"
-                              }`}
-                            />
-                          ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{review.user}</p>
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">{review.date}</span>
+                          </div>
+                          {/* Stars */}
+                          <div className="flex items-center gap-0.5 mt-0.5 mb-1.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-3 h-3 ${
+                                  star <= review.rating
+                                    ? "text-amber-500 fill-amber-500"
+                                    : "text-gray-300 dark:text-gray-600"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                            {review.comment || "Sin comentario."}
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{review.comment}</p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {reviews.length > 3 && (
                 <button

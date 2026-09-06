@@ -7,6 +7,7 @@ import {
 import { useTheme } from "../../../context/ThemeContext";
 import { useStore } from "../../../context/StoreContext";
 import { listarNotificaciones, marcarLeida } from "../../../api/notificaciones";
+import { destinoNotificacion } from "../../../utils/notificacionDestino";
 import ProfileDropdown from "../../../components/ProfileDropdown";
 
 export default function StoreHeader({
@@ -61,7 +62,9 @@ export default function StoreHeader({
       try { await marcarLeida(notif.id); } catch { /* noop */ }
       setNotifs((prev) => prev.map((n) => (n.id === notif.id ? { ...n, leida: true } : n)));
     }
-    if (notif.enlace) navigate(notif.enlace);
+    // Redirige al apartado correcto del panel de la Tienda.
+    const destino = destinoNotificacion(notif, { role: "tienda_aliada" });
+    if (destino) navigate(destino);
     setNotifOpen(false);
   };
 

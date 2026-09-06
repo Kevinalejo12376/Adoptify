@@ -75,6 +75,8 @@ class RefugioResponse(RefugioBase):
     slug: Optional[str] = None
     tienda_habilitada: bool = False
     anio_fundacion: Optional[int] = None
+    # Calificación promedio según las reseñas de los usuarios (resenas_refugios).
+    rating: float = 0
     logo_url: Optional[str] = None
     imagenes: List[RefugioImagenResponse] = []
 

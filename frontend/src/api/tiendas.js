@@ -1,5 +1,4 @@
-// Llamadas a la API para gestión de Tiendas Aliadas (admin)
-import { apiFetch } from "./client";
+// Llamadas a la API para gestión de Tiendas Aliadas (adminimport { apiFetch } from "./client";
 
 const base = "/api/admin/tiendas";
 

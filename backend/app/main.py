@@ -19,7 +19,7 @@ from app.api.routers import (
     notificaciones, pqrs, reportes, publico, configuraciones, favoritos, foro,
     tienda, pedidos, pagos, solicitudes_refugio, solicitudes_refugio_admin,
     reportes_descarga, adopciones, solicitudes_tienda, solicitudes_tienda_admin, upload,
-    ia, donaciones, donaciones_admin,
+    ia, donaciones, donaciones_admin, resenas,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,10 +65,20 @@ def _run_migrations():
         # En una BD SQLite ya existente (creada antes del cambio de modelos), la
         # columna 'uuid' no la crea create_all: se agrega aquí para que las URLs
         # públicas /animal/<uuid> y /product/<uuid> funcionen igual en local.
+        from sqlalchemy import text as _sq_text
         from app.db.database import SessionLocal
         db_local = SessionLocal()
         try:
             _migrar_uuid_publico(db_local)
+            # En una BD SQLite ya existente (creada antes de agregar el modelo),
+            # 'rating' no lo crea create_all: se agrega aquí para que las reseñas
+            # de refugios funcionen igual en local.
+            cols = db_local.execute(_sq_text("PRAGMA table_info(refugios)")).fetchall()
+            if cols and not any(r[1] == "rating" for r in cols):
+                db_local.execute(_sq_text(
+                    "ALTER TABLE refugios ADD COLUMN rating NUMERIC NOT NULL DEFAULT 0"
+                ))
+            db_local.commit()
         except Exception as e:  # noqa: BLE001
             try:
                 db_local.rollback()
@@ -180,6 +190,7 @@ def _run_migrations():
         _paso("equipo de refugio", _crear_tablas_equipo_refugio)
         _paso("pagos (dLocal)", _crear_tabla_pagos)
         _paso("donaciones_usuarios", _crear_tabla_donaciones_usuarios)
+        _paso("reseñas de refugios y tiendas", _crear_tablas_resenas_entidades)
 
         # --- Resumen final ---
         ok = sum(1 for _, s in resultados if s)
@@ -189,9 +200,6 @@ def _run_migrations():
             print(f"[migracion] Con aviso (no críticas): {', '.join(fallos)}")
         else:
             print("[migracion] Todas las migraciones aplicadas/verificadas correctamente.")
-        # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
-        _soft_delete_migrations(db)
-
         # ---- Soft delete: columnas 'activo' y 'eliminado_en' ----
         _soft_delete_migrations(db)
 
@@ -873,6 +881,54 @@ def _crear_tabla_donaciones_usuarios(db):
     print("[migracion] Tabla 'donaciones_usuarios' verificada.")
 
 
+def _crear_tablas_resenas_entidades(db):
+    """Crea las tablas de reseñas de REFUGIOS y TIENDAS ALIADAS y la columna
+    de rating promedio (refugios.rating / tiendas.rating) si no existen.
+
+    Idempotente: usa CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS.
+    En SQLite local las tablas las crea Base.metadata.create_all (modelos
+    ResenaRefugio / ResenaTienda).
+    """
+    from sqlalchemy import text
+
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS resenas_refugios (
+            id           BIGSERIAL PRIMARY KEY,
+            refugio_id   BIGINT NOT NULL REFERENCES refugios(id) ON DELETE CASCADE,
+            usuario_id   BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            calificacion INT NOT NULL CHECK (calificacion BETWEEN 1 AND 5),
+            comentario   TEXT,
+            creada_en    TIMESTAMPTZ NOT NULL DEFAULT now(),
+            editada_en   TIMESTAMPTZ,
+            CONSTRAINT uq_resena_refugio_usuario UNIQUE (refugio_id, usuario_id)
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_resenas_refugio ON resenas_refugios(refugio_id)"
+    ))
+
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS resenas_tiendas (
+            id           BIGSERIAL PRIMARY KEY,
+            tienda_id    BIGINT NOT NULL REFERENCES tiendas(id) ON DELETE CASCADE,
+            usuario_id   BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+            calificacion INT NOT NULL CHECK (calificacion BETWEEN 1 AND 5),
+            comentario   TEXT,
+            creada_en    TIMESTAMPTZ NOT NULL DEFAULT now(),
+            editada_en   TIMESTAMPTZ,
+            CONSTRAINT uq_resena_tienda_usuario UNIQUE (tienda_id, usuario_id)
+        )
+    """))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_resenas_tienda ON resenas_tiendas(tienda_id)"
+    ))
+
+    _agregar_columna_si_no_existe(db, "refugios", "rating", "NUMERIC(2,1) NOT NULL DEFAULT 0")
+    _agregar_columna_si_no_existe(db, "tiendas", "rating", "NUMERIC(2,1) NOT NULL DEFAULT 0")
+    db.commit()
+    print("[migracion] Tablas de reseñas de refugios/tiendas verificadas.")
+
+
 def _crear_tablas_nuevas_tienda(db):
     """Crea las tablas nuevas del modulo Tienda (historial, donaciones, PQRS)
     si no existen (Supabase/PostgreSQL)."""
@@ -1088,6 +1144,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Autenticacion"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Administracion"])
 app.include_router(mascotas.router, prefix="/api/mascotas", tags=["Mascotas"])
 app.include_router(refugios.router, prefix="/api/refugios", tags=["Refugios"])
+app.include_router(resenas.router, prefix="/api", tags=["Reseñas de refugios y tiendas"])
 app.include_router(solicitudes.router, prefix="/api/solicitudes", tags=["Solicitudes"])
 app.include_router(productos.router, prefix="/api/productos", tags=["Productos"])
 app.include_router(notificaciones.router, prefix="/api/notificaciones", tags=["Notificaciones"])

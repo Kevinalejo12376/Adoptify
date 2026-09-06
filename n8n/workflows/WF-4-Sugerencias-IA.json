@@ -81,26 +81,36 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "url": "={{ $env.IA_BASE_URL }}/chat/completions",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.IA_API_KEY }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [{ role: 'user', parts: [{ text: $json.prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1024 } }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: $env.IA_MODEL, messages: [{ role: 'user', content: $json.prompt }], temperature: 0.4, max_tokens: 1024 }) }}",
         "options": {
           "timeout": 60000
         }
       },
       "id": "5f3f8a1e-0000-4000-8000-000000000044",
-      "name": "Generar con Gemini",
+      "name": "Generar con IA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [880, 0]
     },
     {
       "parameters": {
-        "jsCode": "// Extrae y valida el JSON de Gemini y arma el resultado de la tarea.\nconst r = $input.all()[0].json;\nconst tareaId = $('Construir texto').first().json.tarea_id;\nlet texto = '';\ntry {\n  texto = r.candidates[0].content.parts[0].text;\n} catch (e) {\n  texto = '';\n}\nif (!texto) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'Respuesta vacia de Gemini' } }];\n}\ntexto = texto.trim();\nif (texto.startsWith('```json')) texto = texto.slice(7);\nelse if (texto.startsWith('```')) texto = texto.slice(3);\nif (texto.endsWith('```')) texto = texto.slice(0, -3);\ntry {\n  const resultado = JSON.parse(texto.trim());\n  return [{ json: { tarea_id: tareaId, resultado, error: null } }];\n} catch (e) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'JSON invalido devuelto por Gemini' } }];\n}"
-      },
-      "id": "5f3f8a1e-0000-4000-8000-000000000045",
-      "name": "Armar resultado",
+        "jsCode": "// Extrae y valida el JSON que devuelve el modelo y arma el resultado de la tarea.\nconst r = $input.all()[0].json;\nconst tareaId = $('Construir texto').first().json.tarea_id;\nlet texto = '';\ntry {\n  const m = (r.choices && r.choices[0] && r.choices[0].message) ? r.choices[0].message.content : '';\n  texto = (typeof m === 'string') ? m : '';\n} catch (e) {\n  texto = '';\n}\nif (!texto) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'Respuesta vacia del modelo' } }];\n}\ntexto = texto.trim();\nif (texto.startsWith('```json')) texto = texto.slice(7);\nelse if (texto.startsWith('```')) texto = texto.slice(3);\nif (texto.endsWith('```')) texto = texto.slice(0, -3);\ntry {\n  const resultado = JSON.parse(texto.trim());\n  return [{ json: { tarea_id: tareaId, resultado, error: null } }];\n} catch (e) {\n  return [{ json: { tarea_id: tareaId, resultado: null, error: 'JSON invalido devuelto por el modelo' } }];\n}"
+        },
+        "id": "5f3f8a1e-0000-4000-8000-000000000045",
+        "name": "Armar resultado",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1100, 0]
@@ -165,13 +175,13 @@
     "Construir texto": {
       "main": [[
         {
-          "node": "Generar con Gemini",
+          "node": "Generar con IA",
           "type": "main",
           "index": 0
         }
       ]]
     },
-    "Generar con Gemini": {
+    "Generar con IA": {
       "main": [[
         {
           "node": "Armar resultado",

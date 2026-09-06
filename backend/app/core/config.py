@@ -11,7 +11,15 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     CORS_ORIGINS: Union[str, List[str]] = ["*"]
-    GEMINI_API_KEY: str = ""
+
+    # --- Proveedor de IA (chat compatible con OpenAI — Alibaba Cloud Model Studio) ---
+    # Reemplaza a Google Gemini. Usa un endpoint OpenAI-compatible (chat/completions)
+    # con el header "Authorization: Bearer <IA_API_KEY>".
+    IA_API_KEY: str = ""
+    # Base URL del endpoint OpenAI-compatible (SIN /chat/completions)
+    IA_BASE_URL: str = "https://ws-9et9wwpkt1bcidj8.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+    # Modelo a usar en el campo "model" de cada petición
+    IA_MODEL: str = "qwen-max"
 
     # --- n8n (automatizaciones / IA asíncrona / notificaciones) ---
     # N8N_ENABLED: si es "true", el backend dispara webhooks a n8n y enruta

@@ -2,8 +2,8 @@
 
 Guía para usar **n8n Cloud** (n8n.io, el servicio alojado) con Adoptify, manteniendo el
 **respaldo interno** del backend: si n8n Cloud responde, se usa n8n Cloud; si no responde o
-falla, el backend usa **Brevo** (correos) y **Gemini interno** (chatbot). Así el sistema
-funciona siempre, incluso si n8n Cloud está caído o no configurado.
+falla, el backend usa **Brevo** (correos) y el **modelo de IA interno** (chatbot). Así el
+sistema funciona siempre, incluso si n8n Cloud está caído o no configurado.
 
 ---
 
@@ -14,7 +14,7 @@ Frontend React (Vercel)  ──>  Backend FastAPI (Vercel)  ──(webhook)─�
                                                                           │
                                                                           │ (si no responde)
                                                                           ▼
-                              Respaldo interno: Brevo (correos) / Gemini (chatbot)
+                              Respaldo interno: Brevo (correos) / IA (chatbot)
 ```
 
 - El backend intenta n8n Cloud primero (`N8N_ENABLED=true`).
@@ -43,7 +43,7 @@ En tu instancia de n8n Cloud (**Workflows → Import from File**), importa y gua
 
 - [`WF-1-Notificaciones.json`](workflows/WF-1-Notificaciones.json) → webhook `enviar_correo`
 - [`WF-2-Moderacion.json`](workflows/WF-2-Moderacion.json) → schedule (cada 1 min)
-- [`WF-3-Chatbot.json`](workflows/WF-3-Chatbot.json) → webhook `chatbot` (usa AI Agent + Gemini)
+- [`WF-3-Chatbot.json`](workflows/WF-3-Chatbot.json) → webhook `chatbot` (chatbot web; llama a `chat/completions`)
 - [`WF-4-Sugerencias-IA.json`](workflows/WF-4-Sugerencias-IA.json) → schedule (cada 2 min)
 - [`WF-5-Operaciones.json`](workflows/WF-5-Operaciones.json) → schedule (diario 08:00)
 
@@ -60,7 +60,9 @@ En **Settings → Environment Variables** de tu instancia, agrega EXACTAMENTE es
 |---|---|
 | `N8N_WEBHOOK_SECRET` | Un token secreto (genera uno con `python -c "import secrets; print(secrets.token_urlsafe(32))"`). **DEBE ser el mismo** que pongas en el backend. |
 | `BACKEND_PUBLIC_URL` | La URL pública de tu backend. Si está en Vercel: `https://TU-BACKEND.vercel.app`. Si pruebas local, usa un túnel (ngrok/cloudflared) apuntando a `http://localhost:8000`. |
-| `GEMINI_API_KEY` | Tu clave de Google Gemini (la misma de `backend/.env`). |
+| `IA_API_KEY` | Clave del workspace de Alibaba Model Studio (la misma de `backend/.env`). |
+| `IA_BASE_URL` | `https://TU-WORKSPACE.maas.aliyuncs.com/compatible-mode/v1` |
+| `IA_MODEL` | `qwen-max` |
 | `BREVO_API_KEY` | Tu API Key de Brevo (la misma de `backend/.env`). |
 | `BREVO_FROM_EMAIL` | `adoptifyoficial@gmail.com` (o el que uses). |
 | `BREVO_FROM_NAME` | `Adoptify`. |
@@ -77,10 +79,10 @@ En **Settings → Environment Variables** de tu instancia, agrega EXACTAMENTE es
 
 ## 5. Crear credenciales en n8n Cloud
 
-- **WF-3 (Chatbot)** usa el nodo **AI Agent + Google Gemini**. Necesita una credencial:
-  - **Credentials → Add credential → "Google Gemini" (o Google Gemini(PaLM) Api)** → pega tu
-    `GEMINI_API_KEY`.
-  - Abre el nodo "AI Agent" → en el subnodo "Google Gemini" selecciona esa credencial.
+- **IA (Alibaba Model Studio)**: los workflows WF-2, WF-3, WF-4 y WF-6 llaman al
+  modelo **directamente** por HTTP a `/chat/completions` usando `IA_API_KEY`,
+  `IA_BASE_URL` e `IA_MODEL` (variables del paso 4). **No necesitan credencial en
+  la UI de n8n.**
 - **WF-1 y WF-5** usan el nodo HTTP a Brevo con `$env.BREVO_API_KEY` (no necesitan credencial SMTP).
 
 ---
@@ -115,7 +117,7 @@ Cada workflow activo con webhook expone una URL pública:
 
 - Si n8n Cloud **responde** → correos y chatbot pasan por la nube.
 - Si n8n Cloud **no responde o falla** (instancia apagada, timeout, error) → el backend usa
-  **Brevo** (correos) y **Gemini interno** (chatbot) automáticamente. No se rompe nada.
+  **Brevo** (correos) y el **modelo de IA interno** (chatbot) automáticamente. No se rompe nada.
 
 Para probarlo: detén/apaga la instancia de n8n Cloud y envía un correo de prueba → debe llegar
 por Brevo igualmente.
@@ -129,5 +131,5 @@ por Brevo igualmente.
 - **Webhook 404** → el workflow no está activo en la nube (toggle) o el path no coincide
   (`enviar_correo`, `chatbot`).
 - **Chatbot cae al fallback siempre** → revisa `N8N_WEBHOOK_TIMEOUT` (en n8n Cloud la respuesta
-  tarda más) y que WF-3 esté activo con la credencial de Gemini asignada.
+  tarda más) y que WF-3 esté activo con `IA_API_KEY` / `IA_BASE_URL` / `IA_MODEL` configuradas.
 - **WF-2/WF-4 no procesan tareas** → verifica `BACKEND_PUBLIC_URL` y que el schedule esté activo.

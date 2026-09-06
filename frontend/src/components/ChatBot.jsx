@@ -91,6 +91,8 @@ export default function ChatBot() {
   const [escribiendo, setEscribiendo] = useState(false);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const listaRef = useRef(null);
+  const fabRef = useRef(null);
+  const panelRef = useRef(null);
 
   // Identidad actual del usuario (para detectar login/logout/cambio de rol).
   const identidadUsuario = user
@@ -159,6 +161,35 @@ export default function ChatBot() {
       listaRef.current.scrollTop = listaRef.current.scrollHeight;
     }
   }, [mensajes, escribiendo, open]);
+
+  // Cierra el chat al hacer clic/tocar fuera del botón y del panel,
+  // o al pulsar Escape. Funciona igual para usuarios y visitantes.
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePointer = (event) => {
+      const target = event.target;
+      const dentroDelChat =
+        (fabRef.current && fabRef.current.contains(target)) ||
+        (panelRef.current && panelRef.current.contains(target));
+      if (!dentroDelChat) {
+        setOpen(false);
+      }
+    };
+
+    const handleKey = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("touchstart", handlePointer, { passive: true });
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("touchstart", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
 
   const manejarEnvio = useCallback(
     async (e) => {
@@ -234,10 +265,11 @@ export default function ChatBot() {
     <>
       {/* Boton flotante abajo a la derecha */}
       <button
+        ref={fabRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Cerrar chat" : "Abrir chat"}
-        className="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full shadow-2xl bg-gradient-to-r from-orange-500 to-rose-500 text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+        className="chat-fab fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full shadow-2xl bg-gradient-to-r from-orange-500 to-rose-500 text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
       >
         {open ? <X size={26} /> : <MessageCircle size={26} />}
       </button>
@@ -245,7 +277,8 @@ export default function ChatBot() {
       {/* Panel del chat */}
       {open && (
         <div
-          className={`fixed bottom-24 right-5 z-[60] w-[calc(100vw-2.5rem)] max-w-sm h-[480px] max-h-[70vh] rounded-2xl shadow-2xl border flex flex-col overflow-hidden ${card}`}
+          ref={panelRef}
+          className={`chat-panel fixed bottom-24 right-5 z-[60] w-[calc(100vw-2.5rem)] max-w-sm h-[480px] max-h-[70vh] rounded-2xl shadow-2xl border flex flex-col overflow-hidden ${card}`}
         >
           {/* Header: logo de Adoptify en la parte superior derecha */}
           <div className="px-4 py-3 bg-gradient-to-r from-orange-500 to-rose-500 text-white flex items-center gap-3">

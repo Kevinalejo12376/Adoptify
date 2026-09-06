@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 import {
   listarNotificaciones, contarNoLeidas,
   marcarLeida, marcarTodasLeidas
 } from "../api/notificaciones";
+import { destinoNotificacion, verTodasNotificaciones } from "../utils/notificacionDestino";
 import {
   Bell, Heart, MessageSquare, ShoppingBag, AlertCircle,
   CheckCircle2, Clock, X, Info, Shield,
@@ -41,6 +43,7 @@ function getRelativeTime(iso) {
 
 export default function NotificationPanel() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const isDark = theme === "dark";
   const navigate = useNavigate();
 
@@ -146,14 +149,14 @@ export default function NotificationPanel() {
       await handleMarkAsRead(notif.id);
     }
     setIsOpen(false);
-    if (notif.enlace) {
-      navigate(notif.enlace);
-    }
+    // Redirige al apartado correcto según el rol (Usuario/Refugio/Tienda).
+    const destino = destinoNotificacion(notif, user);
+    if (destino) navigate(destino);
   };
 
   const handleViewAll = () => {
     setIsOpen(false);
-    navigate("/notificaciones");
+    navigate(verTodasNotificaciones(user));
   };
 
   return (
