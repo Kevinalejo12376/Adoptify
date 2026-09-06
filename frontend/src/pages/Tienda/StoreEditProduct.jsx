@@ -186,8 +186,6 @@ function SubidaImagenesProducto({ value = [], onChange, maxImages = 5 }) {
   );
 }
 
-<<<<<<< Updated upstream
-=======
 // Campos específicos según la categoría seleccionada (mismas reglas que en el
 // rol Refugio): Alimentos -> talla/tamaño (peso/volumen), Accesorios -> S/M/L/XL,
 // Juguetes -> S/M/L, Ropa -> XS..XXL, Salud -> dosis/tabletas, Higiene -> volumen.
@@ -266,7 +264,6 @@ const CategorySpecificFields = ({ data, setData, colorInput, setColorInput, onAd
   );
 };
 
->>>>>>> Stashed changes
 // ============================================================
 // Campos específicos según la categoría seleccionada (mismas reglas que en el
 // rol Refugio): Alimentos -> talla/tamaño (peso/volumen), Accesorios -> S/M/L/XL,
