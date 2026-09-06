@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { obtenerMiProducto, crearMiProducto, crearMiProductoConImagenes, actualizarMiProducto } from "../../api/tienda";
 import { getCategoriasProducto } from "../../api/catalogos";
-import { formatPrice, normalizarPrecioInput, parsePrecio, parsearPrecioInput, precioConDescuento } from "../../utils/price";
+import { normalizarPrecioInput, parsearPrecioInput } from "../../utils/price";
 import { readAndValidateImage, fileToBase64, MAX_IMAGE_SIZE_MB } from "../../utils/imageUtils";
 import ImageEditorModal from "../../components/ImageEditorModal";
 
