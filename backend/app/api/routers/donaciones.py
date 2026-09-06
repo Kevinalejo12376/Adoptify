@@ -187,8 +187,8 @@ def _notificar_donante(db: Session, donacion: DonacionUsuario, tipo: str, mensaj
             pass
 
 
-def _contexto_gemini(d: DonacionUsuario) -> str:
-    """Texto legible de la donación para que Gemini genere la publicación."""
+def _contexto_ia(d: DonacionUsuario) -> str:
+    """Texto legible de la donación para que el modelo de IA genere la publicación."""
     tipo = "monetaria" if d.tipo == "dinero" else "física (ropa, accesorios u otros)"
     valor = f" de {d.valor:,} COP" if d.tipo == "dinero" and d.valor else ""
     detalle = f"\nDetalle: {d.detalle}" if d.detalle else ""
@@ -521,11 +521,11 @@ async def generar_publicacion(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Genera con Gemini un borrador de publicación para el foro, basado en la
+    """Genera con el modelo de IA un borrador de publicación para el foro, basado en la
     donación y el refugio. El borrador es editable antes de publicar."""
     donacion = _donacion_del_usuario(db, donacion_id, current_user)
     try:
-        resultado = await clasificar_contenido("generar_post_donacion", _contexto_gemini(donacion))
+        resultado = await clasificar_contenido("generar_post_donacion", _contexto_ia(donacion))
         titulo = str(resultado.get("titulo") or "").strip()
         contenido = str(resultado.get("contenido") or "").strip()
         tags_raw = resultado.get("tags") or []

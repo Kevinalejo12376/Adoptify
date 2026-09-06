@@ -1,8 +1,15 @@
 """
-Servicio de integracion con Google Gemini API para analisis de productos.
+Servicio de integracion con el proveedor de IA (Alibaba Cloud Model Studio).
 
-Utiliza Gemini 1.5 Flash para analizar imagenes de productos
-y extraer informacion estructurada.
+Reemplaza a Google Gemini por un endpoint OPENAI-COMPATIBLE
+(chat/completions) apuntando al workspace dedicado:
+  IA_BASE_URL = https://ws-...maas.aliyuncs.com/compatible-mode/v1
+  IA_MODEL     = qwen-max
+
+Se usa para:
+  - Clasificacion / generacion de texto (moderacion, PQRS, sugerencias,
+    compatibilidad, chatbot, publicaciones de donacion).
+  - Analisis de imagenes de productos (modelo multimodal qwen-max).
 
 Incluye reintentos automáticos con backoff exponencial para evitar
 errores de cuota (HTTP 429) y problemas de red transitorios.
@@ -13,9 +20,6 @@ import json
 import httpx
 
 from app.core.config import settings
-
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 # Configuración de reintentos
 MAX_RETRIES = 5
@@ -73,11 +77,116 @@ def _comprimir_imagen_base64(b64_data: str, max_size_kb: int = 500) -> str:
     if estimated_kb <= max_size_kb:
         return f"{prefix},{b64_data}" if prefix else b64_data
 
-    # Si es muy grande, recortar (Gemini igual procesa bien con menos calidad)
-    # Mantener los primeros max_size_kb de datos base64
+    # Si es muy grande, recortar (el modelo igual procesa bien con menos calidad)
     max_chars = int(max_size_kb * 1024 * 4 / 3)
     b64_data = b64_data[:max_chars]
     return f"{prefix},{b64_data}" if prefix else b64_data
+
+
+def _endpoint() -> str:
+    """URL completa del endpoint OpenAI-compatible de chat/completions."""
+    base = settings.IA_BASE_URL.rstrip("/")
+    return f"{base}/chat/completions"
+
+
+def _limpiar_markdown_json(texto: str) -> str:
+    """Quita bloques ```json ... ``` o ``` ... ``` si el modelo los añade."""
+    texto = (texto or "").strip()
+    if texto.startswith("```json"):
+        texto = texto[7:]
+    elif texto.startswith("```"):
+        texto = texto[3:]
+    if texto.endswith("```"):
+        texto = texto[:-3]
+    return texto.strip()
+
+
+async def _request_chat(
+    messages: list,
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 2048,
+    timeout: float = 60.0,
+) -> str:
+    """Llama a /chat/completions (OpenAI-compatible) y devuelve el texto crudo.
+
+    Reintenta con backoff exponencial ante HTTP 429 y timeouts.
+    """
+    api_key = settings.IA_API_KEY
+    if not api_key:
+        raise ValueError("IA_API_KEY no esta configurada en el archivo .env")
+
+    payload = {
+        "model": settings.IA_MODEL,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    url = _endpoint()
+
+    last_exception = None
+    for intento in range(1, MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                result = response.json()
+
+            # Formato OpenAI: data["choices"][0]["message"]["content"]
+            try:
+                content = result["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError) as exc:
+                raise ValueError(f"Error al procesar respuesta del modelo: {str(exc)}")
+            return str(content or "")
+
+        except httpx.TimeoutException:
+            last_exception = ValueError("El modelo tardo demasiado.")
+            if intento < MAX_RETRIES:
+                await asyncio.sleep(min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY))
+                continue
+            raise last_exception
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            body = e.response.text
+
+            # 429 = Rate limited -> reintentar con backoff
+            if status == 429 and intento < MAX_RETRIES:
+                retry_after = e.response.headers.get("Retry-After")
+                espera = float(retry_after) if retry_after else min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY)
+                print(f"[ia] Rate limited (429) intento {intento}/{MAX_RETRIES}, reintentando en {espera}s...")
+                await asyncio.sleep(espera)
+                continue
+
+            # Errores definitivos (no se reintentan)
+            try:
+                err_data = json.loads(body)
+                msg = err_data.get("error", {}).get("message", body)
+            except json.JSONDecodeError:
+                msg = body
+            if status == 401 or status == 403:
+                raise ValueError(f"API key del proveedor de IA no autorizada o cuota excedida: {msg[:200]}")
+            if status == 429:
+                last_exception = ValueError(f"Demasiadas solicitudes al proveedor de IA: {msg[:200]}")
+                raise last_exception
+            raise ValueError(f"Error HTTP {status} del proveedor de IA: {msg[:300]}")
+
+    raise last_exception or ValueError("No se pudo obtener respuesta del proveedor de IA")
+
+
+def _extraer_json(texto: str, origen: str = "el modelo") -> dict:
+    """Parsea el JSON devuelto por el modelo, tolerando markdown."""
+    texto = _limpiar_markdown_json(texto)
+    try:
+        datos = json.loads(texto)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"El proveedor de IA no devolvio JSON valido: {str(exc)}")
+    if not isinstance(datos, dict):
+        raise ValueError(f"El proveedor de IA no devolvio un objeto JSON")
+    return datos
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +299,7 @@ _PROMPTS_CLASIFICACION = {
 
 
 async def clasificar_contenido(tipo: str, texto: str) -> dict:
-    """Clasifica o genera contenido de texto con Gemini para una tarea de IA.
+    """Clasifica o genera contenido de texto con el modelo de IA.
 
     Args:
         tipo: clave en _PROMPTS_CLASIFICACION (moderar_post, clasificar_pqrs, ...).
@@ -200,88 +309,27 @@ async def clasificar_contenido(tipo: str, texto: str) -> dict:
         dict con el resultado estructurado (decision/confianza o categoria/...).
         Si la API falla, devuelve un dict "seguro" por tipo para no romper el flujo.
     """
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY no esta configurada en el archivo .env")
-
     prompt = _PROMPTS_CLASIFICACION.get(tipo)
     if not prompt:
         raise ValueError(f"Tipo de clasificacion desconocido: {tipo}")
 
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt + texto}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            # gemini-2.5-flash usa "thinking" por defecto, que consume el
-            # presupuesto de tokens y puede TRUNCAR la respuesta JSON a mitad
-            # de un string. Se desactiva el thinking y se amplía el límite para
-            # que la salida llegue completa y parseable (compatibilidad, chatbot,
-            # moderación, etc.).
-            "maxOutputTokens": 2048,
-            "thinkingConfig": {"thinkingBudget": 0},
-        },
-    }
-
-    url = f"{GEMINI_API_URL}?key={api_key}"
-    last_exception = None
-    for intento in range(1, MAX_RETRIES + 1):
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                result = response.json()
-            texto_resp = ""
-            try:
-                texto_resp = result["candidates"][0]["content"]["parts"][0]["text"]
-            except (KeyError, IndexError) as exc:
-                raise ValueError(f"Error al procesar respuesta de Gemini: {str(exc)}")
-
-            texto_resp = texto_resp.strip()
-            if texto_resp.startswith("```json"):
-                texto_resp = texto_resp[7:]
-            elif texto_resp.startswith("```"):
-                texto_resp = texto_resp[3:]
-            if texto_resp.endswith("```"):
-                texto_resp = texto_resp[:-3]
-            texto_resp = texto_resp.strip()
-
-            datos = json.loads(texto_resp)
-            if not isinstance(datos, dict):
-                raise ValueError("Gemini no devolvio un objeto JSON")
-            return datos
-
-        except httpx.TimeoutException:
-            last_exception = ValueError("Gemini tardo demasiado.")
-            if intento < MAX_RETRIES:
-                await asyncio.sleep(min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY))
-                continue
-            raise last_exception
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429 and intento < MAX_RETRIES:
-                await asyncio.sleep(min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY))
-                continue
-            last_exception = ValueError(f"Error HTTP {e.response.status_code} de Gemini")
-            raise last_exception
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Gemini no devolvio JSON valido: {str(exc)}")
-
-    raise last_exception or ValueError("No se pudo obtener respuesta de Gemini")
+    messages = [{"role": "user", "content": prompt + texto}]
+    texto_resp = await _request_chat(messages, temperature=0.1, max_tokens=2048)
+    return _extraer_json(texto_resp)
 
 
 async def analizar_producto(imagenes_base64: list[str]) -> dict:
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY no esta configurada en el archivo .env")
+    """Analiza las imágenes de un producto y devuelve la ficha estructurada.
 
+    Usa el formato multimodal OpenAI-compatible:
+      content = [{"type": "text", "text": ...},
+                 {"type": "image_url", "image_url": {"url": "data:<mime>;base64,..."}}]
+    """
     # Comprimir imágenes antes de enviar
     imagenes_comprimidas = [_comprimir_imagen_base64(img) for img in imagenes_base64]
 
-    # Contenido: prompt + imagenes
-    contents = [
-        {"role": "user", "parts": [{"text": _construir_prompt()}]}
-    ]
-
-    image_parts = []
+    # Contenido multimodal: texto + imágenes
+    content_parts = [{"type": "text", "text": _construir_prompt()}]
     for img_b64 in imagenes_comprimidas:
         if "," in img_b64:
             mime_prefix, b64_data = img_b64.split(",", 1)
@@ -289,115 +337,24 @@ async def analizar_producto(imagenes_base64: list[str]) -> dict:
         else:
             b64_data = img_b64
             mime_type = "image/png"
+        content_parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{mime_type};base64,{b64_data}"},
+        })
 
-        image_parts.append({"inline_data": {"mime_type": mime_type, "data": b64_data}})
+    messages = [{"role": "user", "content": content_parts}]
+    texto = await _request_chat(messages, temperature=0.2, max_tokens=2048, timeout=120.0)
 
-    if image_parts:
-        contents.append({"role": "user", "parts": image_parts})
+    datos = _extraer_json(texto)
+    campos_esperados = [
+        "nombre", "descripcion", "descripcion_larga", "marca", "categoria",
+        "material", "calidad", "ingredientes", "ingredientes_activos",
+        "aroma", "instrucciones_cuidado", "tipo_mascota", "edad_recomendada",
+        "peso", "fabricante", "registro_sanitario", "advertencias",
+        "informacion_adicional", "tallas", "colores"
+    ]
+    for campo in campos_esperados:
+        if campo not in datos or not isinstance(datos.get(campo), str):
+            datos[campo] = str(datos[campo]) if datos.get(campo) is not None else ""
 
-    payload = {
-        "contents": contents,
-        "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 2048,
-        },
-        "safetySettings": [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        ]
-    }
-
-    url = f"{GEMINI_API_URL}?key={api_key}"
-
-    # Reintentos con backoff exponencial para 429 y errores de red
-    last_exception = None
-    for intento in range(1, MAX_RETRIES + 1):
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                result = response.json()
-
-            texto = ""
-            try:
-                candidate = result["candidates"][0]
-                texto = candidate["content"]["parts"][0]["text"]
-            except (KeyError, IndexError) as e:
-                try:
-                    block_reason = result["promptFeedback"]["blockReason"]
-                    raise ValueError(f"La solicitud fue bloqueada por seguridad. Razón: {block_reason}")
-                except (KeyError, IndexError):
-                    pass
-                raise ValueError(f"Error al procesar respuesta de Gemini: {str(e)}")
-
-            # Limpiar markdown
-            texto = texto.strip()
-            if texto.startswith("```json"):
-                texto = texto[7:]
-            elif texto.startswith("```"):
-                texto = texto[3:]
-            if texto.endswith("```"):
-                texto = texto[:-3]
-            texto = texto.strip()
-
-            # Parsear JSON
-            datos = json.loads(texto)
-
-            campos_esperados = [
-                "nombre", "descripcion", "descripcion_larga", "marca", "categoria",
-                "material", "calidad", "ingredientes", "ingredientes_activos",
-                "aroma", "instrucciones_cuidado", "tipo_mascota", "edad_recomendada",
-                "peso", "fabricante", "registro_sanitario", "advertencias",
-                "informacion_adicional", "tallas", "colores"
-            ]
-            for campo in campos_esperados:
-                if campo not in datos or not isinstance(datos.get(campo), str):
-                    datos[campo] = str(datos[campo]) if datos.get(campo) is not None else ""
-
-            return datos
-
-        except httpx.TimeoutException:
-            last_exception = ValueError("Gemini tardó demasiado en responder. Intenta de nuevo.")
-            if intento < MAX_RETRIES:
-                espera = min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY)
-                print(f"[gemini] Timeout (intento {intento}/{MAX_RETRIES}), reintentando en {espera}s...")
-                await asyncio.sleep(espera)
-                continue
-            raise last_exception
-
-        except httpx.HTTPStatusError as e:
-            status = e.response.status_code
-            body = e.response.text
-
-            # 429 = Rate limited → reintentar con backoff
-            if status == 429:
-                last_exception = ValueError("Demasiadas solicitudes a Gemini. Espera e intenta de nuevo.")
-                if intento < MAX_RETRIES:
-                    # Usar el header Retry-After si existe, si no, backoff exponencial
-                    retry_after = e.response.headers.get("Retry-After")
-                    espera = float(retry_after) if retry_after else min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY)
-                    print(f"[gemini] Rate limited (429) intento {intento}/{MAX_RETRIES}, reintentando en {espera}s...")
-                    await asyncio.sleep(espera)
-                    continue
-                raise last_exception
-
-            # Errores definitivos (no se reintentan)
-            if status == 400:
-                try:
-                    err_data = json.loads(body)
-                    msg = err_data.get("error", {}).get("message", body)
-                except json.JSONDecodeError:
-                    msg = body
-                raise ValueError(f"Error en la solicitud a Gemini (400): {msg[:200]}")
-            elif status == 403:
-                raise ValueError("API key de Gemini no autorizada o cuota excedida.")
-            else:
-                raise ValueError(f"Error HTTP {status} de Gemini: {body[:200]}")
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Gemini no devolvió un JSON válido: {str(e)}")
-
-    # Si se agotaron los reintentos
-    raise last_exception or ValueError("No se pudo obtener respuesta de Gemini después de varios intentos.")
+    return datos
