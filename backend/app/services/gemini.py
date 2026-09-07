@@ -1,30 +1,16 @@
 """
-Servicio de integracion con el proveedor de IA (Alibaba Cloud Model Studio).
+Servicio de dominio de IA de Adoptify.
 
-Reemplaza a Google Gemini por un endpoint OPENAI-COMPATIBLE
-(chat/completions) apuntando al workspace dedicado:
-  IA_BASE_URL = https://ws-...maas.aliyuncs.com/compatible-mode/v1
-  IA_MODEL     = qwen-max
-
-Se usa para:
-  - Clasificacion / generacion de texto (moderacion, PQRS, sugerencias,
-    compatibilidad, chatbot, publicaciones de donacion).
-  - Analisis de imagenes de productos (modelo multimodal qwen-max).
-
-Incluye reintentos automáticos con backoff exponencial para evitar
-errores de cuota (HTTP 429) y problemas de red transitorios.
+Contiene los prompts y el parseo de respuestas (clasificación, chatbot,
+compatibilidad, donaciones y análisis de producto). El transporte HTTP NO vive
+aquí: todas las llamadas se delegan al servicio centralizado
+app.services.openrouter_service (OpenRouter), que gestiona el failover nativo
+de proveedor (provider.allow_fallbacks) y de cadena de modelos (models=[...]).
 """
 # pyrefly: ignore [missing-import]
-import asyncio
 import json
-import httpx
 
-from app.core.config import settings
-
-# Configuración de reintentos
-MAX_RETRIES = 5
-BASE_DELAY = 2.0       # segundos
-MAX_DELAY = 30.0       # máximo entre reintentos
+from app.services.openrouter_service import OpenRouterError, chat_completions
 
 
 def _construir_prompt() -> str:
@@ -83,12 +69,6 @@ def _comprimir_imagen_base64(b64_data: str, max_size_kb: int = 500) -> str:
     return f"{prefix},{b64_data}" if prefix else b64_data
 
 
-def _endpoint() -> str:
-    """URL completa del endpoint OpenAI-compatible de chat/completions."""
-    base = settings.IA_BASE_URL.rstrip("/")
-    return f"{base}/chat/completions"
-
-
 def _limpiar_markdown_json(texto: str) -> str:
     """Quita bloques ```json ... ``` o ``` ... ``` si el modelo los añade."""
     texto = (texto or "").strip()
@@ -108,73 +88,24 @@ async def _request_chat(
     max_tokens: int = 2048,
     timeout: float = 60.0,
 ) -> str:
-    """Llama a /chat/completions (OpenAI-compatible) y devuelve el texto crudo.
+    """Llama al proveedor de IA (OpenRouter) y devuelve el texto crudo.
 
-    Reintenta con backoff exponencial ante HTTP 429 y timeouts.
+    El transporte HTTP y el failover nativo de OpenRouter (provider fallback +
+    cadena de modelos models=[...]) están centralizados en
+    app.services.openrouter_service. Aquí solo se adapta el error al formato
+    (ValueError) que ya esperan los routers de la aplicación.
     """
-    api_key = settings.IA_API_KEY
-    if not api_key:
-        raise ValueError("IA_API_KEY no esta configurada en el archivo .env")
-
-    payload = {
-        "model": settings.IA_MODEL,
-        "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    url = _endpoint()
-
-    last_exception = None
-    for intento in range(1, MAX_RETRIES + 1):
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                result = response.json()
-
-            # Formato OpenAI: data["choices"][0]["message"]["content"]
-            try:
-                content = result["choices"][0]["message"]["content"]
-            except (KeyError, IndexError, TypeError) as exc:
-                raise ValueError(f"Error al procesar respuesta del modelo: {str(exc)}")
-            return str(content or "")
-
-        except httpx.TimeoutException:
-            last_exception = ValueError("El modelo tardo demasiado.")
-            if intento < MAX_RETRIES:
-                await asyncio.sleep(min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY))
-                continue
-            raise last_exception
-        except httpx.HTTPStatusError as e:
-            status = e.response.status_code
-            body = e.response.text
-
-            # 429 = Rate limited -> reintentar con backoff
-            if status == 429 and intento < MAX_RETRIES:
-                retry_after = e.response.headers.get("Retry-After")
-                espera = float(retry_after) if retry_after else min(BASE_DELAY * (2 ** (intento - 1)), MAX_DELAY)
-                print(f"[ia] Rate limited (429) intento {intento}/{MAX_RETRIES}, reintentando en {espera}s...")
-                await asyncio.sleep(espera)
-                continue
-
-            # Errores definitivos (no se reintentan)
-            try:
-                err_data = json.loads(body)
-                msg = err_data.get("error", {}).get("message", body)
-            except json.JSONDecodeError:
-                msg = body
-            if status == 401 or status == 403:
-                raise ValueError(f"API key del proveedor de IA no autorizada o cuota excedida: {msg[:200]}")
-            if status == 429:
-                last_exception = ValueError(f"Demasiadas solicitudes al proveedor de IA: {msg[:200]}")
-                raise last_exception
-            raise ValueError(f"Error HTTP {status} del proveedor de IA: {msg[:300]}")
-
-    raise last_exception or ValueError("No se pudo obtener respuesta del proveedor de IA")
+    try:
+        return await chat_completions(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+    except OpenRouterError as exc:
+        raise ValueError(
+            f"Proveedor de IA (OpenRouter) HTTP {exc.status}: {exc.mensaje}"
+        ) from exc
 
 
 def _extraer_json(texto: str, origen: str = "el modelo") -> dict:
@@ -272,10 +203,13 @@ _PROMPTS_CLASIFICACION = {
         "que conecta refugios, tiendas y adoptantes. Respondes en espanol, con un tono "
         "amable y cercano, en 1-3 frases. Responde SOLO JSON con esta forma exacta:\n"
         '{"respuesta": "tu mensaje al usuario", "accion": null}\n'
-        'Si el usuario pide "ir a" una seccion, devuelve accion como '
-        '{"tipo": "navegar", "ruta": "/..."} usando SOLO una de estas rutas: '
-        "/, /adoptar, /refugios, /tienda, /foro, /mis-pedidos, /favoritos, /login, /registrar-refugio. "
-        "Si no aplica navegacion, accion: null.\n"
+        "Si el usuario pide ir a una seccion o ver algo (mascotas, pedidos, etc.), "
+        "decide SIEMPRE entre los 'DESTINOS DISPONIBLES' que se listan abajo en el "
+        "CONTEXTO, segun el ROL del usuario. Devuelve accion = "
+        '{"tipo": "navegar", "ruta": "<ruta EXACTA de la lista>"} solo si existe en '
+        "esa lista. NUNCA inventes ni uses rutas fuera de los 'DESTINOS DISPONIBLES'. "
+        "Si lo pedido no es posible para el rol del usuario, usa accion: null y "
+        "explicaselo en 'respuesta'.\n"
         "Usa el CONTEXTO (historial y pedidos del usuario) para responder sobre el estado "
         "de pedidos si se te pregunta; no inventes datos ni consultes nada fuera de lo dado.\n\n"
         "CONTEXTO (historial de la conversacion):\n"

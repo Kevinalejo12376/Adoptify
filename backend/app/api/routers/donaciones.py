@@ -17,13 +17,14 @@ Cubre:
 """
 # pyrefly: ignore [missing-import]
 import json
+import logging
 import secrets
 import string
 from datetime import datetime, timezone
 from typing import Optional
 
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field, field_validator
 # pyrefly: ignore [missing-import]
@@ -43,8 +44,12 @@ from app.models.donacion_usuario import DonacionUsuario
 from app.models.refugio import Refugio
 from app.models.foro import ForoPost
 from app.models.catalogos import ForoCategoria, TipoPostForo, EstadoPostForo
+from app.core.config import settings
 from app.services.gemini import clasificar_contenido
+from app.services import dlocal_service
 from app.api.routers.ia import crear_tarea_ia
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -360,6 +365,239 @@ def pago_fallido(
         detalle=f"Pago no completado {donacion.referencia}: {payload.motivo or 'sin motivo'}",
     )
     db.commit()
+
+    return _serialize_donacion(donacion)
+
+
+# =====================================================================
+# Pasarela de pagos REAL (dLocal Go) — donaciones monetarias
+# =====================================================================
+# Flujo (equivalente a la compra de productos):
+#   1. POST /api/donaciones/donaciones -> crea la donación "pendiente".
+#   2. POST /api/donaciones/donaciones/{id}/checkout -> crea el pago en dLocal
+#      (Checkout REDIRECT) y devuelve redirect_url; el frontend redirige.
+#   3. dLocal notifica por webhook (POST .../donaciones/pagos/webhook) y/o el
+#      frontend consulta el estado real (GET .../donaciones/pagos/estado).
+#   4. El estado "pago_confirmado"/"fallida" SOLO lo define dLocal (nunca la URL
+#      de éxito del navegador). El monto sale SIEMPRE de la BD (donacion.valor).
+# Donantes anónimos: se piden nombre/correo/teléfono en el formulario y se
+# envían como "payer" a dLocal (que además los solicita en su propio checkout).
+
+_ESTADOS_DLOCAL_PAGADO = ("PAID", "SUCCEEDED")
+_ESTADOS_DLOCAL_FALLIDO = ("REJECTED", "CANCELLED", "EXPIRED", "FAILED")
+
+
+def _aplicar_estado_dlocal_donacion(
+    db: Session,
+    donacion: DonacionUsuario,
+    detalle: dict,
+) -> str:
+    """Aplica el estado real de dLocal a una donación (idempotente).
+
+    Devuelve el estado interno resultante. Nunca degrada una donación ya
+    confirmada o ya gestionada por el refugio.
+    """
+    status = (detalle.get("status") or "").upper()
+    try:
+        previo = json.loads(donacion.pasarela_datos) if donacion.pasarela_datos else {}
+    except ValueError:
+        previo = {}
+    if not isinstance(previo, dict):
+        previo = {}
+    previo["estado_dlocal"] = status
+    previo["dlocal_payment_id"] = str(detalle.get("id") or previo.get("dlocal_payment_id") or "")
+    donacion.pasarela_datos = json.dumps(previo, ensure_ascii=False, default=str)
+
+    if status in _ESTADOS_DLOCAL_PAGADO:
+        if donacion.estado == "pago_confirmado":
+            return donacion.estado
+        if donacion.estado in ("recibida", "no_recibida", "fallida"):
+            return donacion.estado
+        donacion.estado = "pago_confirmado"
+        donacion.transaccion_id = donacion.transaccion_id or str(detalle.get("id") or "")
+        donacion.actualizado_en = datetime.now(timezone.utc)
+        mensaje = (
+            f"Se confirmó el pago de la donación {donacion.referencia} "
+            f"por {donacion.valor:,} COP de {donacion.nombre_donante}."
+        )
+        _notificar_refugio(db, donacion, "donacion_usuario", mensaje, "/refugio/donaciones")
+        notificar_admins(db, "donacion_usuario", mensaje, "/admin/donaciones")
+        registrar_auditoria(
+            db, donacion.usuario_id, "donacion.pago_confirmado",
+            entidad="donacion_usuario", entidad_id=donacion.id,
+            detalle=f"Pago confirmado por dLocal {donacion.referencia}",
+        )
+        return donacion.estado
+
+    if status in _ESTADOS_DLOCAL_FALLIDO:
+        if donacion.estado in ("pago_confirmado", "recibida", "no_recibida"):
+            return donacion.estado
+        donacion.estado = "fallida"
+        donacion.actualizado_en = datetime.now(timezone.utc)
+        registrar_auditoria(
+            db, donacion.usuario_id, "donacion.pago_fallido",
+            entidad="donacion_usuario", entidad_id=donacion.id,
+            detalle=f"Pago no completado por dLocal {donacion.referencia} ({status})",
+        )
+        return donacion.estado
+
+    return donacion.estado
+
+
+def _validar_donacion_para_checkout(
+    db: Session,
+    donacion: DonacionUsuario,
+    current_user: Optional[Usuario],
+) -> DonacionUsuario:
+    if donacion.tipo != "dinero":
+        raise HTTPException(status_code=400, detail="Esta donación no es monetaria")
+    if donacion.estado != "pendiente":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Esta donación no admite un nuevo pago (estado: {donacion.estado})",
+        )
+    # Propiedad: una donación ligada a una cuenta solo la paga su dueño.
+    if donacion.usuario_id:
+        if not current_user or donacion.usuario_id != current_user.id:
+            raise HTTPException(status_code=403, detail="No puedes iniciar el pago de esta donación")
+    return donacion
+
+
+@router.post("/donaciones/{donacion_id}/checkout")
+def iniciar_checkout_donacion(
+    donacion_id: int,
+    current_user: Optional[Usuario] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    """Crea el pago en dLocal Go (Checkout REDIRECT) para una donación monetaria
+    y devuelve la URL a la que el navegador debe redirigir para pagar."""
+    donacion = _obtener_donacion(db, donacion_id)
+    donacion = _validar_donacion_para_checkout(db, donacion, current_user)
+
+    monto_cop = int(donacion.valor or 0)
+    if monto_cop <= 0:
+        raise HTTPException(status_code=400, detail="La donación no tiene un monto válido para cobrar")
+
+    refugio = donacion.refugio
+    nombre_refugio = refugio.nombre if refugio else "refugio"
+    order_id = f"ADOPTIFY-DONACION-{donacion.id}"
+    front = settings.FRONTEND_URL.rstrip("/")
+    retorno = f"?resultado={{resultado}}&donacion={donacion.id}&referencia={donacion.referencia}"
+    success_url = f"{front}/donar/{refugio.id if refugio else ''}{retorno.format(resultado='exito')}"
+    back_url = f"{front}/donar/{refugio.id if refugio else ''}{retorno.format(resultado='cancelado')}"
+    notification_url = settings.dlocal_callback_url_donaciones
+
+    payer = {}
+    if donacion.email_contacto:
+        payer["email"] = donacion.email_contacto
+    if donacion.nombre_donante and donacion.nombre_donante != "Donación anónima":
+        payer["name"] = donacion.nombre_donante
+    if current_user:
+        payer.setdefault("email", current_user.email or "")
+        payer.setdefault("name", f"{current_user.nombre} {current_user.apellido or ''}".strip())
+
+    try:
+        respuesta = dlocal_service.crear_checkout(
+            pedido=donacion,
+            monto_cop=monto_cop,
+            success_url=success_url,
+            back_url=back_url,
+            notification_url=notification_url,
+            payer=payer or None,
+            order_id=order_id,
+            description=f"Donación {donacion.referencia} a {nombre_refugio} en Adoptify",
+        )
+    except dlocal_service.DlocalConfiguracionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except dlocal_service.DlocalApiError as exc:
+        logger.error("[donaciones] dLocal rechazó el checkout: %s", exc.message)
+        raise HTTPException(status_code=502, detail="dLocal no pudo crear el pago de tu donación. Intenta de nuevo.")
+
+    redirect_url = respuesta.get("redirect_url") or ""
+    if not redirect_url:
+        logger.error("[donaciones] dLocal no devolvió redirect_url para %s", order_id)
+        raise HTTPException(status_code=502, detail="No se pudo generar el Checkout de pago de tu donación.")
+
+    donacion.transaccion_id = str(respuesta.get("id") or donacion.transaccion_id or "")
+    donacion.pasarela_datos = json.dumps(
+        {"proveedor": "dlocal", "order_id": order_id, "redirect_url": redirect_url, **respuesta},
+        ensure_ascii=False,
+        default=str,
+    )
+    db.commit()
+    db.refresh(donacion)
+
+    return {
+        "donacion_id": donacion.id,
+        "referencia": donacion.referencia,
+        "order_id": order_id,
+        "redirect_url": redirect_url,
+        "dlocal_payment_id": respuesta.get("id"),
+        "estado": donacion.estado,
+    }
+
+
+@router.post("/donaciones/pagos/webhook")
+async def webhook_donacion(request: Request, db: Session = Depends(get_db)):
+    """Recibe las notificaciones de dLocal Go para DONACIONES y actualiza el
+    estado (pago_confirmado / fallida). Idempotente: no degrada estados finales.
+
+    Body: { "payment_id": "..." }; el estado real se consulta en dLocal Go.
+    """
+    raw = await request.body()
+    auth_header = request.headers.get("Authorization", "")
+    try:
+        evento = dlocal_service.verificar_webhook(raw, auth_header)
+    except dlocal_service.DlocalConfiguracionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except dlocal_service.DlocalApiError as exc:
+        logger.warning("[donaciones] Webhook rechazado: %s", exc.message)
+        raise HTTPException(status_code=400, detail="Firma de webhook inválida")
+
+    payment_id = evento.get("payment_id")
+    if not payment_id:
+        logger.warning("[donaciones] Webhook sin payment_id.")
+        raise HTTPException(status_code=400, detail="Falta payment_id en la notificación")
+
+    donacion = (
+        db.query(DonacionUsuario)
+        .filter(DonacionUsuario.transaccion_id == str(payment_id))
+        .order_by(DonacionUsuario.id.desc())
+        .first()
+    )
+    if not donacion:
+        logger.warning("[donaciones] Webhook sin donación conocida (payment_id=%s)", payment_id)
+        return {"recibido": True}
+
+    try:
+        detalle = dlocal_service.consultar_pago(str(payment_id))
+        _aplicar_estado_dlocal_donacion(db, donacion, detalle)
+        db.commit()
+    except (dlocal_service.DlocalApiError, dlocal_service.DlocalConfiguracionError) as exc:
+        logger.warning("[donaciones] No se pudo procesar el estado de %s: %s", payment_id, exc)
+    return {"recibido": True}
+
+
+@router.get("/donaciones/pagos/estado")
+def estado_pago_donacion(referencia: str, db: Session = Depends(get_db)):
+    """Consulta el estado REAL de una donación monetaria (al volver del Checkout
+    de dLocal). Público: se identifica por la referencia de la donación."""
+    donacion = (
+        db.query(DonacionUsuario)
+        .filter(DonacionUsuario.referencia == (referencia or "").strip().upper())
+        .first()
+    )
+    if not donacion:
+        raise HTTPException(status_code=404, detail="Donación no encontrada")
+
+    if donacion.tipo == "dinero" and donacion.estado == "pendiente" and donacion.transaccion_id:
+        try:
+            detalle = dlocal_service.consultar_pago(donacion.transaccion_id)
+            _aplicar_estado_dlocal_donacion(db, donacion, detalle)
+            db.commit()
+            db.refresh(donacion)
+        except (dlocal_service.DlocalApiError, dlocal_service.DlocalConfiguracionError) as exc:
+            logger.warning("[donaciones] No se pudo sincronizar estado: %s", exc)
 
     return _serialize_donacion(donacion)
 

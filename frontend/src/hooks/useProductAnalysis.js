@@ -35,6 +35,9 @@ export default function useProductAnalysis() {
   const posicionRef = useRef(0);
   const intervaloMsgRef = useRef(null);
   const mountedRef = useRef(true);
+  // Contador para invalidar flujos de cámara obsoletos (evita que queden 2
+  // cámaras activas o que una cámara siga encendida tras salir del apartado).
+  const generacionRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -67,83 +70,90 @@ export default function useProductAnalysis() {
     setCamaraActiva(false);
   }, []);
 
-  const iniciarCamara = useCallback(async () => {
-    try {
-      // Detener cámara previa si existe
-      detenerTodo();
+  const arrancarMensajes = () => {
+    if (intervaloMsgRef.current) clearInterval(intervaloMsgRef.current);
+    setMensajeActual(MENSAJES_DINAMICOS[0]);
+    let idx = 0;
+    intervaloMsgRef.current = setInterval(() => {
+      idx = (idx + 1) % MENSAJES_DINAMICOS.length;
+      setMensajeActual(MENSAJES_DINAMICOS[idx]);
+    }, 3000);
+  };
 
-      // Pequeña pausa para asegurar que el DOM se estabilice
-      // (crítico en React StrictMode donde el componente se monta dos veces)
+  const iniciarCamara = useCallback(async () => {
+    // Token anti-race: evita abrir dos cámaras a la vez (p. ej. el doble montaje
+    // de React StrictMode en desarrollo) y que una cámara quede encendida al
+    // salir. Solo el flujo MÁS RECIENTE aplica DOM/estado; los anteriores
+    // liberan su stream al resolver.
+    const gen = ++generacionRef.current;
+    detenerTodo();
+    try {
+      // Pequeña pausa para asegurar que el DOM se estabilice tras limpiar.
       await new Promise((r) => setTimeout(r, 50));
 
+      // Mayor resolución (antes 640x480 -> imagen borrosa).
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
       });
 
-      // Si el componente fue desmontado mientras obteníamos la cámara, liberar y salir
-      if (!mountedRef.current) {
+      // Si ya no es el flujo vigente o el componente se desmontó -> liberar.
+      if (!mountedRef.current || gen !== generacionRef.current) {
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
-
       streamRef.current = stream;
 
       const container = document.getElementById(CAMERA_ID);
       if (!container) {
         stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
         throw new Error("Contenedor de cámara no encontrado");
       }
 
-      // Crear video y asignar stream
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.setAttribute("playsinline", "true");
-      video.setAttribute("autoplay", "true");
-      video.muted = true;
-      video.style.width = "100%";
-      video.style.height = "100%";
-      video.style.objectFit = "cover";
-
-      // Limpiar contenedor y agregar el video
+      // Garantiza UN SOLO <video> en el contenedor (evita cámaras duplicadas).
       container.innerHTML = "";
-      container.appendChild(video);
 
-      // Intentar reproducir con manejo de error DOM
+      const crearVideo = (st) => {
+        const v = document.createElement("video");
+        v.srcObject = st;
+        v.setAttribute("playsinline", "true");
+        v.setAttribute("autoplay", "true");
+        v.muted = true;
+        v.style.width = "100%";
+        v.style.height = "100%";
+        v.style.objectFit = "cover";
+        container.appendChild(v);
+        return v;
+      };
+
+      const video = crearVideo(stream);
       try {
         await video.play();
       } catch (playErr) {
-        // Si falla play() (ej. StrictMode desmontó el DOM), liberar recursos
+        // Si falla play() (ej. StrictMode desmontó el DOM), liberar y reintentar
         console.warn("[useProductAnalysis] video.play() falló, reintentando...", playErr);
         stream.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
         container.innerHTML = "";
-        if (!mountedRef.current) return;
-        // Reintentar una vez más
+        if (!mountedRef.current || gen !== generacionRef.current) return;
         const stream2 = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
         });
-        if (!mountedRef.current) { stream2.getTracks().forEach((t) => t.stop()); return; }
+        if (!mountedRef.current || gen !== generacionRef.current) {
+          stream2.getTracks().forEach((t) => t.stop());
+          return;
+        }
         streamRef.current = stream2;
-        const video2 = document.createElement("video");
-        video2.srcObject = stream2;
-        video2.setAttribute("playsinline", "true");
-        video2.setAttribute("autoplay", "true");
-        video2.muted = true;
-        video2.style.width = "100%";
-        video2.style.height = "100%";
-        video2.style.objectFit = "cover";
-        container.appendChild(video2);
+        const video2 = crearVideo(stream2);
         await video2.play();
         videoRef.current = video2;
         setCamaraActiva(true);
         setEstado("capturando");
-        // Mensaje inicial
-        if (intervaloMsgRef.current) clearInterval(intervaloMsgRef.current);
-        let idx = 0;
-        intervaloMsgRef.current = setInterval(() => {
-          idx = (idx + 1) % MENSAJES_DINAMICOS.length;
-          setMensajeActual(MENSAJES_DINAMICOS[idx]);
-        }, 3000);
+        arrancarMensajes();
         setMensajeActual(`Posición ${posicionRef.current + 1}: ${POSICIONES[posicionRef.current].instruccion}`);
         return;
       }
@@ -151,17 +161,7 @@ export default function useProductAnalysis() {
       videoRef.current = video;
       setCamaraActiva(true);
       setEstado("capturando");
-
-      // Mensajes dinámicos
-      if (intervaloMsgRef.current) clearInterval(intervaloMsgRef.current);
-      setMensajeActual(MENSAJES_DINAMICOS[0]);
-      let idx = 0;
-      intervaloMsgRef.current = setInterval(() => {
-        idx = (idx + 1) % MENSAJES_DINAMICOS.length;
-        setMensajeActual(MENSAJES_DINAMICOS[idx]);
-      }, 3000);
-
-      // NO auto-captura: el usuario presiona el botón manualmente
+      arrancarMensajes();
       setMensajeActual(`Posición ${posicionRef.current + 1}: ${POSICIONES[posicionRef.current].instruccion}`);
     } catch (err) {
       // Si el componente ya no está montado, no actualizar estado
@@ -172,13 +172,14 @@ export default function useProductAnalysis() {
     }
   }, [detenerTodo]);
 
-  const capturarFrame = (calidad = 0.6) => {
+  const capturarFrame = (calidad = 0.75) => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return null;
     try {
       const canvas = document.createElement("canvas");
-      const MAX_W = 640;
-      const MAX_H = 480;
+      // Mayor resolución que antes (640x480) para fotos más nítidas.
+      const MAX_W = 1440;
+      const MAX_H = 1080;
       let w = video.videoWidth;
       let h = video.videoHeight;
       if (w > MAX_W || h > MAX_H) {

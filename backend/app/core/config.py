@@ -21,6 +21,25 @@ class Settings(BaseSettings):
     # Modelo a usar en el campo "model" de cada petición
     IA_MODEL: str = "qwen-max"
 
+    # --- OpenRouter (proveedor PRINCIPAL de IA) ---
+    # API compatible con OpenAI: POST {OPENROUTER_BASE_URL}/chat/completions.
+    # Reemplaza al proveedor anterior (Alibaba Cloud) como cliente por defecto.
+    # La API key SOLO se usa desde el backend; NUNCA en frontend (no VITE_).
+    OPENROUTER_API_KEY: str = ""
+    # Base URL sin /chat/completions
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    # Modelo preferido (primer elemento de la cadena "models" de OpenRouter).
+    # Debe ser multimodal (visión) para que "Analizar producto con IA" funcione.
+    # Valor por defecto gratuito (funciona sin créditos). Para mayor calidad o
+    # concurrencia, cámbialo por un modelo de pago (p. ej. gemini-2.0-flash).
+    OPENROUTER_MODEL: str = "google/gemma-4-31b-it:free"
+    # Modelos de reserva separados por coma (se añaden tras el principal).
+    # OpenRouter prueba cada modelo en orden si el anterior no puede atender.
+    OPENROUTER_FALLBACK_MODELS: str = "google/gemma-4-26b-a4b-it:free,minimax/minimax-m3:free"
+    # Cabeceras opcionales que OpenRouter usa para ranking/atribución.
+    OPENROUTER_SITE_URL: str = ""
+    OPENROUTER_SITE_NAME: str = "Adoptify"
+
     # --- n8n (automatizaciones / IA asíncrona / notificaciones) ---
     # N8N_ENABLED: si es "true", el backend dispara webhooks a n8n y enruta
     # los correos por n8n. Si es falso/vacío, todo sigue como antes (SMTP local).
@@ -115,6 +134,13 @@ class Settings(BaseSettings):
             return f"{self.DLOCAL_WEBHOOK_URL.strip().rstrip('/')}/api/pagos/webhook"
         return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/pagos/webhook"
 
+    @property
+    def dlocal_callback_url_donaciones(self) -> str:
+        """URL del webhook de dLocal para DONACIONES (endpoint propio)."""
+        if self.DLOCAL_WEBHOOK_URL.strip():
+            return f"{self.DLOCAL_WEBHOOK_URL.strip().rstrip('/')}/api/donaciones/pagos/webhook"
+        return f"{self.BACKEND_PUBLIC_URL.rstrip('/')}/api/donaciones/pagos/webhook"
+
     # --- Google OAuth ---
     GOOGLE_CLIENT_ID: str = ""
 
@@ -150,6 +176,17 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 return [self.CHAT_RUTAS_PERMITIDAS]
         return self.CHAT_RUTAS_PERMITIDAS
+
+    @property
+    def openrouter_fallback_list(self) -> List[str]:
+        """Lista de modelos de reserva (OPENROUTER_FALLBACK_MODELS separados por coma)."""
+        if not self.OPENROUTER_FALLBACK_MODELS:
+            return []
+        return [
+            m.strip()
+            for m in str(self.OPENROUTER_FALLBACK_MODELS).split(",")
+            if m.strip()
+        ]
 
 
 settings = Settings()

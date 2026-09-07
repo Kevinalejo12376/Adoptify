@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Camera, Sparkles, CheckCircle2, Loader2,
-  Scan, Image, Package,
+  Scan, Image, Package, AlertCircle,
 } from "lucide-react";
 import useProductAnalysis from "../../hooks/useProductAnalysis";
 
@@ -106,6 +106,15 @@ function AnalysisSummary({ resultadoIA, fotos, onContinuar, onReintentar }) {
           >
             Volver a capturar
           </button>
+
+          {/* Aviso: la IA puede cometer errores */}
+          <p className="pt-1 text-[11px] leading-relaxed text-center text-gray-400 dark:text-dark-text-secondary flex items-start justify-center gap-1.5">
+            <AlertCircle size={13} className="mt-0.5 flex-shrink-0 text-amber-500" />
+            <span>
+              La IA puede cometer errores. Si el producto no coincide con las fotos,
+              vuelve a capturarlo desde otro ángulo y con mejor luz.
+            </span>
+          </p>
         </div>
       </div>
     </div>

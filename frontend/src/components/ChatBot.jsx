@@ -9,31 +9,35 @@ import {
   historialChat,
 } from "../api/chat";
 
-// Rutas que el bot puede sugerir navegar (defensa extra en el frontend;
-// el backend ya valida la lista blanca). Deben coincidir con App.jsx.
+// Rutas que el bot puede sugerir navegar (defensa extra en el frontend; el
+// backend ya valida la lista blanca SEGÚN EL ROL). Deben coincidir con App.jsx.
 const RUTAS_PERMITIDAS = new Set([
-  "/",
-  "/animals",
-  "/shelters",
-  "/store",
-  "/forum",
-  "/mis-pedidos",
-  "/favoritos",
-  "/login",
-  "/register",
-  "/registrar-refugio",
-  "/registrar-tienda",
+  // Públicas (acceso libre)
+  "/", "/animals", "/shelters", "/store", "/forum",
+  "/login", "/register", "/registrar-refugio", "/registrar-tienda",
+  // Área de usuario
+  "/dashboard", "/profile", "/favorites", "/mis-pedidos", "/mis-donaciones",
+  "/adoption-history", "/settings",
+  // Área de refugio
+  "/refugio/dashboard", "/refugio/mascotas", "/refugio/solicitudes",
+  "/refugio/tienda", "/refugio/pedidos", "/refugio/donaciones", "/refugio/foro",
+  "/refugio/equipo", "/refugio/perfil", "/refugio/configuracion",
+  // Área de tienda
+  "/tienda/dashboard", "/tienda/productos", "/tienda/pedidos", "/tienda/perfil",
+  "/tienda/kardex", "/tienda/donaciones", "/tienda/pqrs", "/tienda/estadisticas",
+  "/tienda/configuracion", "/tienda/actividad",
+  // Área de administración
+  "/admin/dashboard", "/admin/usuarios", "/admin/refugios", "/admin/mascotas",
+  "/admin/tiendas", "/admin/marketplace", "/admin/pedidos", "/admin/foro",
+  "/admin/donaciones", "/admin/estadisticas", "/admin/pqrs", "/admin/configuracion",
 ]);
 
-// Rutas que requieren iniciar sesión (para avisarle al usuario si el bot
-// sugiere navegar a una de ellas sin estar autenticado).
-const RUTAS_PROTEGIDAS = new Set([
-  "/animals",
-  "/shelters",
-  "/store",
-  "/forum",
-  "/mis-pedidos",
-  "/favoritos",
+// Política de Adoptify: SIN sesión, el usuario solo puede estar en el inicio y
+// en las páginas de autenticación/registro. Cualquier otro destino (ver
+// mascotas, refugios, tienda, productos, foro, pedidos, etc.) exige iniciar
+// sesión y se redirige a /login.
+const RUTAS_ACCESO_LIBRE = new Set([
+  "/", "/login", "/register", "/registrar-refugio", "/registrar-tienda",
 ]);
 
 const NOMBRES_RUTAS = {
@@ -42,7 +46,13 @@ const NOMBRES_RUTAS = {
   "/store": "la tienda",
   "/forum": "el foro",
   "/mis-pedidos": "Mis pedidos",
-  "/favoritos": "Mis favoritos",
+  "/favorites": "Mis favoritos",
+  "/mis-donaciones": "Mis donaciones",
+  "/dashboard": "tu panel",
+  "/refugio/mascotas": "las mascotas de tu refugio",
+  "/refugio/solicitudes": "las solicitudes de tu refugio",
+  "/tienda/productos": "tus productos",
+  "/admin/mascotas": "la gestión de mascotas",
 };
 
 const SESSION_KEY = "adoptify_chat_session";
@@ -219,15 +229,17 @@ export default function ChatBot() {
         // Navegacion sugerida por el bot (lista blanca, validada tambien en backend).
         const accion = res?.accion;
         if (accion?.tipo === "navegar" && RUTAS_PERMITIDAS.has(accion.ruta)) {
-          if (RUTAS_PROTEGIDAS.has(accion.ruta) && !estaAutenticado) {
-            // No navegar: avisar que debe iniciar sesion / registrarse.
+          // Sin sesión solo se permite el inicio y las páginas de auth/registro.
+          // Cualquier otro destino redirige a iniciar sesión.
+          const requiereLogin = !RUTAS_ACCESO_LIBRE.has(accion.ruta);
+          if (requiereLogin && !estaAutenticado) {
             const nombre = NOMBRES_RUTAS[accion.ruta] || accion.ruta;
             setMensajes((prev) => [
               ...prev,
               {
                 id: `b_${Date.now()}`,
                 rol: "bot",
-                contenido: `Para visitar ${nombre} primero debes iniciar sesión o registrarte. Usa el botón "Iniciar sesión" arriba.`,
+                contenido: `Para ver ${nombre} primero debes iniciar sesión o registrarte.`,
               },
             ]);
             setTimeout(() => navigate("/login"), 1500);
