@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Settings, Store, Bell, Shield, Globe, Save, Building2, MapPin, Phone, Mail, Globe2, Camera, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import { Settings, Store, Bell, Shield, Globe, Save, Building2, MapPin, Phone, Mail, Globe2, Camera, ChevronRight, ExternalLink, Loader2, FileText } from "lucide-react";
 import { miPerfil, actualizarPerfil } from "../../api/refugios";
 import { obtenerConfiguracion, actualizarConfiguracion } from "../../api/configuraciones";
 import FieldError from "../../components/FieldError";
@@ -460,6 +460,40 @@ export default function ShelterSettings() {
                       label="Mostrar email" description="Mostrar correo electrónico en el perfil público" />
                     <Toggle enabled={privacy.showAddress} onChange={() => handlePrivacyToggle('showAddress')}
                       label="Mostrar dirección" description="Mostrar dirección del refugio en el perfil público" />
+                  </div>
+
+                  {/* Documentos legales globales (páginas independientes) */}
+                  <div className="pt-2 space-y-3">
+                    <Link
+                      to="/politica-privacidad"
+                      className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 dark:from-rose-500/10 dark:to-amber-500/10 border border-rose-100 dark:border-rose-500/20 hover:shadow-md transition-all duration-300 group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center">
+                          <Shield className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-rose-700 dark:text-rose-400">Política de Privacidad</p>
+                          <p className="text-xs text-rose-600/70 dark:text-rose-400/70">Conoce cómo protegemos la información de tu refugio</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-rose-500 group-hover:translate-x-0.5 transition-transform" />
+                    </Link>
+                    <Link
+                      to="/terminos-y-condiciones"
+                      className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-500/10 dark:to-indigo-500/10 border border-violet-100 dark:border-violet-500/20 hover:shadow-md transition-all duration-300 group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-violet-700 dark:text-violet-400">Términos y Condiciones</p>
+                          <p className="text-xs text-violet-600/70 dark:text-violet-400/70">Condiciones de uso de la plataforma</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-violet-500 group-hover:translate-x-0.5 transition-transform" />
+                    </Link>
                   </div>
                 </div>
               )}
