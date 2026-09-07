@@ -1,8 +1,16 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
+// Memoria de navegación para el botón "Volver" de páginas legales: guarda la
+// ruta anterior y el scroll de cada vista para regresar exactamente al origen.
+import {
+  trackPathname,
+  saveScrollForPath,
+  consumeScrollRestore,
+  readScrollForPath,
+} from "./utils/navigationMemory";
 import HomeRoute from "./components/HomeRoute";
 import UserRoute from "./components/UserRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -21,6 +29,8 @@ import { FavoritesProvider } from "./context/FavoritesContext";
 import Home from "./pages/public/Home";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import PoliticaPrivacidad from "./pages/Legal/PoliticaPrivacidad";
+import TerminosYCondiciones from "./pages/Legal/TerminosYCondiciones";
 import ShelterRegistration from "./pages/public/ShelterRegistration";
 import StoreRegistration from "./pages/public/StoreRegistration";
 import CrearPassword from "./pages/auth/CrearPassword";
@@ -122,6 +132,10 @@ import AdminDonaciones from "./pages/Admin/Donaciones";
 function AppContent() {
   const location = useLocation();
   const { showProfileModal, setShowProfileModal, markProfileCompleted } = useAuth();
+
+  // Registra la ruta anterior (de forma síncrona, antes de que la página legal
+  // se renderice) para que su botón "Volver" sepa desde qué vista llegó.
+  trackPathname(location.pathname);
   const isAuthPage =
     location.pathname === "/login" ||
     location.pathname === "/register" ||
@@ -130,11 +144,41 @@ function AppContent() {
     location.pathname.startsWith("/crear-password");
   const isAdminPage = location.pathname.startsWith("/admin");
   const isStorePage = location.pathname.startsWith("/tienda");
+  // Páginas legales globales (Política de Privacidad y Términos y Condiciones):
+  // se muestran SIN Navbar, Sidebar ni menús de rol.
+  const isLegalPage =
+    location.pathname === "/politica-privacidad" ||
+    location.pathname === "/terminos-y-condiciones";
+
+  // Guarda el scroll de la vista actual mientras el usuario se desplaza, para
+  // poder restaurar su posición al regresar desde una página legal.
+  useEffect(() => {
+    const onScroll = () => saveScrollForPath(location.pathname);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  // Al regresar desde una página legal a una vista concreta, restaura el scroll
+  // guardado de dicha vista (después de que ScrollToTop y el render ocurran).
+  useEffect(() => {
+    const target = consumeScrollRestore(location.pathname);
+    if (target > 0) {
+      const t1 = setTimeout(() => window.scrollTo(0, target), 80);
+      const t2 = setTimeout(() => window.scrollTo(0, target), 500);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <ScrollToTop />
-      {!isAuthPage && !isAdminPage && !isStorePage && <Navbar />}
+      {!isAuthPage && !isAdminPage && !isStorePage && !isLegalPage && <Navbar />}
       <main className="flex-grow">
         <Routes>
           {/* Rutas públicas */}
@@ -144,6 +188,12 @@ function AppContent() {
           <Route path="/registrar-refugio" element={<ShelterRegistration />} />
           <Route path="/registrar-tienda" element={<StoreRegistration />} />
           <Route path="/crear-password/:token" element={<CrearPassword />} />
+
+          {/* Páginas legales globales (Política de Privacidad y Términos y
+              Condiciones): disponibles para todos los roles y visitantes. Se
+              renderizan SIN layout de rol. */}
+          <Route path="/politica-privacidad" element={<PoliticaPrivacidad />} />
+          <Route path="/terminos-y-condiciones" element={<TerminosYCondiciones />} />
 
           {/* ================================================ */}
           {/* RUTAS DEL PANEL DE ADMINISTRACIÓN                */}
@@ -273,10 +323,10 @@ function AppContent() {
           <Route path="*" element={<Home />} />
         </Routes>
       </main>
-      {!isAuthPage && !isAdminPage && !isStorePage && <Footer />}
+      {!isAuthPage && !isAdminPage && !isStorePage && !isLegalPage && <Footer />}
 
       {/* Modal global para completar perfil (solo fuera de páginas de auth) */}
-      {!isAuthPage && (
+      {!isAuthPage && !isLegalPage && (
         <CompleteProfileModal
           isOpen={showProfileModal}
           onClose={() => setShowProfileModal(false)}
@@ -284,8 +334,11 @@ function AppContent() {
         />
       )}
 
-      {/* Chatbot flotante (IA via n8n) — en todas las vistas EXCEPTO Login y Register */}
-      {location.pathname !== "/login" && location.pathname !== "/register" && <ChatBot />}
+      {/* Chatbot flotante (IA via n8n) — en todas las vistas EXCEPTO Login,
+          Register y las páginas legales (Privacidad / Términos) */}
+      {location.pathname !== "/login" &&
+        location.pathname !== "/register" &&
+        !isLegalPage && <ChatBot />}
     </div>
   );
 }
