@@ -21,6 +21,16 @@ export const confirmarPago = (donacionId, payload = {}) =>
 export const pagoFallido = (donacionId, payload = {}) =>
   apiFetch(`${base}/donaciones/${donacionId}/pago-fallido`, { method: "POST", body: payload });
 
+/** Crea el Checkout (dLocal Go) para una donación monetaria y devuelve
+ *  { redirect_url, referencia, order_id, ... } para redirigir al pago. */
+export const iniciarCheckoutDonacion = (donacionId) =>
+  apiFetch(`${base}/donaciones/${donacionId}/checkout`, { method: "POST" });
+
+/** Estado REAL de una donación monetaria (al volver del Checkout de dLocal).
+ *  Público: se consulta con la referencia de la donación. */
+export const estadoPagoDonacion = (referencia) =>
+  apiFetch(`${base}/donaciones/pagos/estado?referencia=${encodeURIComponent(referencia)}`, { auth: false });
+
 /** Donaciones del usuario autenticado. */
 export const misDonaciones = () => apiFetch(`${base}/donaciones/mis-donaciones`);
 

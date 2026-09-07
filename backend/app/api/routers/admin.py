@@ -50,6 +50,8 @@ from app.core.email import enviar_correo_restablecer_password_tienda
 
 logger = logging.getLogger("admin")
 
+logger = logging.getLogger("admin")
+
 router = APIRouter()
 
 

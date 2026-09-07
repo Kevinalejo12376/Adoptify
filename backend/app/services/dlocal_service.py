@@ -150,6 +150,8 @@ def crear_checkout(
     back_url: str,
     notification_url: str,
     payer: dict = None,
+    order_id: str = None,
+    description: str = None,
 ) -> dict:
     """Crea un pago en dLocal Go (POST /v1/payments) y devuelve la respuesta.
 
@@ -158,17 +160,21 @@ def crear_checkout(
     - ``success_url``: página de éxito de Adoptify.
     - ``back_url``: página de regreso/cancelación de Adoptify.
     - ``notification_url``: endpoint de webhook de Adoptify (/api/pagos/webhook).
+    - ``order_id``/``description``: opcionales. Por defecto se usa el prefijo de
+      pedidos (``ADOPTIFY-PEDIDO-{pedido.id}``); si se pasan (p. ej. donaciones
+      ``ADOPTIFY-DONACION-{id}``) se usan esos valores.
     - Devuelve { id, status, redirect_url, ... } de dLocal Go (redirect_url es
       a donde se redirige al usuario para pagar).
     """
     _asegurar_configuracion()
-    numero = f"ADOPTIFY-PEDIDO-{pedido.id}"
+    numero = order_id or f"ADOPTIFY-PEDIDO-{pedido.id}"
+    descripcion = description or f"Pedido {numero} en Adoptify"
     cuerpo = {
         "currency": settings.DLOCAL_CURRENCY or "COP",
         "amount": int(monto_cop),
         "country": settings.DLOCAL_COUNTRY or "CO",
         "order_id": numero,
-        "description": f"Pedido {numero} en Adoptify",
+        "description": descripcion,
         "success_url": success_url,
         "back_url": back_url,
         "notification_url": notification_url,

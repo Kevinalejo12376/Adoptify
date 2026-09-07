@@ -15,6 +15,19 @@ def _personalidad_a_lista(v):
     return None
 
 
+def _personalidad_a_lista(v):
+    """Normaliza la personalidad a una lista de textos.
+
+    Nuevo formato: columna text[] (ya es una lista). Por compatibilidad, si
+    llega una cadena separada por comas (formato anterior), la convierte.
+    """
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        return [p.strip() for p in v.split(",") if p.strip()]
+    return None
+
+
 def serialize_usuario(u):
     return {
         "id": u.id,
@@ -388,6 +401,28 @@ def serialize_producto(p):
         ],
         # URL de la primera imagen (cómoda para listados y tarjetas).
         "imagen_url": (p.imagenes[0].url if (p.imagenes or []) else None),
+    }
+
+
+def serialize_movimiento_kardex(m):
+    """Serializa un movimiento de Kardex para la API del panel de tienda."""
+    return {
+        "id": m.id,
+        "producto_id": m.producto_id,
+        "tienda_id": m.tienda_id,
+        "tipo_movimiento": m.tipo_movimiento,
+        "concepto": m.concepto,
+        "cantidad": m.cantidad,
+        "costo_unitario": float(m.costo_unitario) if m.costo_unitario is not None else 0,
+        "costo_total": float(m.costo_total) if m.costo_total is not None else 0,
+        "saldo_cantidad": m.saldo_cantidad,
+        "saldo_valor": float(m.saldo_valor) if m.saldo_valor is not None else 0,
+        "saldo_costo_unitario": (
+            round(float(m.saldo_valor) / m.saldo_cantidad, 2)
+            if m.saldo_cantidad and m.saldo_valor is not None
+            else 0
+        ),
+        "creado_en": m.creado_en.isoformat() if m.creado_en else None,
     }
 
 

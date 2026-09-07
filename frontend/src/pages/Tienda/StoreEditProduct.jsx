@@ -185,8 +185,7 @@ function SubidaImagenesProducto({ value = [], onChange, maxImages = 5 }) {
     </div>
   );
 }
-
-// ============================================================
+//============================================================
 // Campos específicos según la categoría seleccionada (mismas reglas que en el
 // rol Refugio): Alimentos -> talla/tamaño (peso/volumen), Accesorios -> S/M/L/XL,
 // Juguetes -> S/M/L, Ropa -> XS..XXL, Salud -> dosis/tabletas, Higiene -> volumen.
@@ -921,6 +920,15 @@ export default function StoreEditProduct() {
             </button>
           )}
         </div>
+
+        {/* Aviso cuando el producto viene de IA */}
+        {isNew && fromIA && (
+          <p className="text-center text-xs text-gray-400 dark:text-dark-text-secondary flex items-center justify-center gap-1.5 -mt-2">
+            <Info size={13} className="flex-shrink-0 text-amber-500" />
+            La IA puede cometer errores. Si el producto no coincide con las fotos
+            tomadas, vuelve a capturarlo desde otro ángulo y con mejor luz.
+          </p>
+        )}
       </form>
 
       {/* Diálogo de confirmación */}
