@@ -298,17 +298,14 @@ export default function Footer() {
             © {new Date().getFullYear()} Adoptify. {t("footer.rights")}
           </p>
           <div className="flex space-x-6">
-            <Link to="/settings" className="relative text-gray-500 hover:text-rose-400 transition-all duration-300 after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-0 after:bg-rose-400 after:transition-all after:duration-300 hover:after:w-full">
+            <Link to="/politica-privacidad" className="relative text-gray-500 hover:text-rose-400 transition-all duration-300 after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-0 after:bg-rose-400 after:transition-all after:duration-300 hover:after:w-full">
               {t("footer.privacy")}
             </Link>
-            <Link to="/settings" className="relative text-gray-500 hover:text-rose-400 transition-all duration-300 after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-0 after:bg-rose-400 after:transition-all after:duration-300 hover:after:w-full">
+            <Link to="/terminos-y-condiciones" className="relative text-gray-500 hover:text-rose-400 transition-all duration-300 after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-0 after:bg-rose-400 after:transition-all after:duration-300 hover:after:w-full">
               {t("footer.terms")}
             </Link>
             <Link to="/settings" className="relative text-gray-500 hover:text-rose-400 transition-all duration-300 after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-0 after:bg-rose-400 after:transition-all after:duration-300 hover:after:w-full">
               {t("footer.cookies")}
-            </Link>
-            <Link to="/settings" className="relative text-gray-500 hover:text-rose-400 transition-all duration-300 after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-0 after:bg-rose-400 after:transition-all after:duration-300 hover:after:w-full">
-              {t("footer.legal_notice")}
             </Link>
           </div>
         </div>

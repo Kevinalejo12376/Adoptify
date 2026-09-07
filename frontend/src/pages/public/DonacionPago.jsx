@@ -1,26 +1,24 @@
-// Página de donación monetaria (pasarela de pagos).
+// Página de donación monetaria con pasarela de pagos REAL (dLocal Go).
 //
-// IMPORTANTE: la pasarela de pagos REAL todavía NO está integrada. Esta página
-// deja preparado todo el flujo y el espacio para conectarla después:
-//   1. El usuario selecciona el refugio y el monto.
+// Flujo:
+//   1. El usuario selecciona el refugio, el monto y sus datos. Nombre, correo y
+//      teléfono se piden SIEMPRE cuando NO hay sesión iniciada.
 //   2. Se crea la donación en la BD (estado "pendiente").
-//   3. Se simula el procesamiento del pago.
-//   4. Al confirmarse, el backend pasa la donación a "pago_confirmado" mediante
-//      POST /api/donaciones/{id}/pago-confirmado — el mismo endpoint que
-//      invocará el webhook de la pasarela real cuando se integre.
-//   5. Si el pago falla, se marca como "fallida" y se muestra
-//      "Tu donación no pudo completarse" sin dejar estados engañosos.
-//
-// Para probar el escenario de fallo, en desarrollo aparece un enlace
-// "Simular pago rechazado (demo)".
+//   3. POST /api/donaciones/donaciones/{id}/checkout crea el pago en dLocal
+//      (Checkout REDIRECT) y la página redirige a la pasarela de dLocal Go, que
+//      además confirma los datos del donante.
+//   4. Al volver (success/back) se consulta el estado REAL
+//      (GET .../donaciones/pagos/estado). El estado solo lo define dLocal
+//      (webhook o consulta), nunca la URL del navegador.
+//   5. Pago confirmado -> "exito"; rechazado/cancelado -> "fallo".
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   HandHeart, Banknote, MapPin, Phone, ShieldCheck, Check, X, Loader2,
   AlertCircle, ArrowLeft, ArrowRight, Lock, User, Sparkles, RefreshCw,
 } from "lucide-react";
 import { obtenerRefugio } from "../../api/refugios";
-import { crearDonacion, confirmarPago, pagoFallido } from "../../api/donaciones";
+import { crearDonacion, iniciarCheckoutDonacion, estadoPagoDonacion } from "../../api/donaciones";
 import { useAuth } from "../../context/AuthContext";
 import CompartirDonacionModal from "../../components/CompartirDonacionModal";
 
@@ -50,6 +48,41 @@ export default function DonacionPago() {
 
   const autenticado = !!user;
 
+  // Retorno desde el Checkout de dLocal (?resultado=exito|cancelado&referencia=...).
+  const [searchParams] = useSearchParams();
+  const resultadoRetorno = searchParams.get("resultado");
+  const referenciaRetorno = searchParams.get("referencia");
+
+  // Consulta el estado REAL de la donación al volver de la pasarela (polling
+  // acotado: el webhook puede tardar unos segundos en confirmar).
+  const verificarEstadoDonacion = async (referencia) => {
+    for (let i = 0; i < 6; i++) {
+      try {
+        const d = await estadoPagoDonacion(referencia);
+        if (d?.estado === "pago_confirmado" || d?.estado === "recibida") {
+          setDonacion(d); setPaso("exito"); return;
+        }
+        if (d?.estado === "fallida") { setDonacion(d); setPaso("fallo"); return; }
+      } catch (e) { /* se reintenta */ }
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+    // Sin confirmación del webhook, se decide según el resultado del Checkout.
+    if (resultadoRetorno === "exito") {
+      try { const d = await estadoPagoDonacion(referencia); setDonacion(d || { referencia }); } catch (e) { /* noop */ }
+      setPaso("exito");
+    } else {
+      setPaso("fallo");
+    }
+  };
+
+  useEffect(() => {
+    if (referenciaRetorno) {
+      setPaso("procesando");
+      verificarEstadoDonacion(referenciaRetorno);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     setCargando(true);
     obtenerRefugio(refugioId)
@@ -71,12 +104,26 @@ export default function DonacionPago() {
     setMontoCustom("");
   };
 
-  const iniciarPago = async (simularFallo = false) => {
+  // Sin sesión, dLocal/el refugio necesitan los datos del donante para procesar
+  // y confirmar la donación (dLocal Go además los confirma en su pasarela).
+  const validarDatosDonante = () => {
+    if (!autenticado) {
+      if (!(nombre || "").trim()) return "Escribe tu nombre para la donación";
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || "").trim());
+      if (!emailOk) return "Escribe un correo válido para recibir la confirmación";
+      if (!(telefono || "").trim()) return "Escribe tu teléfono para coordinar la donación";
+    }
+    return null;
+  };
+
+  const iniciarPago = async () => {
     setError(null);
     if (valorFinal < 1000) {
       setError("Indica un monto válido para tu donación (mínimo $1.000)");
       return;
     }
+    const errDonante = validarDatosDonante();
+    if (errDonante) { setError(errDonante); return; }
     if (!refugio) {
       setError("No se encontró el refugio");
       return;
@@ -89,27 +136,17 @@ export default function DonacionPago() {
         refugio_id: refugio.id,
         tipo: "dinero",
         valor: valorFinal,
-        nombre_donante: nombre.trim() || (autenticado ? undefined : "Donación anónima"),
-        telefono_contacto: telefono.trim() || undefined,
-        email_contacto: email.trim() || undefined,
+        nombre_donante: (nombre || "").trim() || undefined,
+        telefono_contacto: (telefono || "").trim() || undefined,
+        email_contacto: (email || "").trim() || undefined,
       });
       setDonacion(donacionCreada);
 
-      // 2. Simula el procesamiento del pago (aquí se conectará la pasarela real).
-      await new Promise((r) => setTimeout(r, 1800));
-
-      if (simularFallo) {
-        await pagoFallido(donacionCreada.id, { motivo: "Pago rechazado por el proveedor (demo)" });
-        setPaso("fallo");
-      } else {
-        // 3. Confirma el pago: punto de integración del webhook de la pasarela.
-        const confirmada = await confirmarPago(donacionCreada.id, {
-          transaccion_id: `SIM-${Date.now()}`,
-          pasarela_datos: { proveedor: "demo", estado: "aprobado" },
-        });
-        setDonacion(confirmada);
-        setPaso("exito");
-      }
+      // 2. Crea el Checkout en dLocal Go y redirige al usuario a la pasarela.
+      const checkout = await iniciarCheckoutDonacion(donacionCreada.id);
+      const redirect_url = checkout?.redirect_url;
+      if (!redirect_url) throw new Error("No se pudo iniciar el pago. Intenta de nuevo.");
+      window.location.href = redirect_url;
     } catch (e) {
       setError(e?.message || "Tu donación no pudo completarse. Intenta de nuevo.");
       setPaso("form");
@@ -214,7 +251,7 @@ export default function DonacionPago() {
               {/* Datos del donante */}
               <div className="space-y-4">
                 <p className="text-sm font-semibold text-gray-700 dark:text-dark-text">
-                  Tus datos {autenticado ? "(prellenados de tu cuenta)" : "(opcionales)"}
+                  Tus datos {autenticado ? "(prellenados de tu cuenta)" : "(obligatorios para la donación)"}
                 </p>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="relative">
@@ -222,7 +259,7 @@ export default function DonacionPago() {
                     <input
                       value={nombre}
                       onChange={(e) => setNombre(e.target.value)}
-                      placeholder={autenticado ? "Tu nombre" : "Nombre (o deja en blanco para ser anónimo)"}
+                      placeholder={autenticado ? "Tu nombre" : "Nombre *"}
                       className="w-full pl-9 p-3 rounded-xl border-2 border-gray-200 dark:border-dark-border dark:bg-dark-input bg-white text-gray-900 dark:text-white focus:border-rose-400 focus:outline-none transition-colors"
                     />
                   </div>
@@ -231,7 +268,7 @@ export default function DonacionPago() {
                     <input
                       value={telefono}
                       onChange={(e) => setTelefono(e.target.value)}
-                      placeholder="Teléfono"
+                      placeholder={autenticado ? "Teléfono" : "Teléfono *"}
                       className="w-full pl-9 p-3 rounded-xl border-2 border-gray-200 dark:border-dark-border dark:bg-dark-input bg-white text-gray-900 dark:text-white focus:border-rose-400 focus:outline-none transition-colors"
                     />
                   </div>
@@ -242,14 +279,14 @@ export default function DonacionPago() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Correo electrónico"
+                    placeholder={autenticado ? "Correo electrónico" : "Correo electrónico *"}
                     className="w-full pl-9 p-3 rounded-xl border-2 border-gray-200 dark:border-dark-border dark:bg-dark-input bg-white text-gray-900 dark:text-white focus:border-rose-400 focus:outline-none transition-colors"
                   />
                 </div>
                 {!autenticado && (
                   <p className="text-xs text-gray-500 dark:text-dark-text-secondary flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                    Sin sesión tu donación se registrará como "Donación anónima" con una referencia para darle seguimiento.
+                    Sin sesión necesitamos tus datos para procesar y confirmar tu donación. Se registrará como "Donación anónima" con una referencia para darle seguimiento.
                   </p>
                 )}
               </div>
@@ -271,25 +308,11 @@ export default function DonacionPago() {
                   Donar {valorFinal >= 1000 ? nf.format(valorFinal) : ""}
                 </button>
 
-                {/* Punto de integración de la pasarela real */}
-                <div className="rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5 p-4">
-                  <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
-                    🔒 Pasarela de pagos — próximamente
-                  </p>
-                  <p className="text-xs text-amber-700/80 dark:text-amber-300/70">
-                    El flujo ya está preparado: al confirmarse el pago, el backend registra la donación y notifica al refugio.
-                    Aquí se integrará el proveedor de pagos (webhook → pago-confirmado).
-                  </p>
-                  {import.meta.env.DEV && (
-                    <button
-                      onClick={() => iniciarPago(true)}
-                      disabled={procesando}
-                      className="mt-3 text-xs font-semibold text-amber-600 dark:text-amber-400 underline hover:text-amber-700 disabled:opacity-50"
-                    >
-                      Simular pago rechazado (demo) — validar el caso "Tu donación no pudo completarse"
-                    </button>
-                  )}
-                </div>
+                {/* Pago procesado de forma segura por dLocal Go */}
+                <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  Pago procesado de forma segura por dLocal. Serás redirigido a su pasarela para completar la donación.
+                </p>
               </div>
             </div>
           </div>

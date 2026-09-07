@@ -49,6 +49,153 @@ router = APIRouter()
 
 
 # =====================================================================
+# Navegación del chatbot según el rol (catálogo de rutas REALES de App.jsx)
+# =====================================================================
+
+DESTINOS_INVITADO = [
+    ("/", "inicio"),
+    ("/login", "iniciar sesión"),
+    ("/register", "registrarme (crear cuenta de usuario)"),
+    ("/registrar-refugio", "registrar un refugio"),
+    ("/registrar-tienda", "registrar una tienda"),
+]
+
+# Zonas públicas de CONTENIDO (requieren estar logueado para poder usarse según
+# la política de Adoptify; solo la página de inicio es accesible sin cuenta).
+DESTINOS_PUBLICOS = [
+    ("/animals", "mascotas en adopción"),
+    ("/shelters", "refugios"),
+    ("/store", "tienda del marketplace"),
+    ("/forum", "foro"),
+]
+
+DESTINOS_USUARIO = DESTINOS_PUBLICOS + [
+    ("/dashboard", "mi panel"),
+    ("/profile", "mi perfil"),
+    ("/favorites", "mis favoritos"),
+    ("/mis-pedidos", "mis pedidos"),
+    ("/mis-donaciones", "mis donaciones"),
+    ("/adoption-history", "mi historial de adopciones"),
+    ("/settings", "mi configuración"),
+]
+
+DESTINOS_REFUGIO = [
+    ("/refugio/dashboard", "panel de mi refugio"),
+    ("/refugio/mascotas", "mascotas de MI refugio"),
+    ("/refugio/solicitudes", "solicitudes de adopción"),
+    ("/refugio/tienda", "tienda de mi refugio"),
+    ("/refugio/pedidos", "pedidos"),
+    ("/refugio/donaciones", "donaciones"),
+    ("/refugio/foro", "foro"),
+    ("/refugio/equipo", "equipo"),
+    ("/refugio/perfil", "perfil"),
+    ("/refugio/configuracion", "configuración"),
+]
+
+DESTINOS_TIENDA = [
+    ("/tienda/dashboard", "panel de mi tienda"),
+    ("/tienda/productos", "mis productos"),
+    ("/tienda/pedidos", "pedidos"),
+    ("/tienda/perfil", "perfil"),
+    ("/tienda/kardex", "kardex de inventario"),
+    ("/tienda/donaciones", "donaciones"),
+    ("/tienda/pqrs", "PQRS"),
+    ("/tienda/estadisticas", "estadísticas"),
+    ("/tienda/configuracion", "configuración"),
+    ("/tienda/actividad", "actividad"),
+]
+
+DESTINOS_ADMIN = [
+    ("/admin/dashboard", "panel de administración"),
+    ("/admin/usuarios", "gestión de usuarios"),
+    ("/admin/refugios", "gestión de refugios"),
+    ("/admin/mascotas", "mascotas (todas las del sistema)"),
+    ("/admin/tiendas", "gestión de tiendas"),
+    ("/admin/marketplace", "marketplace"),
+    ("/admin/pedidos", "pedidos"),
+    ("/admin/foro", "foro"),
+    ("/admin/donaciones", "donaciones"),
+    ("/admin/estadisticas", "estadísticas"),
+    ("/admin/pqrs", "PQRS"),
+    ("/admin/configuracion", "configuración"),
+]
+
+
+def _perfil_navegacion(usuario: Usuario | None) -> dict:
+    """Devuelve el perfil de navegación (persona, nota y destinos) del usuario.
+
+    Según el rol el chatbot debe llevar a la vista correcta:
+      - Refugio pide "ver mascotas"  -> /refugio/mascotas (las de SU refugio).
+      - Tienda pide "ver mascotas"   -> no puede: se le explica y accion null.
+      - Usuario/admin piden mascotas -> /animals o /admin/mascotas.
+    """
+    if not usuario:
+        return {
+            "persona": "Visitante sin cuenta",
+            "nota": (
+                "El usuario NO ha iniciado sesión y, sin cuenta, SOLO puede estar en la "
+                "página de inicio (/). Si pide ver refugios, mascotas, tienda/marketplace, "
+                "productos, foro, pedidos o cualquier otra sección, NO lo navegues a esa "
+                "ruta: respóndele que primero debe iniciar sesión o registrarse y devuelve "
+                "accion con ruta /login. Única excepción: iniciar sesión o registrarse."
+            ),
+            "destinos": DESTINOS_INVITADO,
+        }
+    rol = (usuario.rol_codigo or "usuario").lower()
+    if rol in ("refugio", "empleado_refugio"):
+        return {
+            "persona": "Representante de refugio",
+            "nota": (
+                "El usuario administra SU REFUGIO. Cuando pida 'ver mascotas' llévalo "
+                "a /refugio/mascotas (las mascotas de SU refugio), NUNCA a /animals "
+                "(esa zona pública es para adoptantes). Usa las rutas de su refugio."
+            ),
+            "destinos": DESTINOS_REFUGIO,
+        }
+    if rol in ("tienda", "empleado_tienda"):
+        return {
+            "persona": "Tienda aliada",
+            "nota": (
+                "El usuario es una TIENDA. NO puede ver las mascotas en adopción de "
+                "usuarios (/animals): si lo pide, explícale en 'respuesta' que como "
+                "tienda no tiene acceso a esa sección y que si desea debería crear o "
+                "usar una cuenta de usuario; usa accion null. Puede navegar por las "
+                "secciones de su tienda."
+            ),
+            "destinos": DESTINOS_TIENDA,
+        }
+    if rol in ("administrador", "administrador_principal"):
+        return {
+            "persona": "Administrador",
+            "nota": (
+                "El usuario es administrador. Para 'ver mascotas' usa /admin/mascotas. "
+                "Puede navegar por el panel de administración."
+            ),
+            "destinos": DESTINOS_ADMIN,
+        }
+    return {
+        "persona": "Usuario registrado",
+        "nota": (
+            "El usuario tiene cuenta (rol usuario). Puede navegar a sus secciones "
+            "(pedidos, favoritos, donaciones, perfil) y a las zonas públicas. Para "
+            "'ver mascotas en adopción' usa /animals."
+        ),
+        "destinos": DESTINOS_USUARIO,
+    }
+
+
+def _accion_segun_destinos(accion_raw, destinos) -> dict | None:
+    """Valida una accion de navegación del LLM contra los destinos del rol."""
+    if not isinstance(accion_raw, dict):
+        return None
+    ruta = str(accion_raw.get("ruta") or "")
+    rutas = {r for r, _ in destinos}
+    if ruta in rutas:
+        return {"tipo": "navegar", "ruta": ruta}
+    return None
+
+
+# =====================================================================
 # Dependencias de seguridad
 # =====================================================================
 
@@ -348,6 +495,8 @@ async def chat(
     contra la lista blanca -> guarda y devuelve la respuesta del bot.
     """
     sesion = _obtener_o_crear_sesion(db, payload.session_id, usuario)
+    # Perfil de navegación según el rol del usuario (o visitante sin cuenta).
+    perfil = _perfil_navegacion(usuario)
 
     # 1. Guardar mensaje del usuario (actualiza la ultima actividad de la sesion
     #    para poder depurar sesiones abandonadas sin borrar historial valido).
@@ -369,13 +518,31 @@ async def chat(
         for m in historial
     ]
 
-    # 3. Construir contexto legible para la IA (historial + mensaje actual).
+    # 3. Construir contexto legible para la IA: rol + destinos permitidos +
+    #    historial + mensaje actual (la navegación depende del rol).
     contexto_texto = "\n".join(
         f"{'Usuario' if m['rol'] == 'user' else 'Bot'}: {m['contenido']}"
         for m in contexto
     )
+    destinos_texto = "\n".join(
+        f"- {r}: {d}" for r, d in perfil["destinos"]
+    )
+    bloque_navegacion = (
+        f"ROL DEL USUARIO: {perfil['persona']}.\n"
+        f"NOTA: {perfil['nota']}\n"
+        "REGLAS DE NAVEGACIÓN:\n"
+        '- Si el usuario pide ir a una sección o ver algo (mascotas, pedidos, etc.), '
+        'responde y, si procede, devuelve accion = {"tipo": "navegar", "ruta": "..."} '
+        "con UNA ruta EXACTA de la lista 'DESTINOS DISPONIBLES'.\n"
+        "- NUNCA uses rutas que no estén en esa lista.\n"
+        "- Si no es posible para su rol (p. ej. una tienda pidiendo ver mascotas), "
+        "usa accion: null y explícalo en 'respuesta'.\n"
+        "DESTINOS DISPONIBLES:\n"
+        f"{destinos_texto}"
+    )
     prompt_texto = (
-        f"{contexto_texto}\n\nMENSAJE DEL USUARIO: {payload.mensaje}"
+        f"{contexto_texto}\n\n{bloque_navegacion}\n\n"
+        f"MENSAJE DEL USUARIO: {payload.mensaje}"
     )
 
     # 4. Obtener respuesta:
@@ -398,10 +565,7 @@ async def chat(
         if resp and (resp.get("respuesta") or resp.get("texto")):
             respuesta_bot = resp.get("respuesta") or resp.get("texto")
             accion_raw = resp.get("accion")
-            if isinstance(accion_raw, dict):
-                ruta = str(accion_raw.get("ruta") or "")
-                if ruta in settings.get_rutas_permitidas:
-                    accion = {"tipo": "navegar", "ruta": ruta}
+            accion = _accion_segun_destinos(accion_raw, perfil["destinos"]) or accion
 
     # Fallback local: Gemini directo (no depende del workflow de n8n).
     if not respuesta_bot:
@@ -409,10 +573,7 @@ async def chat(
             resultado = await clasificar_contenido("chatbot", prompt_texto)
             respuesta_bot = str(resultado.get("respuesta") or "").strip()
             accion_raw = resultado.get("accion")
-            if isinstance(accion_raw, dict):
-                ruta = str(accion_raw.get("ruta") or "")
-                if ruta in settings.get_rutas_permitidas:
-                    accion = {"tipo": "navegar", "ruta": ruta}
+            accion = _accion_segun_destinos(accion_raw, perfil["destinos"]) or accion
         except Exception as exc:  # noqa: BLE001
             logger.warning("[ia] Chatbot: fallback local con Gemini falló: %s", exc)
 

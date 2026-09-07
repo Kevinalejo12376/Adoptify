@@ -97,6 +97,18 @@ export default function BarcodeScanner() {
     }
   }, [modo]);
 
+  // Seguridad: si se sale del modo escáner por cualquier vía (botón, detección,
+  // error o cambio de modo), se apaga la cámara para que no quede encendida.
+  useEffect(() => {
+    if (modo !== "escaner" && html5QrCodeRef.current) {
+      try {
+        html5QrCodeRef.current.stop();
+      } catch (e) { /* ignore */ }
+      html5QrCodeRef.current = null;
+      setScannerActivo(false);
+    }
+  }, [modo]);
+
   // -----------------------------------------------------------------------
   // Cargar html5-qrcode dinámicamente (solo cuando se necesita)
   // -----------------------------------------------------------------------
@@ -121,7 +133,13 @@ export default function BarcodeScanner() {
         {
           fps: 10,
           qrbox: { width: 280, height: 140 },
-          aspectRatio: 1.0,
+          // Mayor resolución: el código se lee con menos errores y la imagen se
+          // ve más nítida (antes usaba la resolución por defecto, muy baja).
+          videoConstraints: {
+            facingMode: "environment",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
         },
         async (decodedText) => {
           // Código detectado

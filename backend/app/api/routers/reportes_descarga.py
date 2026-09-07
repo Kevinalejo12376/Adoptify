@@ -1,5 +1,6 @@
 """
 Endpoints de descarga de reportes (PDF / Excel) para administradores.
+<<<<<<< HEAD
 
 Los archivos se generan en memoria (ReportLab / openpyxl), sin escribir en el
 servidor, y se devuelven como respuesta de descarga directa (StreamingResponse)
