@@ -18,6 +18,38 @@ const MENSAJES_DINAMICOS = [
   "Verifica que se vea completo en el marco",
 ];
 
+/**
+ * Genera una copia compacta (dataURL JPEG) de una foto para enviarla a la IA.
+ * El modelo de visión no necesita la resolución completa (1440px); redimensionar
+ * a ~1024px reduce el payload del request y acelera mucho la inferencia, evitando
+ * timeouts en el backend serverless. NO altera la foto original (esa se sigue
+ * usando para crear el producto con máxima calidad).
+ */
+function comprimirParaIA(dataUrl, maxLado = 1024, calidad = 0.7) {
+  try {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(img.width * escala));
+          canvas.height = Math.max(1, Math.round(img.height * escala));
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", calidad));
+        } catch (e) {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  } catch (e) {
+    return dataUrl;
+  }
+}
+
 export default function useProductAnalysis() {
   const [estado, setEstado] = useState("iniciando"); // iniciando | capturando | confirmando | procesando | completado | error
   const [fotos, setFotos] = useState([null, null, null, null]);
@@ -245,7 +277,10 @@ export default function useProductAnalysis() {
     try {
       const validas = fotosArray.filter((f) => f !== null);
       if (validas.length === 0) throw new Error("No se capturaron imágenes");
-      const resultado = await analizarProductoConIA(validas);
+      // Enviar versiones compactas a la IA (más rápidas y livianas); las fotos
+      // originales se conservan en estado para el formulario del producto.
+      const compactas = await Promise.all(validas.map(comprimirParaIA));
+      const resultado = await analizarProductoConIA(compactas);
       setResultadoIA(resultado);
       setProgreso(100);
       setEstado("completado");

@@ -30,15 +30,46 @@ class Settings(BaseSettings):
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     # Modelo preferido (primer elemento de la cadena "models" de OpenRouter).
     # Debe ser multimodal (visión) para que "Analizar producto con IA" funcione.
-    # Valor por defecto gratuito (funciona sin créditos). Para mayor calidad o
-    # concurrencia, cámbialo por un modelo de pago (p. ej. gemini-2.0-flash).
-    OPENROUTER_MODEL: str = "google/gemma-4-31b-it:free"
+    # Por defecto se usa un gratuito CONFIABLE verificado (2026-09) con la cuenta
+    # en $0. Para mayor calidad o concurrencia, cámbialo por un modelo de pago
+    # (p. ej. google/gemini-2.0-flash-001) cuando la cuenta tenga créditos.
+    OPENROUTER_MODEL: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
     # Modelos de reserva separados por coma (se añaden tras el principal).
     # OpenRouter prueba cada modelo en orden si el anterior no puede atender.
-    OPENROUTER_FALLBACK_MODELS: str = "google/gemma-4-26b-a4b-it:free,minimax/minimax-m3:free"
+    # IMPORTANTE: deben ser IDs que EXISTAN en el catálogo actual de OpenRouter.
+    # Verificados 2026-09 (respuesta + JSON válido con la cuenta en $0):
+    #   - google/gemma-4-31b-it:free  (visión, mejor calidad; a veces 429)
+    #   - nvidia/nemotron-3-ultra-550b-a55b:free (texto, muy fiable)
+    # (minimax/minimax-m3:free ya NO existe como gratuito -> 404.)
+    OPENROUTER_FALLBACK_MODELS: str = (
+        "google/gemma-4-31b-it:free,"
+        "nvidia/nemotron-3-ultra-550b-a55b:free"
+    )
+    # Modelos con SOPORTE DE IMÁGENES (visión) separados por coma. Se usan en
+    # "Analizar producto con IA" (peticiones multimodales) para NO enviar una
+    # imagen a un modelo de solo texto (que devolvería 404). Si está vacío se usa
+    # la cadena completa (OPENROUTER_MODEL + fallbacks).
+    OPENROUTER_VISION_MODELS: str = (
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free,"
+        "google/gemma-4-31b-it:free"
+    )
     # Cabeceras opcionales que OpenRouter usa para ranking/atribución.
     OPENROUTER_SITE_URL: str = ""
     OPENROUTER_SITE_NAME: str = "Adoptify"
+
+    # --- Proveedor de IA ALTERNATIVO (respaldo cuando OpenRouter falla) ---
+    # Debe ser un endpoint OpenAI-compatible (POST /chat/completions) para
+    # reutilizar el mismo transporte (Groq, Google Gemini compatible-mode,
+    # Alibaba Cloud, Together, etc.). Si está activo, el backend intenta primero
+    # OpenRouter y, si falla (429/402/403/5xx/timeout), prueba este proveedor.
+    # Las claves SOLO se usan desde el backend; NUNCA en frontend.
+    IA_FALLBACK_ENABLED: bool = False
+    IA_FALLBACK_API_KEY: str = ""
+    # Base URL SIN /chat/completions
+    IA_FALLBACK_BASE_URL: str = ""
+    IA_FALLBACK_MODEL: str = ""
+    # Tiempo máximo (seg) de espera para el proveedor alternativo.
+    IA_FALLBACK_TIMEOUT: float = 60.0
 
     # --- n8n (automatizaciones / IA asíncrona / notificaciones) ---
     # N8N_ENABLED: si es "true", el backend dispara webhooks a n8n y enruta
@@ -185,6 +216,17 @@ class Settings(BaseSettings):
         return [
             m.strip()
             for m in str(self.OPENROUTER_FALLBACK_MODELS).split(",")
+            if m.strip()
+        ]
+
+    @property
+    def openrouter_vision_list(self) -> List[str]:
+        """Lista de modelos con visión (OPENROUTER_VISION_MODELS separados por coma)."""
+        if not self.OPENROUTER_VISION_MODELS:
+            return []
+        return [
+            m.strip()
+            for m in str(self.OPENROUTER_VISION_MODELS).split(",")
             if m.strip()
         ]
 
