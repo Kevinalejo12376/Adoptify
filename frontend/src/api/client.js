@@ -22,7 +22,7 @@ export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
  * @param {string} path  ruta relativa, ej: "/api/mascotas/"
  * @param {object} options { method, body (objeto JSON), auth (bool), form (bool) }
  */
-export async function apiFetch(path, { method = "GET", body, auth = true, form = false, headers: extraHeaders = {} } = {}) {
+export async function apiFetch(path, { method = "GET", body, auth = true, form = false, headers: extraHeaders = {}, timeoutMs = 60000 } = {}) {
   const headers = { ...extraHeaders };
   const token = getToken();
   if (auth && token) headers["Authorization"] = `Bearer ${token}`;
@@ -36,11 +36,13 @@ export async function apiFetch(path, { method = "GET", body, auth = true, form =
     payload = JSON.stringify(body);
   }
 
-  // Timeout de 60s: evita que la UI se quede "cargando" para siempre si el
-  // servidor no responde. Se aumentó de 20s→60s porque Supabase (BD remota)
+  // Timeout (por defecto 60s): evita que la UI se quede "cargando" para siempre
+  // si el servidor no responde. Se aumentó de 20s→60s porque Supabase (BD remota)
   // puede tener latencia que hace que consultas complejas tomen más tiempo.
+  // Las llamadas de IA que son lentas (p. ej. "Analizar producto con IA" con
+  // visión) pasan timeoutMs mayor (180s) para no abortar antes de que responda.
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   let res;
   try {
