@@ -101,11 +101,16 @@ export const restaurarMiProducto = (id) =>
 export const eliminarMiProductoDefinitivo = (id) =>
   apiFetch(`${base}/productos/${id}/definitivo`, { method: "DELETE" });
 
-/** Envía imágenes para análisis por IA y devuelve datos estructurados del producto. */
+/**
+ * Envía imágenes para análisis por IA y devuelve datos estructurados del producto.
+ * Usa un timeout largo (180s): el análisis multimodal con modelos de visión puede
+ * tardar >60s y el timeout por defecto (60s) lo abortaría antes de responder.
+ */
 export const analizarProductoConIA = (imagenesBase64) =>
   apiFetch(`${base}/productos/analizar-ia`, {
     method: "POST",
     body: { imagenes: imagenesBase64 },
+    timeoutMs: 180000,
   });
 
 /** Estadisticas de mi tienda (derivadas de productos). */

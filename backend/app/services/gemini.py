@@ -10,7 +10,11 @@ de proveedor (provider.allow_fallbacks) y de cadena de modelos (models=[...]).
 # pyrefly: ignore [missing-import]
 import json
 
-from app.services.openrouter_service import OpenRouterError, chat_completions
+from app.services.openrouter_service import (
+    OpenRouterError,
+    chat_completions,
+    modelos_vision_configurados,
+)
 
 
 def _construir_prompt() -> str:
@@ -50,23 +54,68 @@ Formato JSON:
 }"""
 
 
-def _comprimir_imagen_base64(b64_data: str, max_size_kb: int = 500) -> str:
-    """Reduce el tamaño de una imagen base64 si es muy grande.
-    Si la cadena tiene prefijo data:image, lo respeta.
+def _optimizar_imagen_para_ia(data_url: str, max_lado: int = 1024, calidad: int = 82) -> str:
+    """Prepara una imagen base64 para el modelo de visión.
+
+    Redimensiona al lado mayor máximo (1024 px) y la re-comprime a JPEG de
+    calidad moderada. Esto reduce drásticamente los "tokens visuales" que el
+    modelo debe procesar -> inferencia MUCHO más rápida y menos timeouts en
+    entornos serverless (p. ej. Vercel, donde la función se corta a los 60-300 s).
+
+    A diferencia del método anterior (recortar el string base64, que CORROMPÍA
+    la imagen), aquí se genera una imagen NUEVA y válida con Pillow.
+
+    Si Pillow no está disponible o la imagen no se puede abrir, devuelve la
+    imagen original SIN cambios (fallback seguro: nunca rompe el flujo).
     """
     prefix = ""
-    if "," in b64_data:
-        prefix, b64_data = b64_data.split(",", 1)
+    b64_data = data_url
+    if "," in data_url:
+        prefix, b64_data = data_url.split(",", 1)
+    if not b64_data:
+        return data_url
 
-    # Estimar tamaño en KB (base64 ~ 4/3 del tamaño original)
+    # Si ya es pequeña no vale la pena tocarla.
     estimated_kb = len(b64_data) * 3 / 4 / 1024
-    if estimated_kb <= max_size_kb:
-        return f"{prefix},{b64_data}" if prefix else b64_data
+    if estimated_kb <= 120:
+        return data_url
 
-    # Si es muy grande, recortar (el modelo igual procesa bien con menos calidad)
-    max_chars = int(max_size_kb * 1024 * 4 / 3)
-    b64_data = b64_data[:max_chars]
-    return f"{prefix},{b64_data}" if prefix else b64_data
+    try:
+        import base64
+        import io
+
+        from PIL import Image
+
+        raw = base64.b64decode(b64_data)
+        with Image.open(io.BytesIO(raw)) as img:
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            w, h = img.size
+            escala = min(1.0, max_lado / max(w, h))
+            if escala < 1.0:
+                img = img.resize(
+                    (max(1, int(w * escala)), max(1, int(h * escala))),
+                    Image.LANCZOS,
+                )
+            # Guardar en JPEG bajando la calidad hasta que la imagen quepa en
+            # ~300KB (el modelo de visión no necesita calidad fotográfica plena;
+            # un payload pequeño llega antes y reduce el tiempo de procesado).
+            calidades = [calidad, 70, 58, 45]
+            nuevo_b64 = None
+            for q in calidades:
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=q, optimize=True)
+                candidato = base64.b64encode(buf.getvalue()).decode("ascii")
+                if (len(candidato) * 3 / 4) <= 300 * 1024 or q == calidades[-1]:
+                    nuevo_b64 = candidato
+                    break
+
+        # Solo usar el resultado si realmente es más pequeño que el original.
+        if nuevo_b64 and len(nuevo_b64) < len(b64_data):
+            return f"data:image/jpeg;base64,{nuevo_b64}"
+        return data_url
+    except Exception:  # noqa: BLE001 - Pillow ausente o imagen corrupta
+        return data_url
 
 
 def _limpiar_markdown_json(texto: str) -> str:
@@ -87,13 +136,17 @@ async def _request_chat(
     temperature: float = 0.1,
     max_tokens: int = 2048,
     timeout: float = 60.0,
+    modelos: list | None = None,
 ) -> str:
-    """Llama al proveedor de IA (OpenRouter) y devuelve el texto crudo.
+    """Llama al proveedor de IA y devuelve el texto crudo.
 
-    El transporte HTTP y el failover nativo de OpenRouter (provider fallback +
-    cadena de modelos models=[...]) están centralizados en
-    app.services.openrouter_service. Aquí solo se adapta el error al formato
-    (ValueError) que ya esperan los routers de la aplicación.
+    El transporte HTTP y el failover en cascada (OpenRouter con su cadena nativa
+    de modelos + proveedor alternativo OpenAI-compatible si está configurado)
+    están centralizados en app.services.openrouter_service. Aquí solo se adapta
+    el error al formato (ValueError) que ya esperan los routers de la aplicación.
+
+    modelos: (opcional) restringe la cadena 'models' de OpenRouter; las llamadas
+    con imágenes (visión) lo usan para no enviarlas a un modelo de solo texto.
     """
     try:
         return await chat_completions(
@@ -101,10 +154,11 @@ async def _request_chat(
             temperature=temperature,
             max_tokens=max_tokens,
             timeout=timeout,
+            modelos=modelos,
         )
     except OpenRouterError as exc:
         raise ValueError(
-            f"Proveedor de IA (OpenRouter) HTTP {exc.status}: {exc.mensaje}"
+            f"Proveedor de IA (HTTP {exc.status}): {exc.mensaje}"
         ) from exc
 
 
@@ -259,8 +313,9 @@ async def analizar_producto(imagenes_base64: list[str]) -> dict:
       content = [{"type": "text", "text": ...},
                  {"type": "image_url", "image_url": {"url": "data:<mime>;base64,..."}}]
     """
-    # Comprimir imágenes antes de enviar
-    imagenes_comprimidas = [_comprimir_imagen_base64(img) for img in imagenes_base64]
+    # Optimizar imágenes antes de enviar (redimensionar + re-comprimir) para que
+    # el modelo de visión las procese rápido y no se agote el tiempo en serverless.
+    imagenes_comprimidas = [_optimizar_imagen_para_ia(img) for img in imagenes_base64]
 
     # Contenido multimodal: texto + imágenes
     content_parts = [{"type": "text", "text": _construir_prompt()}]
@@ -277,7 +332,15 @@ async def analizar_producto(imagenes_base64: list[str]) -> dict:
         })
 
     messages = [{"role": "user", "content": content_parts}]
-    texto = await _request_chat(messages, temperature=0.2, max_tokens=2048, timeout=120.0)
+    # Las peticiones multimodales usan SOLO modelos con visión (configurables en
+    # OPENROUTER_VISION_MODELS) para no enviar la imagen a un modelo de solo texto.
+    texto = await _request_chat(
+        messages,
+        temperature=0.2,
+        max_tokens=2048,
+        timeout=180.0,
+        modelos=modelos_vision_configurados(),
+    )
 
     datos = _extraer_json(texto)
     campos_esperados = [
