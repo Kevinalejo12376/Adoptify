@@ -115,7 +115,10 @@ export default function Settings() {
 
   // Legal Information Modal State
   const [showLegalModal, setShowLegalModal] = useState(false);
-  const [activeLegalTab, setActiveLegalTab] = useState("privacy");
+  // Nota: la "Política de Privacidad" y los "Términos y Condiciones" ahora son
+  // páginas globales independientes (/politica-privacidad y
+  // /terminos-y-condiciones). El modal legal solo conserva Cookies.
+  const [activeLegalTab, setActiveLegalTab] = useState("cookies");
 
   const toggleNotification = (key) => {
     const next = { ...notifications, [key]: !notifications[key] };
@@ -271,30 +274,6 @@ export default function Settings() {
   };
 
   const legalContent = {
-    privacy: {
-      icon: Shield,
-      title: t("legal.privacy_policy"),
-      content: [
-        t("legal.privacy_policy_desc"),
-        "Recopilamos información como nombre, correo electrónico, dirección y datos de contacto cuando te registras en nuestra plataforma.",
-        "Tus datos personales serán utilizados únicamente para procesar solicitudes de adopción, mejorar nuestros servicios y enviar comunicaciones relevantes con tu consentimiento.",
-        "Implementamos medidas de seguridad técnicas y organizativas para proteger tu información contra accesos no autorizados, pérdida o alteración.",
-        "Puedes solicitar la modificación, eliminación o portabilidad de tus datos en cualquier momento contactándonos a través de nuestro formulario de soporte.",
-        "Para más información sobre el tratamiento de tus datos, consulta nuestra política completa de privacidad disponible en el registro."
-      ]
-    },
-    terms: {
-      icon: Scale,
-      title: t("legal.terms_of_service"),
-      content: [
-        t("legal.terms_of_service_desc"),
-        "Los usuarios deben ser mayores de 18 años o contar con autorización parental para utilizar la plataforma.",
-        "Los refugios asociados son responsables de verificar la idoneidad de los adoptantes y garantizar el bienestar de los animales.",
-        "No se permite la publicación de contenido ofensivo, discriminatorio o que promueva el maltrato animal en ninguna sección de la plataforma.",
-        "Adoptify se reserva el derecho de suspender cuentas que violen estos términos sin previo aviso.",
-        "Los precios y disponibilidad de productos en la tienda están sujetos a cambios sin previo aviso."
-      ]
-    },
     cookies: {
       icon: Cookie,
       title: t("legal.cookies_policy"),
@@ -491,8 +470,10 @@ export default function Settings() {
           </div>
 
           <div className="space-y-3">
-            <button
-              onClick={() => { setShowLegalModal(true); setActiveLegalTab("privacy"); }}
+            {/* La Política de Privacidad es una página global independiente
+                (/politica-privacidad), sin modal, accesible para todos los roles. */}
+            <Link
+              to="/politica-privacidad"
               className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-rose-50 transition-all group"
             >
               <div className="flex items-center gap-3">
@@ -500,10 +481,12 @@ export default function Settings() {
                 <span className="font-medium text-gray-900 group-hover:text-rose-600">{t("legal.privacy_policy")}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-rose-500" />
-            </button>
+            </Link>
 
-            <button
-              onClick={() => { setShowLegalModal(true); setActiveLegalTab("terms"); }}
+            {/* Los Términos y Condiciones son una página global independiente
+                (/terminos-y-condiciones), sin modal, accesible para todos los roles. */}
+            <Link
+              to="/terminos-y-condiciones"
               className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-rose-50 transition-all group"
             >
               <div className="flex items-center gap-3">
@@ -511,7 +494,7 @@ export default function Settings() {
                 <span className="font-medium text-gray-900 group-hover:text-rose-600">{t("legal.terms_of_service")}</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-rose-500" />
-            </button>
+            </Link>
 
             <button
               onClick={() => { setShowLegalModal(true); setActiveLegalTab("cookies"); }}
@@ -841,7 +824,7 @@ export default function Settings() {
 
             {/* Legal Tabs */}
             <div className="px-6 pt-4 flex gap-2 border-b border-gray-100">
-              {["privacy", "terms", "cookies"].map((tab) => {
+              {["cookies"].map((tab) => {
                 const TabIcon = legalContent[tab].icon;
                 return (
                   <button

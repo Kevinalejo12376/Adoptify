@@ -4,6 +4,7 @@ import {
   Palette, Bell, Lock, Smartphone, ChevronRight,
   Check, X, Moon, Sun, Eye, EyeOff,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 
 // Configuración de categorías
@@ -150,6 +151,7 @@ function ConfigOption({ icon: Icono, label, descripcion, onClick, badge }) {
 
 export default function AdminConfiguracion() {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const [config, setConfig] = useState({
     nombre: "Adoptify",
     descripcion: "Plataforma de adopción de mascotas",
@@ -188,10 +190,12 @@ export default function AdminConfiguracion() {
 
   const inputClass = "w-full px-4 py-2.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all text-gray-900 dark:text-dark-text placeholder-gray-400";
 
+  // La "Política de Privacidad" corresponde a una página global independiente
+  // (/politica-privacidad) reutilizada por todos los roles.
   const legalDocs = [
-    { icono: Shield, titulo: "Política de Privacidad", descripcion: "Documento de privacidad y tratamiento de datos", color: "text-blue-500" },
-    { icono: FileText, titulo: "Términos y Condiciones", descripcion: "Términos de uso de la plataforma", color: "text-violet-500" },
-    { icono: FileText, titulo: "Política de Cookies", descripcion: "Uso de cookies y tecnologías similares", color: "text-amber-500" },
+    { icono: Shield, titulo: "Política de Privacidad", descripcion: "Documento de privacidad y tratamiento de datos", color: "text-blue-500", url: "/politica-privacidad", badge: "Ver" },
+    { icono: FileText, titulo: "Términos y Condiciones", descripcion: "Términos de uso de la plataforma", color: "text-violet-500", url: "/terminos-y-condiciones", badge: "Ver" },
+    { icono: FileText, titulo: "Política de Cookies", descripcion: "Uso de cookies y tecnologías similares", color: "text-amber-500", badge: "PDF" },
   ];
 
   const categoria = CATEGORIAS.find((c) => c.id === categoriaActiva);
@@ -519,8 +523,12 @@ export default function AdminConfiguracion() {
                       icon={doc.icono}
                       label={doc.titulo}
                       descripcion={doc.descripcion}
-                      badge="PDF"
-                      onClick={() => {}}
+                      badge={doc.badge}
+                      onClick={() => {
+                        // Los documentos con ruta propia (p. ej. Política de
+                        // Privacidad) navegan a su página global en la SPA.
+                        if (doc.url) navigate(doc.url);
+                      }}
                     />
                   ))}
                 </div>
