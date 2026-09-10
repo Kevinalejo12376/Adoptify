@@ -281,10 +281,13 @@ export default function ProductProfile() {
   // Se reutiliza la tarjeta existente de "Ver tienda": "Vendido por: [nombre]"
   // enlaza al perfil real de la Tienda Aliada (/store-profile/:id) o al perfil
   // real del Refugio (/shelter/:id).
+  // Un id solo es válido si es un número/valor real (no "", "undefined", "null").
+  const idValido = (v) =>
+    v != null && String(v).trim() !== "" && !["undefined", "null", "NaN"].includes(String(v).trim());
   const sellerInfo =
-    product.storeId && product.storeName
+    idValido(product.storeId) && product.storeName
       ? { type: "store" }
-      : product.shelterId && product.shelterName
+      : idValido(product.shelterId) && product.shelterName
       ? { type: "shelter" }
       : { type: null };
   const productShelter =

@@ -73,12 +73,17 @@ export function mapComentario(c, currentUserId) {
 // - Tienda  → /store-profile/:tiendaId ("Ver perfil de la tienda")
 // - Usuario → /profile SOLO si es el autor actual (no existe perfil público
 //   de otro usuario); en cualquier otro caso devuelve null (se oculta).
+// Un id solo es válido si es un valor real (no "", "undefined", "null", "NaN");
+// evita enlaces rotos como /store-profile/undefined.
+const idValido = (v) =>
+  v != null && String(v).trim() !== "" && !["undefined", "null", "NaN"].includes(String(v).trim());
+
 export function enlacePerfilAutor(post, currentUserId) {
   if (!post) return null;
-  if (post.accountType === "shelter" && post.refugioId != null) {
+  if (post.accountType === "shelter" && idValido(post.refugioId)) {
     return { to: `/shelter/${post.refugioId}`, label: "Ver refugio", type: "shelter" };
   }
-  if (post.accountType === "store" && post.tiendaId != null) {
+  if (post.accountType === "store" && idValido(post.tiendaId)) {
     return { to: `/store-profile/${post.tiendaId}`, label: "Ver perfil de la tienda", type: "store" };
   }
   if (post.accountType === "user") {
