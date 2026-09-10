@@ -343,15 +343,16 @@ async def chat_completions(
             "Las claves deben estar SOLO en el backend, nunca en el frontend."
         )
 
-    # Fallos "transitorios" que merecen UN reintento con backoff corto: los
-    # modelos gratuitos (:free) de OpenRouter devuelven 429 con frecuencia por
-    # saturación momentánea (verificado 2026-09: gemma-4-31b-it:free -> 429).
-    # Un solo reintento (máx 2 pasadas) sortea esa saturación sin multiplicar
-    # peticiones de forma agresiva. Los 4xx permanentes (400/401/403/404) no se
-    # reintentan porque no van a mejorar.
+    # Fallos "transitorios" que merecen reintento con backoff: los modelos
+    # gratuitos (:free) de OpenRouter devuelven con frecuencia 429 o incluso un
+    # 200 SIN 'choices' (error del proveedor) por saturación momentánea
+    # (verificado 2026-09). Varias pasadas con backoff creciente sortean esos
+    # fallos sin multiplicar peticiones de forma agresiva. Los 4xx permanentes
+    # (400/401/403/404) no se reintentan porque no van a mejorar.
     reintentables = {0, 408, 429, 500, 502, 503, 504}
+    MAX_PASADAS = 4
     errores_totales: list = []  # (etiqueta, OpenRouterError)
-    for pasada in range(1, 3):
+    for pasada in range(1, MAX_PASADAS + 1):
         errores: list = []  # (etiqueta, OpenRouterError)
         for prov in proveedores:
             try:
@@ -381,12 +382,16 @@ async def chat_completions(
 
         # Reintentar SOLO si TODOS fallaron por causas transitorias y queda pasada.
         ultimo = errores[0][1] if errores else None
-        if pasada == 1 and ultimo and ultimo.status in reintentables:
+        if pasada < MAX_PASADAS and ultimo and ultimo.status in reintentables:
+            espera = 2 * pasada
             logger.info(
-                "[ia] Todos los proveedores fallaron (HTTP %s). Reintentando en 3s...",
+                "[ia] Fallo transitorio (HTTP %s). Reintento %s/%s en %ss...",
                 ultimo.status,
+                pasada + 1,
+                MAX_PASADAS,
+                espera,
             )
-            await asyncio.sleep(3)
+            await asyncio.sleep(espera)
             continue
         break
 

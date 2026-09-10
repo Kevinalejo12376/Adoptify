@@ -1138,6 +1138,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Diagnóstico: registra en backend/_errores_backend.log cualquier error 5xx no
+# controlado (con su traceback) para poder depurarlo con facilidad.
+@app.middleware("http")
+async def _log_errores_5xx(request: Request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception:
+        try:
+            import traceback
+            from pathlib import Path
+
+            log_path = Path(__file__).resolve().parents[1] / "_errores_backend.log"
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write(f"\n=== {request.method} {request.url} ===\n")
+                fh.write(traceback.format_exc())
+        except Exception:  # noqa: BLE001 - el log nunca debe romper la petición
+            pass
+        raise
+    if response.status_code >= 500:
+        try:
+            from pathlib import Path
+
+            log_path = Path(__file__).resolve().parents[1] / "_errores_backend.log"
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write(f"\n=== {request.method} {request.url} -> {response.status_code} ===\n")
+        except Exception:  # noqa: BLE001
+            pass
+    return response
+
+
 # Routers (endpoints)
 app.include_router(catalogos.router, prefix="/api/catalogos", tags=["Catalogos"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Autenticacion"])

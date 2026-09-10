@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import BackButton from "../../components/BackButton";
-import { formatPrice } from "../../utils/price";
+import { formatPrice, precioConDescuento, parsePrecio } from "../../utils/price";
 import {
   ArrowLeft,
   Store,
@@ -210,6 +210,10 @@ export default function StoreProfile() {
   const [store, setStore] = useState(null);
   const [storeProducts, setStoreProducts] = useState([]);
   const [loadingStore, setLoadingStore] = useState(true);
+  // "not_found" = la tienda no existe (404); "server" = error interno/red (no
+  // hay que confundirlo con "no existe", ayuda a diagnosticar).
+  const [storeError, setStoreError] = useState(null);
+  const [storeErrStatus, setStoreErrStatus] = useState(null);
   const { addToCart } = useCart();
 
   // Carga la tienda real desde la base de datos (datos, galería de imágenes y
@@ -218,6 +222,22 @@ export default function StoreProfile() {
   useEffect(() => {
     let activo = true;
     setLoadingStore(true);
+    setStoreError(null);
+    setStoreErrStatus(null);
+    // Valida el id ANTES de llamar al backend: evita peticiones a
+    // /api/publico/tiendas/undefined y errores confusos.
+    const idValido =
+      storeId &&
+      storeId !== "undefined" &&
+      storeId !== "null" &&
+      !Number.isNaN(Number(storeId));
+    if (!idValido) {
+      setStore(null);
+      setStoreError("not_found");
+      setLoadingStore(false);
+      console.error("[StoreProfile] id de tienda inválido en la URL:", storeId);
+      return () => { activo = false; };
+    }
     (async () => {
       try {
         const data = await obtenerTiendaPublica(storeId);
@@ -226,9 +246,16 @@ export default function StoreProfile() {
           const mapeada = mapTiendaPublica(data);
           setStore(mapeada);
           setStoreProducts(mapeada.productos);
+          setStoreError(null);
         }
-      } catch {
-        // tienda inexistente/inactiva → se mantiene store=null → "no encontrada"
+      } catch (err) {
+        if (!activo) return;
+        // 404 → no existe; cualquier otro error (500/422/red) no debe
+        // confundirse con "tienda no existe".
+        setStoreError(err && err.status === 404 ? "not_found" : "server");
+        setStoreErrStatus(err && err.status != null ? err.status : null);
+        // Log de diagnóstico (visible en la consola del navegador).
+        console.error("[StoreProfile] Error cargando tienda", storeId, "(HTTP", err && err.status, ")", err);
       } finally {
         if (activo) setLoadingStore(false);
       }
@@ -335,10 +362,12 @@ export default function StoreProfile() {
             </div>
           </div>
           <h1 className="text-4xl font-bold text-gray-900 dark:text-dark-text mb-3 font-display">
-            Tienda no encontrada
+            {storeError === "server" ? "No se pudo cargar la tienda" : "Tienda no encontrada"}
           </h1>
           <p className="text-gray-500 dark:text-dark-text-secondary mb-10 max-w-sm mx-auto leading-relaxed">
-            La tienda que buscas no existe o no está disponible actualmente.
+            {storeError === "server"
+              ? `No se pudo cargar la tienda (id: ${storeId}${storeErrStatus ? `, HTTP ${storeErrStatus}` : ""}). Intenta de nuevo en unos segundos.`
+              : "La tienda que buscas no existe o no está disponible actualmente."}
           </p>
           <Link
             to="/store"

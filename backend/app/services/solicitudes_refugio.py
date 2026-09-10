@@ -250,9 +250,35 @@ def serialize_solicitud(s: SolicitudRefugio, db: Session, incluir_detalle: bool 
 CATEGORIAS_VISUALES_REFUGIO = ("fachada", "fotografias", "instalaciones", "animales")
 
 
+def _asset_cloudinary_existe(public_id: str) -> bool | None:
+    """Comprueba si un asset existe en Cloudinary.
+
+    Devuelve True si existe, False si Cloudinary responde "not found" (404) y
+    None si no se pudo determinar (error de red/credenciales). En el caso None
+    el llamador debe CONSERVAR la imagen (fail-open) para no perder fotos
+    válidas por un fallo transitorio.
+    """
+    if not public_id:
+        return None
+    try:
+        import cloudinary.api
+
+        cloudinary.api.resource(public_id)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc).lower()
+        if "not found" in msg or "404" in msg:
+            return False
+        return None
+
+
 def _copiar_imagenes_solicitud_a_galeria(db: Session, solicitud_id: int, refugio_id: int) -> None:
     """Copia las fotografías visuales de una solicitud aprobada a la galería
-    (RefugioImagen) del refugio creado. La primera se marca como portada."""
+    (RefugioImagen) del refugio creado. La primera se marca como portada.
+
+    Solo se copian imágenes cuyo asset SIGA EXISTIENDO en Cloudinary: así el
+    perfil público no queda con fotos rotas (404) cuando un asset fue eliminado.
+    """
     docs = (
         db.query(SolicitudRefugioDocumento)
         .filter(
@@ -262,13 +288,25 @@ def _copiar_imagenes_solicitud_a_galeria(db: Session, solicitud_id: int, refugio
         .order_by(SolicitudRefugioDocumento.id.asc())
         .all()
     )
-    for idx, doc in enumerate(docs):
+    orden = 0
+    for doc in docs:
+        # Verifica existencia; si Cloudinary confirma que no existe (404), se
+        # omite para no dejar la galería pública con imágenes rotas.
+        if doc.public_id and _asset_cloudinary_existe(doc.public_id) is False:
+            logger.warning(
+                "[solicitudes_refugio] Documento '%s' no existe en Cloudinary; "
+                "se omite de la galería del refugio %s.",
+                doc.public_id,
+                refugio_id,
+            )
+            continue
         db.add(RefugioImagen(
             refugio_id=refugio_id,
             url=doc.url,
-            es_portada=(idx == 0),
-            orden=idx,
+            es_portada=(orden == 0),
+            orden=orden,
         ))
+        orden += 1
 
 
 def aprobar_solicitud(db: Session, solicitud: SolicitudRefugio, admin: Usuario) -> dict:

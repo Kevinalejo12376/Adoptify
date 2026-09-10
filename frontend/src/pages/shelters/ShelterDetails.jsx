@@ -32,6 +32,23 @@ const categoryColors = {
   Higiene: "from-rose-500 to-pink-500",
 };
 
+/**
+ * Imagen con fallback: si la URL falla al cargar (404 / asset eliminado de
+ * Cloudinary), muestra un placeholder en lugar de dejar un hueco en blanco o el
+ * icono de "imagen rota". Evita que el perfil se vea vacío/roto.
+ */
+function ImagenSegura({ src, alt, className = "", icono = "w-6 h-6" }) {
+  const [error, setError] = useState(false);
+  if (!src || error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-100 to-amber-100">
+        <PawPrint className={`${icono} text-rose-300`} />
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className={className} onError={() => setError(true)} />;
+}
+
 export default function ShelterDetails() {
   const { id } = useParams();
   const { isShelterFavorite, toggleShelterFavorite } = useFavorites();
@@ -236,16 +253,12 @@ export default function ShelterDetails() {
             <div className="flex items-start gap-6 flex-1">
               {/* Logo */}
               <div className="w-24 h-24 bg-gradient-to-br from-rose-100 to-amber-100 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-105 hover:shadow-lg">
-                {shelter.logo ? (
-                  <img
-                    src={shelter.logo}
-                    alt={shelter.name}
-                    className="w-full h-full object-cover rounded-2xl"
-                    onError={(e) => { e.currentTarget.style.display = "none"; }}
-                  />
-                ) : (
-                  <PawPrint className="w-12 h-12 text-rose-400" />
-                )}
+                <ImagenSegura
+                  src={shelter.logo}
+                  alt={shelter.name}
+                  className="w-full h-full object-cover rounded-2xl"
+                  icono="w-12 h-12"
+                />
               </div>
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -610,18 +623,12 @@ export default function ShelterDetails() {
                     }}
                     className="aspect-square bg-gradient-to-br from-rose-100 to-amber-100 rounded-lg overflow-hidden group cursor-pointer relative hover:shadow-md transition-all duration-300"
                   >
-                    {photo.image ? (
-                      <img
-                        src={photo.image}
-                        alt={`Foto ${photo.id}`}
-                        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
-                        onError={(e) => { e.currentTarget.style.display = "none"; }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center transition-all duration-300 group-hover:bg-rose-200">
-                        <PawPrint className="w-5 h-5 text-rose-300 group-hover:text-rose-500 group-hover:scale-125 transition-all duration-300" />
-                      </div>
-                    )}
+                    <ImagenSegura
+                      src={photo.image}
+                      alt={`Foto ${photo.id}`}
+                      className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                      icono="w-5 h-5"
+                    />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
                       <span className="text-white opacity-0 group-hover:opacity-100 transition-all duration-300 text-[10px] font-medium bg-black/40 px-1.5 py-0.5 rounded-full">
                         Ver
@@ -859,18 +866,12 @@ export default function ShelterDetails() {
 
             {/* Image */}
             <div className="w-full h-96 sm:h-[500px] bg-gradient-to-br from-rose-100 to-amber-100 flex items-center justify-center relative">
-              {selectedPhoto.image ? (
-                <img
-                  src={selectedPhoto.image}
-                  alt={`Foto ${selectedPhoto.id}`}
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <div className="text-center">
-                  <PawPrint className="w-24 h-24 text-rose-300 mx-auto mb-4" />
-                  <p className="text-gray-500 font-medium">Foto {selectedPhoto.id}</p>
-                </div>
-              )}
+              <ImagenSegura
+                src={selectedPhoto.image}
+                alt={`Foto ${selectedPhoto.id}`}
+                className="w-full h-full object-contain"
+                icono="w-24 h-24"
+              />
             </div>
 
             {/* Thumbnails bar */}
